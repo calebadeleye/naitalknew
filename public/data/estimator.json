@@ -1,0 +1,110 @@
+{
+  "industries": {
+    "Fintech": { 
+      "multiplier": 1.2, 
+      "deliverables": ["Secure Ledger Architecture", "PCI-DSS Compliance Audit", "High-Availability API Layer", "Real-time Monitoring Dashboard"],
+      "insight": "Security is the product. Every millisecond of latency is a cost center."
+    },
+    "Healthcare": { 
+      "multiplier": 1.3, 
+      "deliverables": ["HIPAA-Compliant Data Storage", "Patient Management Interface", "Interoperability Layer (HL7/FHIR)", "End-to-End Encryption"],
+      "insight": "Data privacy isn't just a requirement; it's the foundation of patient trust."
+    },
+    "E-commerce": { 
+      "multiplier": 1.0, 
+      "deliverables": ["Hyper-Fast Product Catalog", "Secure Checkout Integration", "Inventory Management System", "Customer Loyalty Engine"],
+      "insight": "Conversion lives and dies by mobile performance and checkout simplicity."
+    },
+    "Cybersecurity": { 
+      "multiplier": 1.4, 
+      "deliverables": ["Intrusion Detection System", "Advanced Threat Protection", "Isolated Network Architecture", "Automated Incident Response"],
+      "insight": "Assume breach. Engineer for containment and rapid recovery."
+    },
+    "Logistics": { 
+      "multiplier": 1.1, 
+      "deliverables": ["Real-time Tracking Engine", "Optimized Routing Algorithms", "Multi-platform Driver App", "Warehouse API Integrations"],
+      "insight": "Visibility is the currency of the supply chain."
+    },
+    "Agriculture": { 
+      "multiplier": 1.1, 
+      "deliverables": ["IoT Sensor Network Setup", "Yield Prediction Model", "Remote Monitoring Portal", "Automated Resource Management"],
+      "insight": "Data-driven farming minimizes waste and maximizes consistent output."
+    },
+    "Advertising Media": { 
+      "multiplier": 1.0, 
+      "deliverables": ["High-Bandwidth Asset Hosting", "Ad Performance Analytics", "Campaign Management Portal", "Dynamic Content Injection"],
+      "insight": "Attention is the finite resource. Speed ensures your message is heard."
+    }
+  },
+  "goals": {
+    "Automation": { 
+      "baseWeeks": 6, 
+      "steps": ["Data assessment", "Model training", "Workflow integration", "Testing"],
+      "deliverables": ["Automated Process Map", "Custom AI/ML Model", "Integration API Hooks", "Operational Training Guide"],
+      "insight": "Automation isn't about replacing people; it's about amplifying their output by removing the friction of repetitive tasks."
+    },
+    "Scalability": { 
+      "baseWeeks": 8, 
+      "steps": ["Architecture review", "Load testing", "Infrastructure as Code", "CDN deployment"],
+      "deliverables": ["Elastic Infrastructure Blueprint", "Autoscaling Group Setup", "Database Optimization Audit", "Content Delivery Strategy"],
+      "insight": "Scalability is the ability to handle growth without losing performance. It's about building a foundation that thrives under pressure."
+    },
+    "Security Hardening": { 
+      "baseWeeks": 5, 
+      "steps": ["Threat modeling", "Security audit", "Hardening protocols", "Access control"],
+      "deliverables": ["Zero-Trust Network Protocol", "Hardened Server Configuration", "Biometric/MFA Access Control", "Encrypted Data Pipelines"],
+      "insight": "Security is not a feature; it is a posture. Hardening your systems is about reducing the attack surface to the absolute minimum while maintaining operational agility."
+    },
+    "Modernization": { 
+      "baseWeeks": 10, 
+      "steps": ["Audit legacy code", "Refactoring", "Containerization", "Phased rollout"],
+      "deliverables": ["Legacy System Audit", "Containerized Architecture", "Refactored Microservices", "Zero-Downtime Migration Plan"],
+      "insight": "Modernization is the ultimate competitive advantage. It turns your legacy weight into a launchpad for modern digital innovation."
+    },
+    "Webhosting & SSL": { 
+      "baseWeeks": 0.28, 
+      "steps": ["Domain configuration", "SSL provisioning", "Server setup", "Monitoring"],
+      "deliverables": ["High-Performance Cloud Infrastructure", "End-to-End Encryption (SSL/TLS)", "Global Edge CDN Setup", "24/7 Server Health Monitoring"],
+      "insight": "Your hosting architecture is the silent engine of your business. Precision server setup and SSL aren't just technicalities—they're the foundation of user trust and SEO performance."
+    },
+    "Maintenance": { 
+      "baseWeeks": 2, 
+      "steps": ["Bug fixes", "Dependency updates", "Performance tuning", "Weekly reports"],
+      "deliverables": ["Ongoing Security Patches", "Performance Optimization Logs", "System Health Reports", "24/7 Uptime Monitoring"],
+      "insight": "Software is a living organism. Consistent maintenance prevents the technical debt that cripples industry leaders."
+    },
+    "Debugging": { 
+      "baseWeeks": 2, 
+      "steps": ["Code profiling", "Root cause analysis", "Fix implementation", "Regression testing"],
+      "deliverables": ["Comprehensive Bug Report", "Root Cause Analysis", "Verified Code Patch", "New Regression Test Suite"],
+      "insight": "A bug is a feedback loop. Debugging isn't just fixing a symptom; it's about identifying structural weaknesses and making them resilient."
+    },
+    "Web/Software Development": { 
+      "baseWeeks": 12, 
+      "steps": ["Requirement analysis", "UI/UX Design", "Core development", "Beta testing", "Final deployment"],
+      "deliverables": ["Production-Ready Source Code", "UI/UX High-Fidelity Mockups", "Quality Assurance Documentation", "Deployment Strategy Guide"],
+      "insight": "Development is the translation of vision into logic. We don't just write code; we build scalable digital solutions that solve real-world problems."
+    }
+  },
+  "severityTriggers": {
+    "keywordWeights": {
+      "security": 2,
+      "enterprise": 3,
+      "migration": 4,
+      "real-time": 2,
+      "global": 3,
+      "bank": 5,
+      "high-performance": 3,
+      "legacy": 4,
+      "complex": 3
+    },
+    "maxDurationWeeks": 16
+  },
+  "strategicAdvice": [
+    "Prioritize core functionality before scaling out edge cases.",
+    "Invest in automated testing early to prevent regressions in high-stakes industries.",
+    "Implement zero-trust security architecture for optimal protection.",
+    "Focus on data integrity and observability as the project grows.",
+    "Ensure your infrastructure is built for horizontal scalability from day one."
+  ]
+}

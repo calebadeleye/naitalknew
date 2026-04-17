@@ -1,0 +1,104 @@
+{
+  "projects": [
+    {
+      "category": "Web Development,Web hosting",
+      "title": "Ikeestores E-commerce Platform",
+      "img": "/data/ikeestores.png",
+      "details": {
+        "challenge": "Ikeestores needed a scalable online store that could showcase products efficiently, manage inventory seamlessly, and provide customers with a smooth shopping experience across devices.",
+        "solution": "We developed a responsive e-commerce platform with optimized product catalog management, secure checkout flow, mobile-friendly design, and reliable cloud hosting for uninterrupted performance.",
+        "roi": "Increased online sales conversions by 55%, reduced cart abandonment, and enabled 24/7 nationwide customer access."
+      }
+    },
+    {
+      "category": "Web Development, Payment Integration,Web hosting",
+      "title": "HRGems Coach Event Management System",
+      "img": "/data/hrgems.png",
+      "details": {
+        "challenge": "HRGems required a centralized platform to manage event registrations, attendee payments, scheduling, and participant communication without manual bottlenecks.",
+        "solution": "We built an automated event management system with online registration, integrated payment processing, ticket tracking, and real-time attendee management dashboard.",
+        "roi": "Reduced administrative workload by 70% and improved registration efficiency, resulting in faster event onboarding and higher attendee satisfaction."
+      }
+    },
+    {
+      "category": "Web Consulting, Payment Integration,Web hosting",
+      "title": "Naipay Payment Integration for E-commerce",
+      "img": "/data/skinologist.png",
+      "details": {
+        "challenge": "The client needed a secure and seamless payment gateway integration that could support fast online transactions while minimizing failed payments.",
+        "solution": "We implemented Naipay payment integration with secure API connections, transaction validation, instant payment confirmation, and optimized checkout experience.",
+        "roi": "Improved successful transaction completion rate by 45% and accelerated payment processing speed significantly."
+      }
+    },
+    {
+      "category": "Web Consulting, Web Development, Payment Integration,Web hosting",
+      "title": "NGO website and donation platform",
+      "img": "/data/thrive.png",
+      "details": {
+        "challenge": "The NGO needed a trustworthy online presence to attract donors, communicate impact stories, and simplify donation collection globally.",
+        "solution": "We created a modern NGO website with secure donation gateway integration, campaign storytelling pages, recurring donation options, and donor tracking tools.",
+        "roi": "Boosted online donations by 60% and expanded donor reach beyond local communities."
+      }
+    },
+    {
+      "category": "Web Development, Payment Integration,Web hosting",
+      "title": "NGO website and donation platform",
+      "img": "/data/eukalpton.png",
+      "details": {
+        "challenge": "The organization lacked an effective digital fundraising system and needed a platform to streamline donor engagement and online giving.",
+        "solution": "We delivered a donation-enabled website with campaign landing pages, transparent reporting features, and secure payment processing integration.",
+        "roi": "Increased fundraising campaign participation by 50% and improved donor retention rates."
+      }
+    },
+    {
+      "category": "Web Development, Payment Integration,Web hosting",
+      "title": "Conference Management System for Academic Institutions",
+      "img": "/data/scholarjoint.png",
+      "details": {
+        "challenge": "Academic institutions needed an efficient way to manage conference submissions, registrations, speaker coordination, and fee payments.",
+        "solution": "We built a conference management platform featuring abstract submission workflows, attendee registration modules, automated notifications, and payment integration.",
+        "roi": "Cut event coordination time by 65% and improved conference registration accuracy significantly."
+      }
+    },
+    {
+      "category": "Web Development,Web hosting,Radio Streaming",
+      "title": "Online Radio Streaming Platform",
+      "img": "/data/rhm.png",
+      "details": {
+        "challenge": "The radio station needed a stable digital streaming solution to reach listeners globally without interruptions or poor audio quality.",
+        "solution": "We developed a high-availability radio streaming platform with live broadcast support, mobile compatibility, and scalable hosting infrastructure.",
+        "roi": "Expanded listenership by 300% and enabled uninterrupted streaming for global audiences."
+      }
+    },
+    {
+      "category": "Web Development,Web hosting",
+      "title": "Skinologist Dermatology Clinic Website",
+      "img": "/data/lilian.png",
+      "details": {
+        "challenge": "The clinic needed a professional online presence to attract patients, showcase services, and simplify appointment scheduling.",
+        "solution": "We designed a modern healthcare website with service pages, appointment booking forms, patient inquiry tools, and secure hosting.",
+        "roi": "Increased patient appointment bookings by 40% and strengthened brand credibility online."
+      }
+    },
+    {
+      "category": "Web Consulting,Radio Streaming",
+      "title": "Online Radio Streaming Platform",
+      "img": "/data/tyf.png",
+      "details": {
+        "challenge": "The broadcaster required expert consulting to optimize digital radio delivery and improve listener streaming reliability.",
+        "solution": "We provided streaming architecture consulting, platform optimization, and deployment support for stable and scalable radio broadcasting.",
+        "roi": "Reduced streaming downtime by 80% and improved audience retention across peak listening hours."
+      }
+    },
+    {
+      "category": "Web Development,AI Integration",
+      "title": "Advanced AI-Powered Calling for Customer Support",
+      "img": "/data/momentum.png",
+      "details": {
+        "challenge": "Momentum Media needed to reduce customer support response delays while handling large call volumes efficiently.",
+        "solution": "We developed an AI-powered voice calling system capable of automated customer interactions, intelligent query routing, and real-time support escalation.",
+        "roi": "Reduced support response time by 65% and lowered operational call center costs substantially."
+      }
+    }
+  ]
+}

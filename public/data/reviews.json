@@ -1,0 +1,32 @@
+{
+  "reviews": [
+    {
+      "author_name": "Tem's Creche",
+      "rating": 5,
+      "text": "This was a top notch experience for the project the organization handled for me and my team, thank you for your service of love, we are very happy to do more business with you as I commend your dedication towards time frame delivery of set goals. Thank you 😊 🙏 💓",
+      "profile_photo_url": "https://ui-avatars.com/api/?name=Tem's Creche&background=random",
+      "relative_time_description": "9 hours ago"
+    },
+    {
+      "author_name": "Samuel Adeyemo",
+      "rating": 5,
+      "text": "The AI integration provided by NAITALK has doubled our operational efficiency. Their predictive analytics models are scarily accurate. Highly recommended for any scaling enterprise.",
+     "profile_photo_url": "https://ui-avatars.com/api/?name=Samuel Adeyemo&background=random",
+      "relative_time_description": "1 month ago"
+    },
+    {
+      "author_name": "Anthony Eghosa Ewone",
+      "rating": 5,
+      "text": "Excellent service delivery.",
+      "profile_photo_url": "https://ui-avatars.com/api/?name=Anthony Eghosa Ewone&background=random",
+      "relative_time_description": "16 Mar 2022"
+    },
+    {
+      "author_name": "Elena Vance",
+      "rating": 5,
+      "text": "Incredible attention to detail. The Naipay integration was seamless and has significantly improved our checkout conversion rates. Best tech partner in Lagos.",
+      "profile_photo_url": "https://ui-avatars.com/api/?name=Elena Vance&background=random",
+      "relative_time_description": "1 week ago"
+    }
+  ]
+}
