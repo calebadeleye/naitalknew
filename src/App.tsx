@@ -1345,8 +1345,10 @@ const IntelligenceFeed = ({ lang }: { lang: string }) => {
     const fetchNews = async () => {
       try {
         const response = await fetch("/api/news");
+        if (!response.ok) throw new Error("API response not ok");
+        
         const data = await response.json();
-        if (data.articles && data.articles.length > 0) {
+        if (data && data.articles && data.articles.length > 0) {
           // Always take exactly 3 articles
           const topThree = data.articles.slice(0, 3);
           setArticles(topThree.map((a: any) => ({
@@ -1441,6 +1443,32 @@ const IntelligenceFeed = ({ lang }: { lang: string }) => {
   );
 };
 
+const UserAvatar = ({ src, name }: { src: string; name: string }) => {
+  const [error, setError] = useState(false);
+  const initials = name
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+
+  return (
+    <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary font-bold overflow-hidden">
+      {!error && src ? (
+        <img
+          className="w-full h-full object-cover"
+          src={src}
+          referrerPolicy="no-referrer"
+          alt={name}
+          onError={() => setError(true)}
+        />
+      ) : (
+        <span className="text-xl">{initials}</span>
+      )}
+    </div>
+  );
+};
+
 const Testimonials = ({ lang }: { lang: string }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [reviews, setReviews] = useState<any[]>([]);
@@ -1450,8 +1478,10 @@ const Testimonials = ({ lang }: { lang: string }) => {
     const fetchReviews = async () => {
       try {
         const response = await fetch("/api/reviews");
+        if (!response.ok) throw new Error("API response not ok");
+        
         const data = await response.json();
-        if (data.reviews && data.reviews.length > 0) {
+        if (data && data.reviews && data.reviews.length > 0) {
           setReviews(data.reviews.map((r: any) => ({
             text: r.text,
             author: r.author_name,
@@ -1515,11 +1545,9 @@ const Testimonials = ({ lang }: { lang: string }) => {
                 </p>
                 <div className="flex items-center gap-6">
                   <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-primary">
-                    <img 
-                      className="w-full h-full object-cover" 
-                      src={reviews[currentIndex].img}
-                      referrerPolicy="no-referrer"
-                      alt={reviews[currentIndex].author}
+                    <UserAvatar 
+                      src={reviews[currentIndex].img} 
+                      name={reviews[currentIndex].author} 
                     />
                   </div>
                   <div>

@@ -3,15 +3,16 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import fs from "fs";
 import nodemailer from "nodemailer";
+import axios from "axios";
 import dotenv from "dotenv";
 
 dotenv.config();
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT || 3000;
 
-  console.log(`Starting server in ${process.env.NODE_ENV || 'development'} mode`);
+  console.log(`Starting server in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
 
   app.use(express.json());
 
@@ -24,25 +25,23 @@ async function startServer() {
     }
 
     try {
-      // Configure SMTP transporter
       const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST || "sandbox.smtp.mailtrap.io",
-        port: Number(process.env.SMTP_PORT) || 2525,
+        host: process.env.SMTP_HOST,
+        port: Number(process.env.SMTP_PORT),
         secure: process.env.SMTP_SECURE === "true",
         auth: {
-          user: process.env.SMTP_USER || "b3940928804095",
-          pass: process.env.SMTP_PASS || "1097c500947c8b",
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS,
         },
         tls: {
           rejectUnauthorized: false
         }
       });
 
-      // Verify connection
       await transporter.verify();
 
       const mailOptions = {
-        from: `"NAITALK Contact" <${process.env.SMTP_USER || "b3940928804095@mailtrap.io"}>`,
+        from: `"NAITALK Contact" <${process.env.SMTP_USER}>`,
         to: "info@naitalk.com",
         replyTo: email,
         subject: `New Contact Form Submission: ${service}`,
@@ -65,7 +64,7 @@ async function startServer() {
     }
   });
 
-  // API Route for Google Reviews (Simplified - Local fallback only)
+  // API Route for Reviews (Local JSON datasource)
   app.get("/api/reviews", (req, res) => {
     const localReviewsPath = path.join(process.cwd(), "public", "data", "reviews.json");
 
@@ -75,10 +74,11 @@ async function startServer() {
         return res.json(data);
       } catch (e) {
         console.error("Error reading local reviews:", e);
+        return res.status(500).json({ error: "Internal server error" });
       }
     }
 
-    // Default fallback
+    // Default fallback if file is missing
     res.json({ 
       reviews: [
         {
@@ -91,40 +91,28 @@ async function startServer() {
     });
   });
 
-  // API Route for Tech News (Simplified - Local only)
-  app.get("/api/news", (req, res) => {
-    res.json({
-      articles: [
-        {
-          title: "The Future of Quantum Computing in Enterprise",
-          description: "How quantum algorithms are revolutionizing supply chain optimization and cryptography.",
-          url: "#",
-          urlToImage: "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&q=80&w=800",
-          publishedAt: new Date().toISOString(),
-          source: { name: "Tech Frontier" }
-        },
-        {
-          title: "AI-Driven Cybersecurity: A New Paradigm",
-          description: "Autonomous threat detection systems are now capable of neutralizing zero-day exploits in milliseconds.",
-          url: "#",
-          urlToImage: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&q=80&w=800",
-          publishedAt: new Date().toISOString(),
-          source: { name: "Cyber Intelligence" }
-        },
-        {
-          title: "Scalable Microservices with Rust and Go",
-          description: "Why leading fintech firms are migrating their core infrastructure to memory-safe languages.",
-          url: "#",
-          urlToImage: "https://images.unsplash.com/photo-1558494949-ef010cbdcc51?auto=format&fit=crop&q=80&w=800",
-          publishedAt: new Date().toISOString(),
-          source: { name: "Engineering Weekly" }
-        }
-      ]
-    });
+  // API Route for Tech News (Live from NewsAPI.org)
+  app.get("/api/news", async (req, res) => {
+    const apiKey = process.env.NEWS_API_KEY;
+
+    if (!apiKey) {
+      return res.json({ articles: [] });
+    }
+
+    try {
+      const response = await axios.get(
+        `https://newsapi.org/v2/everything?q=software%20engineering%20AI%20innovation&sortBy=publishedAt&pageSize=10&language=en&apiKey=${apiKey}`
+      );
+      res.json({ articles: response.data.articles || [] });
+    } catch (error) {
+      console.error("NewsAPI error:", error);
+      res.status(500).json({ error: "Failed to fetch news" });
+    }
   });
 
-  // Vite middleware for development
-  const isProduction = process.env.NODE_ENV === "production" && fs.existsSync(path.join(process.cwd(), "dist"));
+  // Vite / Static Serving logic
+  const isProduction = process.env.NODE_ENV === "production";
+  const distPath = path.join(process.cwd(), "dist");
   
   if (!isProduction) {
     const vite = await createViteServer({
@@ -149,7 +137,6 @@ async function startServer() {
       }
     });
   } else {
-    const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
