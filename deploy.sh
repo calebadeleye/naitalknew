@@ -15,18 +15,17 @@ npm run build
 # -----------------------------
 # ✅ Check build exists
 # -----------------------------
-if [ ! -f "$STAGE_DIR/dist/server.js" ]; then
-    echo "❌ Backend build failed: server.js not found"
-    ls -la "$STAGE_DIR/dist"
+if [ ! -d "dist" ]; then
+    echo "❌ Build failed: dist folder not found"
     exit 1
 fi
 
+# -----------------------------
+# ✅ Serve static build with PM2
+# -----------------------------
 pm2 delete naitalk 2>/dev/null || true
 
-pm2 start "$STAGE_DIR/dist/server.js" \
-  --name naitalk \
-  --cwd "$STAGE_DIR" \
-  --env production
+pm2 serve dist 3000 --name naitalk --spa
 
 pm2 save
 pm2 status

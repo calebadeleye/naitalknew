@@ -652,11 +652,11 @@ const Hero = ({ lang, config }: { lang: string, config: any }) => {
         {/* Middle Section: THE MASSIVE TEXT (The bold centerpiece) */}
         <div className="relative overflow-hidden select-none pointer-events-none my-8 md:my-12">
           <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            whileInView={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, scale: 0.95 }}
+            whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true }}
             transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
-            className="text-[20vw] md:text-[18vw] font-display font-black leading-[0.7] tracking-[-(0.05em)] text-on-surface uppercase text-center opacity-90"
+            className="text-[14vw] md:text-[12vw] font-syncopate font-bold leading-[0.8] tracking-[-(0.02em)] text-on-surface uppercase text-center opacity-95"
           >
             NAITALK
           </motion.div>

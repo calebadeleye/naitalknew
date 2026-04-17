@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700;800&family=Space+Grotesk:wght@300..700&family=Outfit:wght@300..900&family=Syne:wght@400..800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700;800&family=Space+Grotesk:wght@300..700&family=Outfit:wght@300..900&family=Syne:wght@400..800&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Anton&family=League+Gothic&family=Syncopate:wght@400;700&family=Michroma&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -7,6 +7,12 @@
   --font-headline: "Space Grotesk", sans-serif;
   --font-body: "Manrope", sans-serif;
   --font-label: "Outfit", sans-serif;
+  --font-serif: "Playfair Display", serif;
+  --font-anton: "Anton", sans-serif;
+  --font-syne: "Syne", sans-serif;
+  --font-gothic: "League Gothic", sans-serif;
+  --font-syncopate: "Syncopate", sans-serif;
+  --font-michroma: "Michroma", sans-serif;
 
   --color-primary: #90da49;
   --color-primary-container: #74bc2d;
