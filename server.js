@@ -24,6 +24,8 @@ async function startServer() {
       return res.status(400).json({ error: "All fields are required" });
     }
 
+    console.log(`Processing contact form for ${email}. SMTP Host: ${process.env.SMTP_HOST}`);
+
     try {
       const transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST,
@@ -138,8 +140,8 @@ async function startServer() {
     });
   } else {
     app.use(express.static(distPath));
-    app.get(/^\/(?!api).*/, (req, res) => {
-    res.sendFile(path.join(distPath, "index.html"));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
     });
   }
 

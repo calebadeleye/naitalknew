@@ -25,6 +25,9 @@ import {
   MessageSquare, 
   Share2, 
   Rss,
+  Linkedin,
+  Facebook,
+  Twitter,
   ChevronDown,
   ArrowUp,
   Filter,
@@ -369,7 +372,7 @@ const Logo = ({ className, size = "md" }: { className?: string, size?: "sm" | "m
           if (span) span.classList.remove('hidden');
         }}
       />
-      <span className="logo-fallback hidden font-display font-bold text-2xl uppercase tracking-tighter">
+      <span className="logo-fallback hidden font-display font-bold text-2xl uppercase tracking-tighter bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
         NAITALK
       </span>
     </div>
@@ -652,11 +655,19 @@ const Hero = ({ lang, config }: { lang: string, config: any }) => {
         {/* Middle Section: THE MASSIVE TEXT (The bold centerpiece) */}
         <div className="relative overflow-hidden select-none pointer-events-none my-8 md:my-12">
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            whileInView={{ opacity: 1, scale: 1 }}
+            initial={{ opacity: 0, y: 50 }}
+            whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
-            className="text-[14vw] md:text-[12vw] font-syncopate font-bold leading-[0.8] tracking-[-(0.02em)] text-on-surface uppercase text-center opacity-95"
+            className="text-[20vw] md:text-[18vw] font-display font-black leading-[0.7] tracking-tighter text-transparent uppercase text-center relative group"
+            style={{
+              WebkitTextStroke: "1px rgba(255, 255, 255, 0.1)",
+              backgroundImage: "linear-gradient(135deg, #90da49 0%, #6366f1 100%)",
+              WebkitBackgroundClip: "text",
+              backgroundClip: "text",
+              textShadow: "0 10px 30px rgba(0,0,0,0.5), 0 0 80px rgba(99, 102, 241, 0.2)",
+              filter: "drop-shadow(0 0 10px rgba(99, 102, 241, 0.1))"
+            }}
           >
             NAITALK
           </motion.div>
@@ -683,7 +694,7 @@ const Hero = ({ lang, config }: { lang: string, config: any }) => {
           >
             <button 
               onClick={() => setIsBookingOpen(true)}
-              className="bg-primary text-on-primary px-12 py-6 rounded-full font-display font-bold uppercase tracking-widest text-xs hover:brightness-110 shadow-[0_0_30px_rgba(144,218,73,0.3)] transition-all active:scale-95"
+              className="bg-gradient-to-r from-primary to-secondary text-on-primary px-12 py-6 rounded-full font-display font-bold uppercase tracking-widest text-xs hover:brightness-110 shadow-[0_0_30px_rgba(99,102,241,0.3)] transition-all active:scale-95"
             >
               {translations[lang].bookAudit}
             </button>
@@ -692,7 +703,7 @@ const Hero = ({ lang, config }: { lang: string, config: any }) => {
       </div>
 
       {/* Atmospheric Background Layers */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[1000px] bg-primary/5 blur-[150px] rounded-full pointer-events-none"></div>
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[1000px] bg-secondary/10 blur-[150px] rounded-full pointer-events-none"></div>
     </section>
   );
 };
@@ -713,9 +724,9 @@ const Stats = ({ lang }: { lang: string }) => (
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
             viewport={{ once: true }}
-            className="glass-panel p-10 rounded-2xl text-center space-y-2"
+            className="glass-panel p-10 rounded-2xl text-center space-y-2 group hover:border-secondary/30 transition-all"
           >
-            <div className="text-5xl font-black text-primary tracking-tighter">{stat.value}</div>
+            <div className={`text-5xl font-black tracking-tighter transition-colors ${i % 2 === 0 ? "text-primary" : "text-secondary"}`}>{stat.value}</div>
             <div className="text-xs font-label uppercase tracking-[0.2em] text-on-surface-variant">{stat.label}</div>
           </motion.div>
         ))}
@@ -789,12 +800,12 @@ const Services = ({ lang }: { lang: string }) => (
             viewport={{ once: true, margin: "-100px" }}
             transition={{ duration: 0.6, delay: i * 0.1 }}
             whileHover={{ y: -10 }}
-            className="glass-panel p-10 rounded-2xl hover:bg-white/5 transition-all group flex flex-col h-full"
+            className="glass-panel p-10 rounded-2xl hover:bg-white/5 transition-all group flex flex-col h-full hover:border-secondary/20"
           >
-            <service.icon className="w-12 h-12 text-primary mb-8" />
+            <service.icon className={`w-12 h-12 mb-8 ${i % 2 === 0 ? "text-primary" : "text-secondary"}`} />
             <h3 className="text-2xl font-bold text-on-surface mb-4">{service.title}</h3>
             <p className="text-on-surface-variant font-light mb-8 flex-grow">{service.desc}</p>
-            <div className="h-1 w-12 bg-primary group-hover:w-full transition-all duration-500"></div>
+            <div className={`h-1 w-12 transition-all duration-500 group-hover:w-full ${i % 2 === 0 ? "bg-primary" : "bg-secondary"}`}></div>
           </motion.div>
         ))}
         <motion.div 
@@ -903,11 +914,11 @@ const Portfolio = ({ lang }: { lang: string }) => {
             <h2 className="text-5xl font-black tracking-tighter text-on-surface">{translations[lang].thePortfolio}</h2>
           </div>
           <div className="flex gap-4">
-            <button onClick={prev} className="p-4 rounded-full glass-panel hover:bg-primary transition-all group">
-              <ArrowLeft className="w-6 h-6 group-hover:text-on-primary" />
+            <button onClick={prev} className="p-4 rounded-full glass-panel hover:bg-secondary transition-all group">
+              <ArrowLeft className="w-6 h-6 group-hover:text-on-secondary" />
             </button>
-            <button onClick={next} className="p-4 rounded-full glass-panel hover:bg-primary transition-all group">
-              <ArrowRight className="w-6 h-6 group-hover:text-on-primary" />
+            <button onClick={next} className="p-4 rounded-full glass-panel hover:bg-secondary transition-all group">
+              <ArrowRight className="w-6 h-6 group-hover:text-on-secondary" />
             </button>
           </div>
         </div>
@@ -918,7 +929,7 @@ const Portfolio = ({ lang }: { lang: string }) => {
               key={cat}
               onClick={() => { setFilter(cat); setCurrentIndex(0); }}
               className={`px-6 py-2 rounded-full text-xs font-bold uppercase tracking-widest transition-all ${
-                filter === cat ? "bg-primary text-on-primary" : "glass-panel text-on-surface-variant hover:bg-white/10"
+                filter === cat ? "bg-secondary text-on-secondary shadow-lg shadow-secondary/10" : "glass-panel text-on-surface-variant hover:bg-white/10"
               }`}
             >
               {cat}
@@ -1215,7 +1226,7 @@ const ProjectEstimator = ({ lang }: { lang: string }) => {
               <button 
                 onClick={generateRoadmap}
                 disabled={loading || !industry || !goal}
-                className="w-full bg-primary text-on-primary py-6 rounded-xl font-black uppercase tracking-widest hover:brightness-110 transition-all shadow-xl shadow-primary/10 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-gradient-to-r from-secondary to-secondary-container text-on-secondary py-6 rounded-xl font-black uppercase tracking-widest hover:brightness-110 transition-all shadow-xl shadow-secondary/20 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   <>
@@ -1673,6 +1684,12 @@ const Contact = ({ lang }: { lang: string }) => {
             <div className="space-y-8">
               <div className="flex gap-6 items-center">
                 <div className="w-12 h-12 glass-panel rounded-lg flex items-center justify-center">
+                  <Smartphone className="text-primary w-6 h-6" />
+                </div>
+                <span className="text-xl font-light">+2347087057654</span>
+              </div>
+              <div className="flex gap-6 items-center">
+                <div className="w-12 h-12 glass-panel rounded-lg flex items-center justify-center">
                   <Mail className="text-primary w-6 h-6" />
                 </div>
                 <span className="text-xl font-light">info@naitalk.com</span>
@@ -1803,13 +1820,16 @@ const Footer = ({ lang }: { lang: string }) => (
           <a key={link} className="font-manrope text-[10px] tracking-widest uppercase text-[#353534] hover:text-[#90da49] transition-colors" href="#">{link}</a>
         ))}
       </div>
-      <div className="flex gap-6 mt-8 md:mt-0">
-        <button className="w-10 h-10 rounded-full glass-panel flex items-center justify-center hover:text-primary transition-all">
-          <Share2 className="w-5 h-5" />
-        </button>
-        <button className="w-10 h-10 rounded-full glass-panel flex items-center justify-center hover:text-primary transition-all">
-          <Rss className="w-5 h-5" />
-        </button>
+      <div className="flex gap-4 mt-8 md:mt-0">
+        <a href="#" className="w-10 h-10 rounded-full glass-panel flex items-center justify-center hover:text-primary transition-all" aria-label="LinkedIn">
+          <Linkedin className="w-5 h-5" />
+        </a>
+        <a href="#" className="w-10 h-10 rounded-full glass-panel flex items-center justify-center hover:text-primary transition-all" aria-label="Facebook">
+          <Facebook className="w-5 h-5" />
+        </a>
+        <a href="#" className="w-10 h-10 rounded-full glass-panel flex items-center justify-center hover:text-primary transition-all" aria-label="X (formerly Twitter)">
+          <Twitter className="w-5 h-5" />
+        </a>
       </div>
     </div>
   </footer>

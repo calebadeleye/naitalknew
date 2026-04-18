@@ -30,10 +30,12 @@ fi
 # CRITICAL: We start the server.js file, NOT just serve the dist folder.
 # server.js handles both the API and serving the dist folder.
 echo "🔄 Restarting application with PM2..."
-pm2 delete naitalk 2>/dev/null || true
+pm2 delete naitalk-api 2>/dev/null || true
 
 # We run 'npm start' which sets NODE_ENV=production and runs server.js
-pm2 start npm --name naitalk -- start
+pm2 start npm --name naitalk-api -- start
+
+pm2 restart naitalk-api --update-env
 
 pm2 save
 pm2 status
