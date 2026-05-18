@@ -142,22 +142,26 @@ ufw allow 993 || true
 ufw --force enable || true
 
 # -------------------------------
-# DIRECTORIES
+# APP DOWNLOAD (ZIP INSTALL - NO GIT AUTH ISSUES)
 # -------------------------------
+echo "[DOWNLOAD] Installing ALABA application..."
+
 mkdir -p /var/www/alaba
 mkdir -p /var/log/alaba
 
-# -------------------------------
-# APP CLONE / UPDATE
-# -------------------------------
-if [ ! -d "/var/www/alaba/.git" ]; then
-  git clone https://github.com/calebadeleye/alaba.git /var/www/alaba
-else
-  cd /var/www/alaba
-  git pull
-fi
+cd /var/www
+
+rm -rf alaba alaba.zip
+
+curl -L https://github.com/calebadeleye/alaba/archive/refs/heads/main.zip -o alaba.zip
+unzip alaba.zip
+
+mv alaba-main alaba
+rm alaba.zip
 
 cd /var/www/alaba
+
+echo "[INSTALL] Installing dependencies..."
 npm install
 
 # -------------------------------
