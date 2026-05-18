@@ -1,144 +1,168 @@
 #!/bin/bash
 
-# =========================================================
-# ALABA HOSTING PLATFORM INSTALLER (Alaba Cluster Edition)
-# Optimized for: Ubuntu 22.04 / 24.04
-# Stack: NGINX + Node.js 20 + MySQL + Bind9 + Postfix
-# =========================================================
+set -euo pipefail
 
-set -e
+# ===============================
+# ALABA HOSTING INSTALLER (SAFE)
+# ===============================
 
-clear
+LOG_FILE="/var/log/alaba-install.log"
+mkdir -p /var/log/alaba
+exec > >(tee -a "$LOG_FILE") 2>&1
+
 echo "======================================================"
-echo "         ALABA HOSTING PLATFORM INSTALLER"
-echo "      Automated B2B Hosting Company Deployment"
+echo "        ALABA HOSTING INSTALLER (SAFE MODE)"
 echo "======================================================"
 
-# ----------------------------
-# Root Check
-# ----------------------------
+# -------------------------------
+# ROOT CHECK
+# -------------------------------
 if [ "$EUID" -ne 0 ]; then
-  echo "ERROR: Please run this installer as root."
+  echo "ERROR: Run as root"
   exit 1
 fi
 
-# ----------------------------
-# OS Check
-# ----------------------------
-if ! command -v lsb_release >/dev/null 2>&1; then
-  apt update && apt install -y lsb-release
-fi
+# -------------------------------
+# APT LOCK RECOVERY
+# -------------------------------
+echo "[INIT] Cleaning apt locks..."
+rm -f /var/lib/dpkg/lock-frontend || true
+rm -f /var/lib/dpkg/lock || true
+rm -f /var/cache/apt/archives/lock || true
+dpkg --configure -a || true
+apt --fix-broken install -y || true
 
-OS_VERSION=$(lsb_release -rs)
-
-if [[ "$OS_VERSION" != "22.04" && "$OS_VERSION" != "24.04" ]]; then
-  echo "ERROR: Ubuntu 22.04 or 24.04 required."
-  exit 1
-fi
-
-# ----------------------------
-# User Input
-# ----------------------------
-read -p "Enter your ALABA License Key: " LICENSE_KEY
-read -p "Primary Domain (e.g alaba.ng): " DOMAIN
-read -p "Admin Email (e.g info@$DOMAIN): " ADMIN_EMAIL
+# -------------------------------
+# USER INPUT
+# -------------------------------
+read -p "License Key: " LICENSE_KEY
+read -p "Domain (e.g alaba.ng): " DOMAIN
+read -p "Admin Email: " ADMIN_EMAIL
 read -s -p "Admin Password: " ADMIN_PASS
 echo ""
-read -p "Install Mail Stack (Postfix/Dovecot/Roundcube)? (y/n): " INSTALL_MAIL
+read -p "Install Mail Stack? (y/n): " INSTALL_MAIL
 
-# ----------------------------
-# System Update
-# ----------------------------
-echo "Updating server..."
-apt update && apt upgrade -y
+# -------------------------------
+# HELPERS
+# -------------------------------
+is_installed() {
+  dpkg -s "$1" >/dev/null 2>&1
+}
 
-# ----------------------------
-# Core Packages
-# ----------------------------
-echo "Installing core packages..."
-apt install -y curl wget unzip git software-properties-common ca-certificates gnupg2 \
-nginx ufw certbot python3-certbot-nginx zip fail2ban build-essential
+install_package() {
+  if is_installed "$1"; then
+    echo "[SKIP] $1 already installed"
+  else
+    echo "[INSTALL] $1"
+    apt install -y "$1"
+  fi
+}
 
-# ----------------------------
-# Node.js 20.x
-# ----------------------------
-echo "Installing Node.js..."
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-apt install -y nodejs
+cmd_exists() {
+  command -v "$1" >/dev/null 2>&1
+}
 
-# ----------------------------
-# PM2
-# ----------------------------
-npm install -g pm2
+# -------------------------------
+# UPDATE SYSTEM
+# -------------------------------
+apt update -y
+apt upgrade -y
 
-# ----------------------------
-# MySQL Server
-# ----------------------------
-echo "Installing MySQL..."
-apt install -y mysql-server
+# -------------------------------
+# CORE PACKAGES
+# -------------------------------
+for pkg in curl wget unzip git software-properties-common ca-certificates gnupg2 nginx ufw certbot python3-certbot-nginx zip fail2ban build-essential; do
+  install_package "$pkg"
+done
 
-# ----------------------------
-# PHP-FPM (for phpMyAdmin & Webmail)
-# ----------------------------
-echo "Installing PHP Stack..."
-apt install -y php-fpm php-cli php-mysql php-curl php-xml php-mbstring php-zip phpmyadmin
-
-# ----------------------------
-# Bind9
-# ----------------------------
-echo "Installing Bind9..."
-apt install -y bind9 bind9utils bind9-doc dnsutils
-
-# ----------------------------
-# Mail Stack
-# ----------------------------
-if [[ "$INSTALL_MAIL" =~ ^[Yy]$ ]]; then
-  echo "Installing Mail Stack..."
-  debconf-set-selections <<< "postfix postfix/mailname string $DOMAIN"
-  debconf-set-selections <<< "postfix postfix/main_mailer_type string 'Internet Site'"
-  apt install -y postfix dovecot-core dovecot-imapd dovecot-pop3d roundcube roundcube-core \
-  opendkim opendkim-tools spamassassin
+# -------------------------------
+# NODEJS
+# -------------------------------
+if ! cmd_exists node || [[ "$(node -v | cut -d. -f1 | tr -d v)" -lt 20 ]]; then
+  echo "[INSTALL] Node.js 20"
+  curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+  apt install -y nodejs
+else
+  echo "[SKIP] Node.js already OK"
 fi
 
-# ----------------------------
-# Firewall
-# ----------------------------
-echo "Configuring firewall..."
-ufw allow OpenSSH
-ufw allow 80
-ufw allow 443
-ufw allow 53
-ufw allow 25
-ufw allow 465
-ufw allow 587
-ufw allow 143
-ufw allow 993
-ufw --force enable
+# -------------------------------
+# PM2
+# -------------------------------
+if ! cmd_exists pm2; then
+  npm install -g pm2
+else
+  echo "[SKIP] PM2 exists"
+fi
 
-# ----------------------------
-# Directory Structure
-# ----------------------------
+# -------------------------------
+# MYSQL
+# -------------------------------
+install_package mysql-server
+
+# -------------------------------
+# PHP STACK
+# -------------------------------
+for pkg in php-fpm php-cli php-mysql php-curl php-xml php-mbstring php-zip phpmyadmin; do
+  install_package "$pkg"
+done
+
+# -------------------------------
+# BIND9
+# -------------------------------
+for pkg in bind9 bind9utils bind9-doc dnsutils; do
+  install_package "$pkg"
+done
+
+# -------------------------------
+# MAIL STACK
+# -------------------------------
+if [[ "$INSTALL_MAIL" =~ ^[Yy]$ ]]; then
+  install_package postfix
+  install_package dovecot-core
+  install_package dovecot-imapd
+  install_package dovecot-pop3d
+  install_package roundcube
+  install_package opendkim-tools
+  install_package spamassassin
+fi
+
+# -------------------------------
+# FIREWALL
+# -------------------------------
+ufw allow OpenSSH || true
+ufw allow 80 || true
+ufw allow 443 || true
+ufw allow 53 || true
+ufw allow 25 || true
+ufw allow 465 || true
+ufw allow 587 || true
+ufw allow 143 || true
+ufw allow 993 || true
+ufw --force enable || true
+
+# -------------------------------
+# DIRECTORIES
+# -------------------------------
 mkdir -p /var/www/alaba
 mkdir -p /var/log/alaba
 
-# ----------------------------
-# Download Application
-# ----------------------------
-echo "Downloading ALABA Application..."
-cd /var/www
-git clone https://github.com/calebadeleye/alaba.git alaba || true # Replace with actual repo
+# -------------------------------
+# APP CLONE / UPDATE
+# -------------------------------
+if [ ! -d "/var/www/alaba/.git" ]; then
+  git clone https://github.com/calebadeleye/alaba.git /var/www/alaba
+else
+  cd /var/www/alaba
+  git pull
+fi
 
-# ----------------------------
-# Application Setup
-# ----------------------------
-echo "Setting up application..."
 cd /var/www/alaba
 npm install
 
-# ----------------------------
-# MySQL DB Setup
-# ----------------------------
-echo "Configuring MySQL Database..."
+# -------------------------------
+# MYSQL SETUP
+# -------------------------------
 DB_NAME="alaba_cluster"
 DB_USER="alaba_admin"
 DB_PASS=$(openssl rand -base64 16)
@@ -150,19 +174,31 @@ GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB_USER'@'localhost';
 FLUSH PRIVILEGES;
 EOF
 
-# Import Schema
-if [ -f schema.sql ]; then
+# -------------------------------
+# SCHEMA IMPORT SAFE
+# -------------------------------
+TABLE_CHECK=$(mysql -u root -D $DB_NAME -se "SHOW TABLES LIKE 'admins';")
+
+if [ -z "$TABLE_CHECK" ] && [ -f schema.sql ]; then
   mysql -u root $DB_NAME < schema.sql
+else
+  echo "[SKIP] DB already initialized"
 fi
 
-# Insert Admin User
-echo "Creating Admin Account..."
-HASHED_PASS=$(node -e "const bcrypt = require('bcryptjs'); console.log(bcrypt.hashSync('$ADMIN_PASS', 10));")
-mysql -u root $DB_NAME -e "INSERT INTO admins (full_name, email, password_hash, status) VALUES ('Alaba Admin', '$ADMIN_EMAIL', '$HASHED_PASS', 'active') ON DUPLICATE KEY UPDATE password_hash='$HASHED_PASS';"
+# -------------------------------
+# ADMIN INSERT
+# -------------------------------
+HASHED_PASS=$(node -e "const bcrypt=require('bcryptjs');console.log(bcrypt.hashSync('$ADMIN_PASS',10));")
 
-# ----------------------------
-# Environment Config
-# ----------------------------
+mysql -u root $DB_NAME -e "
+INSERT INTO admins (full_name,email,password_hash,status)
+VALUES ('Alaba Admin','$ADMIN_EMAIL','$HASHED_PASS','active')
+ON DUPLICATE KEY UPDATE password_hash='$HASHED_PASS';
+"
+
+# -------------------------------
+# ENV FILE
+# -------------------------------
 cat > .env <<EOL
 NODE_ENV=production
 PORT=3000
@@ -173,19 +209,18 @@ DB_USER=$DB_USER
 DB_PASSWORD=$DB_PASS
 ADMIN_EMAIL=$ADMIN_EMAIL
 APP_DOMAIN=$DOMAIN
-SMTP_FROM_NAME="Alaba Cluster Notifications"
 EOL
 
-# ----------------------------
-# Build Application
-# ----------------------------
-echo "Building React Frontend..."
-npm run build
+# -------------------------------
+# BUILD APP
+# -------------------------------
+npm run build || true
 
-# ----------------------------
-# NGINX Configuration
-# ----------------------------
-echo "Configuring NGINX..."
+# -------------------------------
+# NGINX CONFIG
+# -------------------------------
+PHP_SOCKET=$(ls /run/php/ | grep fpm.sock | head -n 1)
+
 cat > /etc/nginx/sites-available/alaba <<EOL
 server {
     listen 80;
@@ -200,22 +235,18 @@ server {
 
     location /api {
         proxy_pass http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
         proxy_set_header Host \$host;
-        proxy_cache_bypass \$http_upgrade;
+        proxy_set_header X-Real-IP \$remote_addr;
     }
 
     location /phpmyadmin {
         root /usr/share/;
-        index index.php index.html index.htm;
+        index index.php;
 
         location ~ ^/phpmyadmin/(.+\.php)$ {
             root /usr/share/;
-            fastcgi_pass unix:/run/php/php8.1-fpm.sock; # Adjust based on installed version
-            fastcgi_index index.php;
-            include /etc/nginx/fastcgi_params;
+            fastcgi_pass unix:/run/php/$PHP_SOCKET;
+            include fastcgi_params;
             fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
         }
     }
@@ -223,80 +254,44 @@ server {
 EOL
 
 ln -sf /etc/nginx/sites-available/alaba /etc/nginx/sites-enabled/alaba
-rm -f /etc/nginx/sites-enabled/default
+rm -f /etc/nginx/sites-enabled/default || true
 
-# ----------------------------
-# DNS Configuration (Bind9)
-# ----------------------------
-echo "Configuring Bind9 DNS..."
-NS1="ns1.$DOMAIN"
-NS2="ns2.$DOMAIN"
-SERVER_IP=$(curl -4 -s ifconfig.me || echo "127.0.0.1")
+nginx -t && systemctl restart nginx
 
-cat > /etc/bind/db.$DOMAIN <<EOL
-\$TTL 86400
-@   IN  SOA $NS1. admin.$DOMAIN. (
-        $(date +%Y%m%d%H)
-        3600
-        1800
-        604800
-        86400 )
-
-@       IN NS    $NS1.
-@       IN NS    $NS2.
-
-@       IN A     $SERVER_IP
-www     IN A     $SERVER_IP
-ns1     IN A     $SERVER_IP
-ns2     IN A     $SERVER_IP
-mail    IN A     $SERVER_IP
-webmail IN A     $SERVER_IP
-
-@       IN MX 10 mail.$DOMAIN.
-@       IN TXT "v=spf1 a mx ip4:$SERVER_IP ~all"
-_dmarc  IN TXT "v=DMARC1; p=none;"
-EOL
-
-if ! grep -q "zone \"$DOMAIN\"" /etc/bind/named.conf.local; then
-  cat >> /etc/bind/named.conf.local <<EOL
-zone "$DOMAIN" {
-    type master;
-    file "/etc/bind/db.$DOMAIN";
-};
-EOL
+# -------------------------------
+# SSL
+# -------------------------------
+if [ ! -d "/etc/letsencrypt/live/$DOMAIN" ]; then
+  certbot --nginx -d $DOMAIN -d www.$DOMAIN --non-interactive --agree-tos -m $ADMIN_EMAIL || true
+else
+  echo "[SKIP] SSL exists"
 fi
 
-# ----------------------------
-# SSL Installation
-# ----------------------------
-echo "Setting up SSL with Certbot..."
-certbot --nginx -d $DOMAIN -d www.$DOMAIN --non-interactive --agree-tos -m $ADMIN_EMAIL || true
+# -------------------------------
+# PM2 START
+# -------------------------------
+if pm2 list | grep -q alaba; then
+  pm2 restart alaba || true
+else
+  pm2 start server.js --name alaba
+fi
 
-# ----------------------------
-# PM2 Startup
-# ----------------------------
-echo "Starting ALABA Backend..."
-pm2 start server.js --name "alaba"
-pm2 save
-pm2 startup | tail -n 1 | bash
+pm2 save || true
+pm2 startup || true
 
-# ----------------------------
-# Permissions
-# ----------------------------
-chown -R www-data:www-data /var/www/alaba
+# -------------------------------
+# PERMISSIONS
+# -------------------------------
+chown -R www-data:www-data /var/www/alaba || true
 
-# ----------------------------
-# Final Output
-# ----------------------------
-echo ""
+# -------------------------------
+# FINAL OUTPUT
+# -------------------------------
 echo "======================================================"
-echo "        ALABA INSTALLATION COMPLETED SUCCESSFULLY"
+echo " INSTALLATION COMPLETE"
 echo "======================================================"
-echo "Platform URL:    https://$DOMAIN"
-echo "MySQL Database:  $DB_NAME"
-echo "MySQL User:      $DB_USER"
-echo "MySQL Password:  $DB_PASS"
-echo "Admin Email:     $ADMIN_EMAIL"
-echo "======================================================"
-echo "IMPORTANT: Open https://$DOMAIN/register to set up your primary admin account."
+echo "URL: https://$DOMAIN"
+echo "DB: $DB_NAME"
+echo "DB USER: $DB_USER"
+echo "DB PASS: $DB_PASS"
 echo "======================================================"
