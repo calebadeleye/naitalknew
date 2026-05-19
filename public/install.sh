@@ -61,16 +61,19 @@ echo "[4/6] Preparing application directory..."
 
 APP_DIR="/var/www/alaba"
 
-rm -rf $APP_DIR
-mkdir -p $APP_DIR
 cd /var/www
+
+rm -rf alaba alaba-main alaba.zip
 
 echo "[5/6] Downloading application source..."
 
 curl -L https://github.com/calebadeleye/alaba/archive/refs/heads/main.zip -o alaba.zip
+
 unzip -o alaba.zip
+
 mv alaba-main alaba
-rm alaba.zip
+
+rm -f alaba.zip
 
 cd $APP_DIR
 
