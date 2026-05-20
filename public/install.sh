@@ -1,10 +1,11 @@
 #!/bin/bash
 
-set -euo pipefail
+# =========================================================
+# ALABA HOSTING PLATFORM INSTALLER (DOCKER-BASED)
+# Optimized for: Ubuntu 22.04 / 24.04
+# =========================================================
 
-# ===============================
-# ALABA HOSTING INSTALLER (DOCKER-BASED)
-# ===============================
+set -euo pipefail
 
 echo "======================================================"
 echo "        ALABA HOSTING INSTALLER (DOCKER MODE)"
@@ -54,6 +55,13 @@ if ! docker compose version >/dev/null 2>&1; then
   apt install -y docker-compose-plugin
 fi
 
+# Stop and disable host Nginx if active to free up port 80 for Docker
+if systemctl is-active --quiet nginx; then
+  echo "[!] Stopping & disabling host Nginx to free up port 80 for Docker..."
+  systemctl stop nginx || true
+  systemctl disable nginx || true
+fi
+
 # -------------------------------
 # CLEAN INSTALL DIRECTORY
 # -------------------------------
@@ -86,12 +94,12 @@ cat > .env <<EOL
 NODE_ENV=production
 PORT=3000
 
-# DB will be configured via /setup wizard
+# Pre-configured DB during installation
 DB_HOST=db
 DB_PORT=3306
-DB_NAME=
-DB_USER=
-DB_PASSWORD=
+DB_NAME=alaba_cluster
+DB_USER=alaba_user
+DB_PASSWORD=alaba_secret_pass
 
 SETUP_MODE=true
 EOL
@@ -101,10 +109,6 @@ EOL
 # -------------------------------
 echo "[START] Launching Docker stack..."
 
-if [ ! -f docker-compose.yml ]; then
-  echo "ERROR: docker-compose.yml not found in repo"
-  exit 1
-fi
 
 docker compose up -d --build
 
