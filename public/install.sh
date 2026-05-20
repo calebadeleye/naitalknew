@@ -109,6 +109,12 @@ fi
 docker compose up -d --build
 
 # -------------------------------
+# GET SERVER IP
+# -------------------------------
+
+SERVER_IP=$(curl -s ifconfig.me || curl -s ipinfo.io/ip || hostname -I | awk '{print $1}')
+
+# -------------------------------
 # FINAL OUTPUT
 # -------------------------------
 echo "======================================================"
@@ -117,11 +123,12 @@ echo "======================================================"
 echo ""
 echo "👉 Open your browser and complete setup:"
 echo ""
-echo "   http://YOUR_SERVER_IP"
+echo "   http://$SERVER_IP"
 echo ""
 echo "👉 Setup page:"
-echo "   /setup"
+echo ""
+echo "   http://$SERVER_IP/setup"
 echo ""
 echo "======================================================"
-echo " ALABA IS NOW RUNNING IN SETUP MODE"
+echo " ALABA IS READY"
 echo "======================================================"
