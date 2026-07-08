@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+public/uploads/admin/*
+!public/uploads/admin/.gitkeep
+storage/site-content.json
