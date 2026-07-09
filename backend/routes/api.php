@@ -3,10 +3,13 @@
 use App\Http\Controllers\Api\Admin\ClientLifecycleController;
 use App\Http\Controllers\Api\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Api\Admin\HostingPlanController;
+use App\Http\Controllers\Api\Admin\HostingServiceLifecycleController;
 use App\Http\Controllers\Api\Admin\InvoicePaymentController as AdminInvoicePaymentController;
+use App\Http\Controllers\Api\Admin\IspConfigLegacyImportController;
 use App\Http\Controllers\Api\Admin\ProvisioningController;
 use App\Http\Controllers\Api\Admin\RecordsController;
 use App\Http\Controllers\Api\Admin\ServiceOfferingController as AdminServiceOfferingController;
+use App\Http\Controllers\Api\Admin\ServicesDashboardController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\Client\CheckoutController;
 use App\Http\Controllers\Api\Client\DashboardController as ClientDashboardController;
@@ -61,6 +64,7 @@ Route::prefix('v1')->group(function (): void {
                 Route::prefix('services/{service}')->group(function (): void {
                     Route::get('/manage', [HostingControlPanelController::class, 'show']);
                     Route::post('/manage/refresh', [HostingControlPanelController::class, 'refresh'])->middleware('throttle:hosting-manual-sync');
+                    Route::post('/manage/auto-renew', [HostingControlPanelController::class, 'updateAutoRenew']);
 
                     Route::get('/mailboxes', [MailboxController::class, 'index']);
                     Route::post('/mailboxes', [MailboxController::class, 'store'])->middleware('throttle:hosting-resource-create');
@@ -87,6 +91,7 @@ Route::prefix('v1')->group(function (): void {
         Route::middleware('role:super_admin,admin_staff')->prefix('admin')->group(function (): void {
             Route::get('/dashboard', AdminDashboardController::class);
             Route::get('/clients', [RecordsController::class, 'clients']);
+            Route::get('/clients/{client}', [RecordsController::class, 'clientDetail']);
             Route::get('/products', [RecordsController::class, 'products']);
             Route::get('/pricing-packages', [HostingPlanController::class, 'index']);
             Route::post('/pricing-packages', [HostingPlanController::class, 'store']);
@@ -98,6 +103,8 @@ Route::prefix('v1')->group(function (): void {
             Route::delete('/service-offerings/{serviceOffering}', [AdminServiceOfferingController::class, 'destroy']);
             Route::get('/orders', [RecordsController::class, 'orders']);
             Route::get('/services', [RecordsController::class, 'services']);
+            Route::get('/services/grouped', [ServicesDashboardController::class, 'grouped']);
+            Route::get('/services/{service}', [RecordsController::class, 'serviceDetail']);
             Route::get('/invoices', [RecordsController::class, 'invoices']);
             Route::post('/invoices/{invoice:invoice_number}/mark-paid', [AdminInvoicePaymentController::class, 'markPaid']);
             Route::post('/invoices/{invoice:invoice_number}/reject-bank-transfer', [AdminInvoicePaymentController::class, 'rejectBankTransfer']);
@@ -109,9 +116,26 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/audit-logs', [RecordsController::class, 'auditLogs']);
             Route::post('/clients/{client}/convert-to-billing-client', [ClientLifecycleController::class, 'convertToBillingClient']);
             Route::post('/clients/{client}/sync-technical-record', [ClientLifecycleController::class, 'syncClient']);
+            Route::post('/clients/{client}/impersonate', [ClientLifecycleController::class, 'impersonate']);
+            Route::post('/clients/{client}/suspend', [ClientLifecycleController::class, 'suspend']);
+            Route::post('/clients/{client}/deactivate', [ClientLifecycleController::class, 'deactivate']);
+            Route::delete('/clients/{client}', [ClientLifecycleController::class, 'softDelete']);
+            Route::post('/clients/{client}/restore', [ClientLifecycleController::class, 'restore']);
             Route::post('/ispconfig/import-legacy-client', [ClientLifecycleController::class, 'importLegacyClient']);
+            Route::post('/ispconfig/legacy-import/preview', [IspConfigLegacyImportController::class, 'preview']);
+            Route::post('/ispconfig/legacy-import/run', [IspConfigLegacyImportController::class, 'run']);
+            Route::post('/legacy-services/{service}/override-renewal-date', [IspConfigLegacyImportController::class, 'overrideRenewalDate']);
+            Route::post('/legacy-services/{service}/migrate', [IspConfigLegacyImportController::class, 'migrateToPackage']);
+            Route::post('/legacy-services/{service}/notify-upgrade', [IspConfigLegacyImportController::class, 'notifyUpgrade']);
+            Route::post('/legacy-services/{service}/generate-invoice', [IspConfigLegacyImportController::class, 'generateInvoice']);
             Route::post('/services/{service}/approve-provisioning', [ClientLifecycleController::class, 'approveProvisioning']);
             Route::post('/services/{service}/retry-provisioning', [ClientLifecycleController::class, 'retryProvisioning']);
+            Route::post('/services/{service}/suspend', [HostingServiceLifecycleController::class, 'suspendService']);
+            Route::post('/services/{service}/deactivate-website', [HostingServiceLifecycleController::class, 'deactivateWebsite']);
+            Route::post('/services/{service}/reactivate-website', [HostingServiceLifecycleController::class, 'reactivateWebsite']);
+            Route::delete('/services/{service}', [HostingServiceLifecycleController::class, 'deleteService']);
+            Route::post('/services/{service}/schedule-deletion', [HostingServiceLifecycleController::class, 'scheduleAutoDeletion']);
+            Route::post('/services/{service}/override-grace-period', [HostingServiceLifecycleController::class, 'overrideGracePeriod']);
 
             Route::get('/ispconfig/health', [ProvisioningController::class, 'health']);
             Route::post('/services/{service}/sync', [ProvisioningController::class, 'syncOne']);

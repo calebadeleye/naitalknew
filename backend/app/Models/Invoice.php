@@ -14,6 +14,7 @@ class Invoice extends Model
     protected $fillable = [
         'client_id',
         'order_id',
+        'hosting_service_id',
         'invoice_number',
         'status',
         'subtotal_kobo',
@@ -45,6 +46,11 @@ class Invoice extends Model
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class);
+    }
+
+    public function hostingService(): BelongsTo
+    {
+        return $this->belongsTo(HostingService::class);
     }
 
     public function payments(): HasMany

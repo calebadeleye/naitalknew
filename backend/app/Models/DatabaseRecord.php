@@ -17,6 +17,8 @@ class DatabaseRecord extends Model
         'database_name',
         'username',
         'status',
+        'source',
+        'imported_at',
         'last_synced_at',
         'metadata_json',
     ];
@@ -24,6 +26,7 @@ class DatabaseRecord extends Model
     protected function casts(): array
     {
         return [
+            'imported_at' => 'datetime',
             'last_synced_at' => 'datetime',
             'metadata_json' => 'array',
         ];

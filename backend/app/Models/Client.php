@@ -6,10 +6,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Client extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'user_id',
@@ -27,6 +28,8 @@ class Client extends Model
         'country',
         'internal_notes',
         'last_activity_at',
+        'suspended_at',
+        'deactivated_at',
         'metadata',
     ];
 
@@ -35,6 +38,8 @@ class Client extends Model
         return [
             'metadata' => 'array',
             'last_activity_at' => 'datetime',
+            'suspended_at' => 'datetime',
+            'deactivated_at' => 'datetime',
         ];
     }
 
@@ -76,5 +81,15 @@ class Client extends Model
     public function provisioningLogs(): HasMany
     {
         return $this->hasMany(ProvisioningLog::class);
+    }
+
+    public function auditLogs(): HasMany
+    {
+        return $this->hasMany(AuditLog::class);
+    }
+
+    public function notificationLogs(): HasMany
+    {
+        return $this->hasMany(NotificationLog::class);
     }
 }

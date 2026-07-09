@@ -37,6 +37,88 @@ class HostingControlPanelApiTest extends TestCase
         $this->getJson("/api/v1/client/services/{$service->id}/manage")->assertForbidden();
     }
 
+    public function test_ftp_is_enabled_for_every_hosting_service(): void
+    {
+        $this->fakeIspConfig();
+        $service = $this->createProvisionableHostingService([], ['status' => 'active']);
+        ProvisionHostingServiceJob::dispatch($service->id);
+
+        Sanctum::actingAs($service->client->user, [], 'sanctum');
+
+        $this->getJson("/api/v1/client/services/{$service->id}/manage")
+            ->assertOk()
+            ->assertJsonPath('capabilities.ftp_sftp_enabled', true)
+            ->assertJsonPath('capabilities.ssh_access_enabled', false);
+    }
+
+    public function test_creating_an_ftp_account_beyond_the_two_account_limit_is_rejected(): void
+    {
+        $this->fakeIspConfig();
+        $service = $this->createProvisionableHostingService([], ['status' => 'active']);
+        ProvisionHostingServiceJob::dispatch($service->id);
+
+        Sanctum::actingAs($service->client->user, [], 'sanctum');
+
+        $this->postJson("/api/v1/client/services/{$service->id}/ftp-accounts", [
+            'username' => 'first',
+            'password' => 'a-strong-password',
+        ])->assertStatus(202);
+
+        $this->postJson("/api/v1/client/services/{$service->id}/ftp-accounts", [
+            'username' => 'second',
+            'password' => 'a-strong-password',
+        ])->assertStatus(202);
+
+        $this->postJson("/api/v1/client/services/{$service->id}/ftp-accounts", [
+            'username' => 'third',
+            'password' => 'a-strong-password',
+        ])->assertForbidden();
+    }
+
+    public function test_hosting_services_are_auto_renewed_by_default(): void
+    {
+        $service = $this->createProvisionableHostingService();
+
+        // The fixture's create() call doesn't pass auto_renew_enabled, so the
+        // in-memory model won't reflect it until re-fetched — this is
+        // asserting the database column default, not the model instance.
+        $this->assertTrue($service->fresh()->auto_renew_enabled);
+    }
+
+    public function test_client_can_turn_off_auto_renew_for_their_own_service(): void
+    {
+        $this->fakeIspConfig();
+        $service = $this->createProvisionableHostingService([], ['status' => 'active']);
+        ProvisionHostingServiceJob::dispatch($service->id);
+
+        Sanctum::actingAs($service->client->user, [], 'sanctum');
+
+        $this->getJson("/api/v1/client/services/{$service->id}/manage")
+            ->assertJsonPath('overview.auto_renew_enabled', true);
+
+        $this->postJson("/api/v1/client/services/{$service->id}/manage/auto-renew", ['auto_renew_enabled' => false])
+            ->assertOk()
+            ->assertJsonPath('auto_renew_enabled', false);
+
+        $this->assertFalse($service->fresh()->auto_renew_enabled);
+
+        $this->getJson("/api/v1/client/services/{$service->id}/manage")
+            ->assertJsonPath('overview.auto_renew_enabled', false);
+    }
+
+    public function test_another_client_cannot_toggle_auto_renew_for_a_service_they_do_not_own(): void
+    {
+        $service = $this->createProvisionableHostingService([], ['status' => 'active']);
+        $other = $this->createProvisionableHostingService();
+
+        Sanctum::actingAs($other->client->user, [], 'sanctum');
+
+        $this->postJson("/api/v1/client/services/{$service->id}/manage/auto-renew", ['auto_renew_enabled' => false])
+            ->assertForbidden();
+
+        $this->assertTrue($service->fresh()->auto_renew_enabled);
+    }
+
     public function test_creating_a_mailbox_beyond_the_plan_limit_is_rejected(): void
     {
         $this->fakeIspConfig();

@@ -39,16 +39,16 @@ class InvoiceDetailApiTest extends TestCase
         $token = $this->registerVerifiedClient('vat-check-client@example.test');
 
         $checkout = $this->withToken($token)->postJson('/api/v1/client/orders/hosting', [
-            'plan_slug' => 'business',
+            'plan_slug' => 'business-website-care',
             'billing_cycle' => 'annual',
             'primary_domain' => 'vat-check-example.com',
             'terms_accepted' => true,
         ])->assertCreated();
 
-        $this->assertSame(25000000, $checkout->json('order.subtotal_kobo'));
+        $this->assertSame(10000000, $checkout->json('order.subtotal_kobo'));
         $this->assertSame(0, $checkout->json('order.discount_kobo'));
-        $this->assertSame(1875000, $checkout->json('order.tax_kobo'));
-        $this->assertSame(26875000, $checkout->json('order.total_kobo'));
+        $this->assertSame(750000, $checkout->json('order.tax_kobo'));
+        $this->assertSame(10750000, $checkout->json('order.total_kobo'));
     }
 
     public function test_client_can_view_their_own_invoice_with_correct_totals(): void
@@ -58,7 +58,7 @@ class InvoiceDetailApiTest extends TestCase
         $token = $this->registerVerifiedClient('invoice-view-client@example.test');
 
         $checkout = $this->withToken($token)->postJson('/api/v1/client/orders/hosting', [
-            'plan_slug' => 'business',
+            'plan_slug' => 'business-website-care',
             'billing_cycle' => 'annual',
             'primary_domain' => 'invoice-view-example.com',
             'terms_accepted' => true,
@@ -71,9 +71,9 @@ class InvoiceDetailApiTest extends TestCase
             ->assertJsonPath('invoice_number', $checkout->json('invoice.invoice_number'))
             ->assertJsonPath('status', 'unpaid')
             ->assertJsonPath('from.name', config('company.name'))
-            ->assertJsonPath('subtotal', '₦250,000')
-            ->assertJsonPath('tax', '₦18,750')
-            ->assertJsonPath('total', '₦268,750')
+            ->assertJsonPath('subtotal', '₦100,000')
+            ->assertJsonPath('tax', '₦7,500')
+            ->assertJsonPath('total', '₦107,500')
             ->assertJsonCount(1, 'line_items');
     }
 
@@ -83,7 +83,7 @@ class InvoiceDetailApiTest extends TestCase
 
         $ownerToken = $this->registerVerifiedClient('invoice-owner@example.test');
         $checkout = $this->withToken($ownerToken)->postJson('/api/v1/client/orders/hosting', [
-            'plan_slug' => 'starter',
+            'plan_slug' => 'starter-website-care',
             'billing_cycle' => 'annual',
             'primary_domain' => 'invoice-owner-example.com',
             'terms_accepted' => true,

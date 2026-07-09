@@ -12,10 +12,14 @@ class NotificationLog extends Model
 
     protected $fillable = [
         'client_id',
+        'hosting_service_id',
+        'domain',
         'channel',
         'template',
+        'subject',
         'recipient',
         'status',
+        'failure_reason',
         'payload',
         'sent_at',
     ];
@@ -31,5 +35,10 @@ class NotificationLog extends Model
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
+    }
+
+    public function hostingService(): BelongsTo
+    {
+        return $this->belongsTo(HostingService::class);
     }
 }

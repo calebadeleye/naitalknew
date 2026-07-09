@@ -41,7 +41,7 @@ class HostingPlatformApiTest extends TestCase
 
         $this->getJson('/api/v1/public/hosting-plans')
             ->assertOk()
-            ->assertJsonFragment(['slug' => 'business']);
+            ->assertJsonFragment(['slug' => 'business-website-care']);
     }
 
     public function test_admin_can_access_dashboard_with_sanctum_token(): void
@@ -104,10 +104,10 @@ class HostingPlatformApiTest extends TestCase
         $token = $this->registerVerifiedClient('ada@example.test');
 
         $response = $this->withToken($token)->postJson('/api/v1/client/orders/hosting', [
-            'plan_slug' => 'business',
+            'plan_slug' => 'business-website-care',
             'billing_cycle' => 'annual',
             'primary_domain' => 'example.com',
-            'add_ons' => ['professional-email'],
+            'add_ons' => ['website-migration'],
             'auto_renew' => true,
             'payment_gateway' => 'paystack',
             'terms_accepted' => true,
@@ -130,7 +130,7 @@ class HostingPlatformApiTest extends TestCase
         $token = $this->registerVerifiedClient('no-domain-client@example.test');
 
         $this->withToken($token)->postJson('/api/v1/client/orders/hosting', [
-            'plan_slug' => 'business',
+            'plan_slug' => 'business-website-care',
             'billing_cycle' => 'annual',
             'terms_accepted' => true,
         ])
@@ -146,7 +146,7 @@ class HostingPlatformApiTest extends TestCase
         $token = $this->registerVerifiedClient('pay-later-client@example.test');
 
         $checkout = $this->withToken($token)->postJson('/api/v1/client/orders/hosting', [
-            'plan_slug' => 'starter',
+            'plan_slug' => 'starter-website-care',
             'billing_cycle' => 'annual',
             'primary_domain' => 'pay-later-example.com',
             'terms_accepted' => true,
@@ -173,7 +173,7 @@ class HostingPlatformApiTest extends TestCase
         $token = $this->registerVerifiedClient('gateway-rejects-client@example.test');
 
         $checkout = $this->withToken($token)->postJson('/api/v1/client/orders/hosting', [
-            'plan_slug' => 'starter',
+            'plan_slug' => 'starter-website-care',
             'billing_cycle' => 'annual',
             'primary_domain' => 'gateway-rejects-example.com',
             'terms_accepted' => true,
@@ -211,7 +211,7 @@ class HostingPlatformApiTest extends TestCase
         ])->assertCreated()->json('token');
 
         $this->withToken($token)->postJson('/api/v1/client/orders/hosting', [
-            'plan_slug' => 'business',
+            'plan_slug' => 'business-website-care',
             'billing_cycle' => 'annual',
             'terms_accepted' => true,
         ])->assertForbidden();
@@ -243,7 +243,7 @@ class HostingPlatformApiTest extends TestCase
         $token = $this->registerVerifiedClient('paid-client@example.test');
 
         $checkout = $this->withToken($token)->postJson('/api/v1/client/orders/hosting', [
-            'plan_slug' => 'business',
+            'plan_slug' => 'business-website-care',
             'billing_cycle' => 'annual',
             'primary_domain' => 'paid-example.com',
             'auto_renew' => true,
@@ -268,7 +268,7 @@ class HostingPlatformApiTest extends TestCase
         $this->assertDatabaseHas('ispconfig_client_mappings', ['client_id' => $clientId, 'ispconfig_server_id' => 1]);
 
         $secondCheckout = $this->withToken($token)->postJson('/api/v1/client/orders/hosting', [
-            'plan_slug' => 'starter',
+            'plan_slug' => 'starter-website-care',
             'billing_cycle' => 'annual',
             'primary_domain' => 'second-paid-example.com',
             'auto_renew' => true,
@@ -298,7 +298,7 @@ class HostingPlatformApiTest extends TestCase
         $token = $this->registerVerifiedClient('queued-provisioning-client@example.test');
 
         $checkout = $this->withToken($token)->postJson('/api/v1/client/orders/hosting', [
-            'plan_slug' => 'starter',
+            'plan_slug' => 'starter-website-care',
             'billing_cycle' => 'annual',
             'primary_domain' => 'queued-example.com',
             'payment_gateway' => 'paystack',
@@ -337,7 +337,7 @@ class HostingPlatformApiTest extends TestCase
         $token = $this->registerVerifiedClient('bank-transfer-client@example.test');
 
         $checkout = $this->withToken($token)->postJson('/api/v1/client/orders/hosting', [
-            'plan_slug' => 'starter',
+            'plan_slug' => 'starter-website-care',
             'billing_cycle' => 'annual',
             'primary_domain' => 'bank-transfer-example.com',
             'terms_accepted' => true,
@@ -362,7 +362,7 @@ class HostingPlatformApiTest extends TestCase
         $clientToken = $this->registerVerifiedClient('admin-mark-paid-client@example.test');
 
         $checkout = $this->withToken($clientToken)->postJson('/api/v1/client/orders/hosting', [
-            'plan_slug' => 'starter',
+            'plan_slug' => 'starter-website-care',
             'billing_cycle' => 'annual',
             'primary_domain' => 'admin-mark-paid-example.com',
             'terms_accepted' => true,
@@ -392,7 +392,7 @@ class HostingPlatformApiTest extends TestCase
         $token = $this->registerVerifiedClient('order-history@example.test');
 
         $this->withToken($token)->postJson('/api/v1/client/orders/hosting', [
-            'plan_slug' => 'business',
+            'plan_slug' => 'business-website-care',
             'billing_cycle' => 'annual',
             'primary_domain' => 'order-history-example.com',
             'terms_accepted' => true,

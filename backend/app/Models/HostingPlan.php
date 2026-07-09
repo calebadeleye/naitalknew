@@ -13,10 +13,14 @@ class HostingPlan extends Model
     protected $fillable = [
         'name',
         'slug',
+        'plan_type',
         'short_description',
         'monthly_price_kobo',
         'annual_price_kobo',
         'setup_fee_kobo',
+        'hosting_amount_kobo',
+        'ssl_amount_kobo',
+        'currency',
         'storage_allocation',
         'bandwidth_policy',
         'websites',
@@ -26,9 +30,18 @@ class HostingPlan extends Model
         'support_tier',
         'migration_included',
         'is_featured',
+        'is_popular',
+        'is_recommended',
         'is_active',
+        'is_public',
+        'is_orderable',
+        'status',
         'sort_order',
+        'display_badge',
+        'cta_label',
         'internal_notes',
+        'public_features',
+        'internal_limits',
         'configuration_json',
     ];
 
@@ -37,7 +50,13 @@ class HostingPlan extends Model
         return [
             'migration_included' => 'boolean',
             'is_featured' => 'boolean',
+            'is_popular' => 'boolean',
+            'is_recommended' => 'boolean',
             'is_active' => 'boolean',
+            'is_public' => 'boolean',
+            'is_orderable' => 'boolean',
+            'public_features' => 'array',
+            'internal_limits' => 'array',
             'configuration_json' => 'array',
         ];
     }

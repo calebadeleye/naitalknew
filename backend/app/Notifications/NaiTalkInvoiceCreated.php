@@ -43,6 +43,6 @@ class NaiTalkInvoiceCreated extends Notification implements ShouldQueue
             ->line('**Due date:** '.$invoice->due_at?->toFormattedDateString())
             ->action('Pay Invoice', $payUrl)
             ->line('You can pay online with Paystack, Flutterwave, or by bank transfer, or pay later from your dashboard — your order is already saved and this invoice will be waiting for you.')
-            ->line('Need help? Contact NAI TALK support at hello@naitalk.com.');
+            ->line('Need help? Contact NAI TALK support at info@naitalk.com.');
     }
 }

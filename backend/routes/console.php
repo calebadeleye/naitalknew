@@ -1,7 +1,11 @@
 <?php
 
+use App\Jobs\CheckExpiredHostingServicesJob;
+use App\Jobs\DeleteExpiredIspconfigWebsiteJob;
 use App\Jobs\DetectMissingIspConfigResourcesJob;
 use App\Jobs\DetectOrphanedIspConfigClientsJob;
+use App\Jobs\SendHostingExpiryReminderJob;
+use App\Jobs\SuspendExpiredHostingJob;
 use App\Jobs\SyncDatabasesJob;
 use App\Jobs\SyncFtpAccountsJob;
 use App\Jobs\SyncHostingUsageSnapshotJob;
@@ -25,3 +29,9 @@ Schedule::job(new SyncHostingUsageSnapshotJob)->hourly();
 Schedule::job(new SyncMailboxesJob)->everySixHours();
 Schedule::job(new SyncDatabasesJob)->everySixHours();
 Schedule::job(new SyncFtpAccountsJob)->everySixHours();
+
+// Hosting expiry / grace-period / deletion pipeline (in run order).
+Schedule::job(new CheckExpiredHostingServicesJob)->dailyAt('03:00');
+Schedule::job(new SendHostingExpiryReminderJob)->dailyAt('03:15');
+Schedule::job(new SuspendExpiredHostingJob)->dailyAt('03:30');
+Schedule::job(new DeleteExpiredIspconfigWebsiteJob)->dailyAt('03:45');

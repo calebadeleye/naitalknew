@@ -12,6 +12,10 @@
   --color-accent-cyan: #00d8ff;
   --color-accent-violet: #b95cff;
   --color-accent-gold: #ffb900;
+  --color-accent-rose: #ff4d8d;
+  --color-accent-blue: #4f7bff;
+  --color-accent-teal: #14e0b4;
+  --color-accent-orange: #ff7a45;
 }
 
 @layer base {
@@ -605,7 +609,7 @@
   }
 
   .portal-header {
-    @apply flex flex-col gap-4 rounded-lg border border-white/10 bg-white/[0.035] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5;
+    @apply mb-6 mt-3 flex flex-col gap-4 rounded-lg border border-white/10 bg-white/[0.035] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5 lg:mt-0;
   }
 
   .portal-header h1 {
@@ -794,48 +798,199 @@
     @apply text-accent-gold;
   }
 
-  .project-card:nth-child(1) {
-    @apply hover:border-accent-violet/40;
+  .catalog-card {
+    @apply flex min-h-[250px] flex-col rounded-lg border border-primary/20 bg-white/[0.035] p-5 transition hover:-translate-y-1 hover:border-primary/50 hover:bg-primary/[0.055] sm:p-6;
     background:
-      radial-gradient(circle at 22% 0%, rgba(185, 92, 255, 0.12), transparent 42%),
-      linear-gradient(150deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018)),
+      radial-gradient(circle at 18% 0%, rgba(155, 234, 22, 0.12), transparent 42%),
+      linear-gradient(145deg, rgba(255, 255, 255, 0.052), rgba(255, 255, 255, 0.018)),
       #071014;
   }
 
-  .project-card:nth-child(1) .project-tag {
+  .catalog-card-icon {
+    @apply flex h-11 w-11 items-center justify-center rounded-lg border border-primary/45 bg-primary/10 text-primary shadow-[0_0_28px_rgba(155,234,22,0.14)];
+  }
+
+  .catalog-order-btn {
+    @apply border-primary/40 text-primary hover:border-primary/60 hover:bg-primary/10;
+  }
+
+  /* Eight distinct accent hues cycling every 8 cards so no two catalogue
+     cards in a row ever share a color, regardless of how many are added. */
+  .catalog-card:nth-child(8n + 2) {
+    @apply border-accent-cyan/20 hover:border-accent-cyan/50 hover:bg-accent-cyan/[0.055];
+    background:
+      radial-gradient(circle at 18% 0%, rgba(0, 216, 255, 0.13), transparent 42%),
+      linear-gradient(145deg, rgba(255, 255, 255, 0.052), rgba(255, 255, 255, 0.018)),
+      #071014;
+  }
+
+  .catalog-card:nth-child(8n + 2) .catalog-card-icon {
+    @apply border-accent-cyan/45 bg-accent-cyan/10 text-accent-cyan shadow-[0_0_28px_rgba(0,216,255,0.15)];
+  }
+
+  .catalog-card:nth-child(8n + 2) .catalog-order-btn {
+    @apply border-accent-cyan/40 text-accent-cyan hover:border-accent-cyan/60 hover:bg-accent-cyan/10;
+  }
+
+  .catalog-card:nth-child(8n + 3) {
+    @apply border-accent-violet/20 hover:border-accent-violet/50 hover:bg-accent-violet/[0.055];
+    background:
+      radial-gradient(circle at 18% 0%, rgba(185, 92, 255, 0.14), transparent 42%),
+      linear-gradient(145deg, rgba(255, 255, 255, 0.052), rgba(255, 255, 255, 0.018)),
+      #071014;
+  }
+
+  .catalog-card:nth-child(8n + 3) .catalog-card-icon {
+    @apply border-accent-violet/45 bg-accent-violet/10 text-accent-violet shadow-[0_0_28px_rgba(185,92,255,0.16)];
+  }
+
+  .catalog-card:nth-child(8n + 3) .catalog-order-btn {
+    @apply border-accent-violet/40 text-accent-violet hover:border-accent-violet/60 hover:bg-accent-violet/10;
+  }
+
+  .catalog-card:nth-child(8n + 4) {
+    @apply border-accent-gold/20 hover:border-accent-gold/50 hover:bg-accent-gold/[0.055];
+    background:
+      radial-gradient(circle at 18% 0%, rgba(255, 185, 0, 0.13), transparent 42%),
+      linear-gradient(145deg, rgba(255, 255, 255, 0.052), rgba(255, 255, 255, 0.018)),
+      #071014;
+  }
+
+  .catalog-card:nth-child(8n + 4) .catalog-card-icon {
+    @apply border-accent-gold/45 bg-accent-gold/10 text-accent-gold shadow-[0_0_28px_rgba(255,185,0,0.16)];
+  }
+
+  .catalog-card:nth-child(8n + 4) .catalog-order-btn {
+    @apply border-accent-gold/40 text-accent-gold hover:border-accent-gold/60 hover:bg-accent-gold/10;
+  }
+
+  .catalog-card:nth-child(8n + 5) {
+    @apply border-accent-rose/20 hover:border-accent-rose/50 hover:bg-accent-rose/[0.055];
+    background:
+      radial-gradient(circle at 18% 0%, rgba(255, 77, 141, 0.13), transparent 42%),
+      linear-gradient(145deg, rgba(255, 255, 255, 0.052), rgba(255, 255, 255, 0.018)),
+      #071014;
+  }
+
+  .catalog-card:nth-child(8n + 5) .catalog-card-icon {
+    @apply border-accent-rose/45 bg-accent-rose/10 text-accent-rose shadow-[0_0_28px_rgba(255,77,141,0.16)];
+  }
+
+  .catalog-card:nth-child(8n + 5) .catalog-order-btn {
+    @apply border-accent-rose/40 text-accent-rose hover:border-accent-rose/60 hover:bg-accent-rose/10;
+  }
+
+  .catalog-card:nth-child(8n + 6) {
+    @apply border-accent-blue/20 hover:border-accent-blue/50 hover:bg-accent-blue/[0.055];
+    background:
+      radial-gradient(circle at 18% 0%, rgba(79, 123, 255, 0.14), transparent 42%),
+      linear-gradient(145deg, rgba(255, 255, 255, 0.052), rgba(255, 255, 255, 0.018)),
+      #071014;
+  }
+
+  .catalog-card:nth-child(8n + 6) .catalog-card-icon {
+    @apply border-accent-blue/45 bg-accent-blue/10 text-accent-blue shadow-[0_0_28px_rgba(79,123,255,0.16)];
+  }
+
+  .catalog-card:nth-child(8n + 6) .catalog-order-btn {
+    @apply border-accent-blue/40 text-accent-blue hover:border-accent-blue/60 hover:bg-accent-blue/10;
+  }
+
+  .catalog-card:nth-child(8n + 7) {
+    @apply border-accent-teal/20 hover:border-accent-teal/50 hover:bg-accent-teal/[0.055];
+    background:
+      radial-gradient(circle at 18% 0%, rgba(20, 224, 180, 0.14), transparent 42%),
+      linear-gradient(145deg, rgba(255, 255, 255, 0.052), rgba(255, 255, 255, 0.018)),
+      #071014;
+  }
+
+  .catalog-card:nth-child(8n + 7) .catalog-card-icon {
+    @apply border-accent-teal/45 bg-accent-teal/10 text-accent-teal shadow-[0_0_28px_rgba(20,224,180,0.16)];
+  }
+
+  .catalog-card:nth-child(8n + 7) .catalog-order-btn {
+    @apply border-accent-teal/40 text-accent-teal hover:border-accent-teal/60 hover:bg-accent-teal/10;
+  }
+
+  .catalog-card:nth-child(8n) {
+    @apply border-accent-orange/20 hover:border-accent-orange/50 hover:bg-accent-orange/[0.055];
+    background:
+      radial-gradient(circle at 18% 0%, rgba(255, 122, 69, 0.14), transparent 42%),
+      linear-gradient(145deg, rgba(255, 255, 255, 0.052), rgba(255, 255, 255, 0.018)),
+      #071014;
+  }
+
+  .catalog-card:nth-child(8n) .catalog-card-icon {
+    @apply border-accent-orange/45 bg-accent-orange/10 text-accent-orange shadow-[0_0_28px_rgba(255,122,69,0.16)];
+  }
+
+  .catalog-card:nth-child(8n) .catalog-order-btn {
+    @apply border-accent-orange/40 text-accent-orange hover:border-accent-orange/60 hover:bg-accent-orange/10;
+  }
+
+  .project-marquee {
+    @apply relative overflow-hidden;
+    mask-image: linear-gradient(90deg, transparent, black 4%, black 96%, transparent);
+    -webkit-mask-image: linear-gradient(90deg, transparent, black 4%, black 96%, transparent);
+  }
+
+  .project-marquee-track {
+    @apply flex w-max gap-5;
+    animation: project-marquee-scroll 36s linear infinite;
+  }
+
+  .project-marquee:hover .project-marquee-track {
+    animation-play-state: paused;
+  }
+
+  @keyframes project-marquee-scroll {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  .project-slide {
+    @apply relative h-64 w-72 flex-shrink-0 overflow-hidden rounded-lg border border-white/10 bg-[#071014] transition hover:-translate-y-1 hover:border-accent-cyan/40 sm:h-72 sm:w-80;
+  }
+
+  .project-slide:focus-visible {
+    @apply outline-none ring-2 ring-accent-cyan/55 ring-offset-2 ring-offset-background;
+  }
+
+  .project-slide img {
+    @apply h-full w-full object-cover transition duration-300;
+  }
+
+  .project-slide:hover img {
+    @apply scale-105;
+  }
+
+  .project-slide-overlay {
+    @apply pointer-events-none absolute inset-0;
+    background: linear-gradient(180deg, rgba(2, 7, 10, 0) 35%, rgba(2, 7, 10, 0.92) 100%);
+  }
+
+  .project-slide-info {
+    @apply absolute inset-x-0 bottom-0 p-4;
+  }
+
+  .project-slide:nth-child(4n + 1) .project-tag {
     @apply border-accent-violet/30 bg-accent-violet/10 text-accent-violet;
   }
 
-  .project-card:nth-child(2) {
-    @apply hover:border-accent-cyan/40;
-    background:
-      radial-gradient(circle at 22% 0%, rgba(0, 216, 255, 0.12), transparent 42%),
-      linear-gradient(150deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018)),
-      #071014;
-  }
-
-  .project-card:nth-child(2) .project-tag {
+  .project-slide:nth-child(4n + 2) .project-tag {
     @apply border-accent-cyan/30 bg-accent-cyan/10 text-accent-cyan;
   }
 
-  .project-card:nth-child(3) {
-    @apply hover:border-accent-gold/40;
-    background:
-      radial-gradient(circle at 22% 0%, rgba(255, 185, 0, 0.12), transparent 42%),
-      linear-gradient(150deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018)),
-      #071014;
-  }
-
-  .project-card:nth-child(3) .project-tag {
+  .project-slide:nth-child(4n + 3) .project-tag {
     @apply border-accent-gold/30 bg-accent-gold/10 text-accent-gold;
   }
 
-  .project-card:nth-child(4) {
-    @apply hover:border-primary/40;
-    background:
-      radial-gradient(circle at 22% 0%, rgba(155, 234, 22, 0.12), transparent 42%),
-      linear-gradient(150deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018)),
-      #071014;
+  .project-slide:nth-child(4n + 4) .project-tag {
+    @apply border-primary/30 bg-primary/10 text-primary;
   }
 
   .process-step:nth-child(2) .process-number {

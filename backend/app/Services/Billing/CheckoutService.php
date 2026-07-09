@@ -21,6 +21,7 @@ class CheckoutService
             $plan = HostingPlan::query()
                 ->where('slug', $payload['plan_slug'])
                 ->where('is_active', true)
+                ->where('is_orderable', true)
                 ->firstOrFail();
 
             $this->promoteToBillingClient($client);
@@ -110,6 +111,8 @@ class CheckoutService
                     'add_ons' => $addOns->pluck('slug')->values(),
                 ],
             ]);
+
+            $invoice->forceFill(['hosting_service_id' => $service->id])->save();
 
             return [
                 'order' => $order->load('items'),

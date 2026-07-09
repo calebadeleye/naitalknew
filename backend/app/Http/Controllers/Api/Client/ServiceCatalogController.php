@@ -14,6 +14,7 @@ class ServiceCatalogController extends Controller
     {
         $hostingPlans = HostingPlan::query()
             ->where('is_active', true)
+            ->where('is_public', true)
             ->orderBy('sort_order')
             ->get()
             ->map(fn (HostingPlan $plan) => [
@@ -21,12 +22,7 @@ class ServiceCatalogController extends Controller
                 'slug' => $plan->slug,
                 'category' => 'hosting',
                 'short_description' => $plan->short_description,
-                'benefits' => array_filter([
-                    $plan->storage_allocation,
-                    $plan->bandwidth_policy,
-                    $plan->backup_frequency ? "{$plan->backup_frequency} backups" : null,
-                    "{$plan->support_tier} support",
-                ]),
+                'benefits' => $plan->public_features ?? [],
                 'starting_price' => Money::naira($plan->monthly_price_kobo),
                 'billing_type' => 'monthly',
                 'is_quote_only' => false,

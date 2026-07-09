@@ -54,18 +54,12 @@ class ServiceOfferingSeeder extends Seeder
                 'is_quote_only' => false,
                 'sort_order' => 40,
             ],
-            [
-                'name' => 'Backup Add-on',
-                'slug' => 'backup-addon',
-                'category' => 'backup_addon',
-                'short_description' => 'Daily off-site backups with one-click restore for your hosted website.',
-                'benefits' => ['Daily automated backups', '30-day retention', 'One-click restore'],
-                'price_kobo' => 300000,
-                'billing_type' => 'monthly',
-                'is_quote_only' => false,
-                'sort_order' => 50,
-            ],
         ];
+
+        // Backup Add-on was a duplicate of the Website Care backup coverage
+        // already included in hosting plans — deactivated rather than
+        // deleted in case a historical order still references it.
+        ServiceOffering::query()->where('slug', 'backup-addon')->update(['is_active' => false]);
 
         foreach ($offerings as $offering) {
             ServiceOffering::query()->updateOrCreate(['slug' => $offering['slug']], $offering);

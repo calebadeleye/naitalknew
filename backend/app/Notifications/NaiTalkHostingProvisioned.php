@@ -33,6 +33,6 @@ class NaiTalkHostingProvisioned extends Notification implements ShouldQueue
             ->line('**Domain:** '.$this->service->primary_domain)
             ->line('**Plan:** '.$this->service->hostingPlan?->name)
             ->action('Manage Your Hosting', $manageUrl)
-            ->line('Need help getting started? Contact NAI TALK support at hello@naitalk.com.');
+            ->line('Need help getting started? Contact NAI TALK support at info@naitalk.com.');
     }
 }

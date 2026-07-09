@@ -36,6 +36,53 @@ interface IspConfigClient
     public function clientList(string $sessionId): array;
 
     /**
+     * Read-only listing, used only by the legacy ISPConfig import (never by
+     * provisioning). Pass a filter (e.g. ['client_id' => 5]) to scope
+     * results; an empty filter returns every website ISPConfig knows about.
+     *
+     * @param  array<string, mixed>  $filter
+     * @return array<int, array<string, mixed>>
+     */
+    public function sitesWebDomainList(string $sessionId, array $filter = []): array;
+
+    /**
+     * @param  array<string, mixed>  $filter
+     * @return array<int, array<string, mixed>>
+     */
+    public function mailDomainList(string $sessionId, array $filter = []): array;
+
+    /**
+     * @param  array<string, mixed>  $filter
+     * @return array<int, array<string, mixed>>
+     */
+    public function mailUserList(string $sessionId, array $filter = []): array;
+
+    /**
+     * Email aliases/forwarders. Not every ISPConfig install exposes this
+     * remote method — implementations must return an empty array rather
+     * than throw when it's unavailable.
+     *
+     * @param  array<string, mixed>  $filter
+     * @return array<int, array<string, mixed>>
+     */
+    public function mailAliasList(string $sessionId, array $filter = []): array;
+
+    /**
+     * @param  array<string, mixed>  $filter
+     * @return array<int, array<string, mixed>>
+     */
+    public function databasesDatabaseList(string $sessionId, array $filter = []): array;
+
+    /**
+     * DNS zones. Optional — implementations must return an empty array
+     * rather than throw when it's unavailable.
+     *
+     * @param  array<string, mixed>  $filter
+     * @return array<int, array<string, mixed>>
+     */
+    public function dnsZoneList(string $sessionId, array $filter = []): array;
+
+    /**
      * @param  array<string, mixed>  $params
      */
     public function sitesWebDomainAdd(string $sessionId, int $clientId, array $params): int;
@@ -46,6 +93,16 @@ interface IspConfigClient
     public function sitesWebDomainGet(string $sessionId, int $domainId): ?array;
 
     public function sitesWebDomainDelete(string $sessionId, int $domainId): int;
+
+    /**
+     * Updates an existing website record — used to flip ISPConfig's own
+     * 'active' flag ('y'/'n') for deactivate/reactivate, and available for
+     * any other website field an admin action needs to change in place.
+     * Never used to create a new website.
+     *
+     * @param  array<string, mixed>  $params
+     */
+    public function sitesWebDomainUpdate(string $sessionId, int $clientId, int $domainId, array $params): int;
 
     /**
      * ISPConfig requires a mail domain to exist before any mailbox can be

@@ -4,7 +4,6 @@ namespace Database\Seeders;
 
 use App\Models\Client;
 use App\Models\HostingAddOn;
-use App\Models\HostingPlan;
 use App\Models\HostingService;
 use App\Models\Invoice;
 use App\Models\IspConfigClientMapping;
@@ -86,59 +85,18 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        $plans = collect([
-            ['Starter', 'starter', 'Perfect for small websites', 1500000, 15000000, '10GB SSD', 'Unmetered bandwidth', 1, 1, 1, 'Weekly', 'standard', false, false, 1, 10240, false, false],
-            ['Business', 'business', 'Great for growing businesses', 2500000, 25000000, '20GB SSD', 'Unmetered bandwidth', 10, 10, 10, 'Daily', 'priority', true, true, 2, 20480, false, true],
-            ['Professional', 'professional', 'Advanced for professionals', 4500000, 45000000, '40GB SSD', 'Unmetered bandwidth', 50, 50, 50, 'Daily', 'priority', true, false, 3, 40960, false, true],
-            ['Managed', 'managed', 'For high performance needs', 8500000, 85000000, '80GB SSD', 'Unmetered bandwidth', 100, 100, 100, 'Daily', 'managed', true, false, 4, 81920, true, true],
-        ])->mapWithKeys(function (array $plan) {
-            [$name, $slug, $shortDescription, $monthly, $annual, $storage, $bandwidthPolicy, $websites, $databases, $emailAccounts, $backupFrequency, $supportTier, $migrationIncluded, $isFeatured, $sortOrder, $diskQuotaMb, $sshEnabled, $sftpEnabled] = $plan;
+        $plans = (new HostingPlanSeeder())->run();
 
-            return [
-                $slug => HostingPlan::query()->updateOrCreate(
-                    ['slug' => $slug],
-                    [
-                        'name' => $name,
-                        'short_description' => $shortDescription,
-                        'monthly_price_kobo' => $monthly,
-                        'annual_price_kobo' => $annual,
-                        'setup_fee_kobo' => 0,
-                        'storage_allocation' => $storage,
-                        'bandwidth_policy' => $bandwidthPolicy,
-                        'websites' => $websites,
-                        'databases' => $databases,
-                        'email_accounts' => $emailAccounts,
-                        'backup_frequency' => $backupFrequency,
-                        'support_tier' => $supportTier,
-                        'migration_included' => $migrationIncluded,
-                        'is_featured' => $isFeatured,
-                        'is_active' => true,
-                        'sort_order' => $sortOrder,
-                        'configuration_json' => [
-                            'disk_quota_mb' => $diskQuotaMb,
-                            'bandwidth_quota_mb' => $diskQuotaMb * 10,
-                            'max_email_accounts' => $emailAccounts,
-                            'max_databases' => $databases,
-                            'max_ftp_accounts' => $websites,
-                            'ssh_access_enabled' => $sshEnabled,
-                            'sftp_access_enabled' => $sftpEnabled,
-                            'ssl_enabled' => true,
-                            'backup_enabled' => true,
-                            'php_version' => '8.2',
-                            'max_subdomains' => $websites * 5,
-                            'max_aliases' => $emailAccounts,
-                            'default_server_id' => 1,
-                        ],
-                    ]
-                ),
-            ];
-        });
+        // Professional Email, Website Backup and Priority Support are now
+        // covered by the equivalent (more detailed) ServiceOfferingSeeder
+        // entries, so they're deactivated here rather than deleted — some
+        // may already be referenced by historical order_items.
+        HostingAddOn::query()
+            ->whereIn('slug', ['professional-email', 'website-backup', 'priority-support'])
+            ->update(['is_active' => false]);
 
         foreach ([
-            ['Professional Email', 'professional-email', 'Managed mailbox setup and support.', 500000, 1000000],
-            ['Website Backup', 'website-backup', 'Managed offsite backups.', 500000, 1500000],
-            ['Website Migration', 'website-migration', 'Move an existing website safely.', 0, 2500000],
-            ['Priority Support', 'priority-support', 'Faster support response windows.', 1000000, 10000000],
+            ['Website Migration', 'website-migration', "We'll get in touch to discuss moving your existing website over — pricing depends on its size and complexity, and could be free for a simple site.", 0, 0],
         ] as [$name, $slug, $description, $monthly, $annual]) {
             HostingAddOn::query()->updateOrCreate(
                 ['slug' => $slug],
@@ -206,7 +164,7 @@ class DatabaseSeeder extends Seeder
                 ['service_number' => $number],
                 [
                     'client_id' => $client->id,
-                    'hosting_plan_id' => $plans['business']->id,
+                    'hosting_plan_id' => $plans['business-website-care']->id,
                     'order_id' => $order->id,
                     'primary_domain' => $domain,
                     'status' => 'active',

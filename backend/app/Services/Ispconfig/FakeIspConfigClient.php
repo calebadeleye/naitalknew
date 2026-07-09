@@ -90,6 +90,71 @@ class FakeIspConfigClient implements IspConfigClient
         return array_values($this->clients);
     }
 
+    /**
+     * @param  array<string, mixed>  $filter
+     * @return array<int, array<string, mixed>>
+     */
+    private function filtered(array $records, array $filter): array
+    {
+        if ($filter === []) {
+            return array_values($records);
+        }
+
+        return array_values(array_filter($records, function (array $record) use ($filter): bool {
+            foreach ($filter as $key => $value) {
+                if (! array_key_exists($key, $record) || (string) $record[$key] !== (string) $value) {
+                    return false;
+                }
+            }
+
+            return true;
+        }));
+    }
+
+    public function sitesWebDomainList(string $sessionId, array $filter = []): array
+    {
+        $this->maybeFail('sitesWebDomainList', $filter);
+
+        return $this->filtered($this->domains, $filter);
+    }
+
+    public function mailDomainList(string $sessionId, array $filter = []): array
+    {
+        $this->maybeFail('mailDomainList', $filter);
+
+        return $this->filtered($this->mailDomains, $filter);
+    }
+
+    public function mailUserList(string $sessionId, array $filter = []): array
+    {
+        $this->maybeFail('mailUserList', $filter);
+
+        return $this->filtered($this->mailUsers, $filter);
+    }
+
+    public function mailAliasList(string $sessionId, array $filter = []): array
+    {
+        $this->maybeFail('mailAliasList', $filter);
+
+        // No fake backing store — real ISPConfig installs may not expose
+        // this either, so the fake mirrors that "always empty" behaviour.
+        return [];
+    }
+
+    public function databasesDatabaseList(string $sessionId, array $filter = []): array
+    {
+        $this->maybeFail('databasesDatabaseList', $filter);
+
+        return $this->filtered($this->databases, $filter);
+    }
+
+    public function dnsZoneList(string $sessionId, array $filter = []): array
+    {
+        $this->maybeFail('dnsZoneList', $filter);
+
+        return [];
+    }
+
     public function sitesWebDomainAdd(string $sessionId, int $clientId, array $params): int
     {
         $this->maybeFail('sitesWebDomainAdd', $params);
@@ -99,7 +164,7 @@ class FakeIspConfigClient implements IspConfigClient
             'system_user' => 'web'.$id,
             'system_group' => 'client'.$clientId,
             'document_root' => '/var/www/clients/client'.$clientId.'/web'.$id,
-        ], $params, ['domain_id' => $id, 'client_id' => $clientId]);
+        ], $params, ['domain_id' => $id, 'client_id' => $clientId, 'sys_groupid' => $clientId + 1]);
 
         return $id;
     }
@@ -120,12 +185,25 @@ class FakeIspConfigClient implements IspConfigClient
         return $domainId;
     }
 
+    public function sitesWebDomainUpdate(string $sessionId, int $clientId, int $domainId, array $params): int
+    {
+        $this->maybeFail('sitesWebDomainUpdate', $params);
+
+        if (! isset($this->domains[(string) $domainId])) {
+            throw new IspConfigApiException("website {$domainId} not found", ['method' => 'sitesWebDomainUpdate']);
+        }
+
+        $this->domains[(string) $domainId] = array_merge($this->domains[(string) $domainId], $params);
+
+        return $domainId;
+    }
+
     public function mailDomainAdd(string $sessionId, int $clientId, array $params): int
     {
         $this->maybeFail('mailDomainAdd', $params);
 
         $id = $this->nextId++;
-        $this->mailDomains[(string) $id] = array_merge($params, ['mail_domain_id' => $id, 'client_id' => $clientId]);
+        $this->mailDomains[(string) $id] = array_merge($params, ['mail_domain_id' => $id, 'domain_id' => $id, 'client_id' => $clientId, 'sys_groupid' => $clientId + 1]);
 
         return $id;
     }
@@ -142,7 +220,7 @@ class FakeIspConfigClient implements IspConfigClient
         $this->maybeFail('mailUserAdd', $params);
 
         $id = $this->nextId++;
-        $this->mailUsers[(string) $id] = array_merge($params, ['mailuser_id' => $id, 'client_id' => $clientId]);
+        $this->mailUsers[(string) $id] = array_merge($params, ['mailuser_id' => $id, 'client_id' => $clientId, 'sys_groupid' => $clientId + 1]);
 
         return $id;
     }
@@ -181,7 +259,7 @@ class FakeIspConfigClient implements IspConfigClient
         $this->maybeFail('databasesDatabaseAdd', $params);
 
         $id = $this->nextId++;
-        $this->databases[(string) $id] = array_merge($params, ['database_id' => $id, 'client_id' => $clientId]);
+        $this->databases[(string) $id] = array_merge($params, ['database_id' => $id, 'client_id' => $clientId, 'sys_groupid' => $clientId + 1]);
 
         return $id;
     }

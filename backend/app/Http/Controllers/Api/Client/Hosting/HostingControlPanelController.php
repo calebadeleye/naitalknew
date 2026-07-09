@@ -29,6 +29,7 @@ class HostingControlPanelController extends Controller
                 'provisioning_status' => $service->provisioning_status,
                 'billing_cycle' => $service->billing_cycle,
                 'renews_at' => $service->renews_at?->toDateString(),
+                'auto_renew_enabled' => $service->auto_renew_enabled,
                 'last_synced_at' => $mapping?->last_synced_at?->toIso8601String(),
             ],
             'usage' => $snapshot ? [
@@ -65,5 +66,19 @@ class HostingControlPanelController extends Controller
         SyncFtpAccountsJob::dispatch($service->id);
 
         return response()->json(['message' => 'Refresh requested.'], 202);
+    }
+
+    public function updateAutoRenew(Request $request, HostingService $service)
+    {
+        $this->authorize('manage', $service);
+
+        $payload = $request->validate(['auto_renew_enabled' => ['required', 'boolean']]);
+
+        $service->forceFill(['auto_renew_enabled' => $payload['auto_renew_enabled']])->save();
+
+        return response()->json([
+            'auto_renew_enabled' => $service->auto_renew_enabled,
+            'message' => $service->auto_renew_enabled ? 'Auto-renew turned on.' : 'Auto-renew turned off.',
+        ]);
     }
 }

@@ -30,6 +30,6 @@ class NaiTalkVerificationCode extends Notification implements ShouldQueue
             ->line('This code expires in 15 minutes.')
             ->line('Once verified, your account can be used to order hosting, request website projects, pay invoices, and manage your services.')
             ->line('If you did not request this code, you can safely ignore this email.')
-            ->line('Need help? Contact NAI TALK support at hello@naitalk.com.');
+            ->line('Need help? Contact NAI TALK support at info@naitalk.com.');
     }
 }

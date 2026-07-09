@@ -123,6 +123,81 @@ class SoapIspConfigClient implements IspConfigClient
         return is_array($result) ? $result : [];
     }
 
+    /**
+     * @param  array<string, mixed>  $filter
+     */
+    public function sitesWebDomainList(string $sessionId, array $filter = []): array
+    {
+        $result = $this->call('sites_web_domain_get', [$sessionId, $filter]);
+
+        return is_array($result) ? $result : [];
+    }
+
+    /**
+     * @param  array<string, mixed>  $filter
+     */
+    public function mailDomainList(string $sessionId, array $filter = []): array
+    {
+        $result = $this->call('mail_domain_get', [$sessionId, $filter]);
+
+        return is_array($result) ? $result : [];
+    }
+
+    /**
+     * @param  array<string, mixed>  $filter
+     */
+    public function mailUserList(string $sessionId, array $filter = []): array
+    {
+        $result = $this->call('mail_user_get', [$sessionId, $filter]);
+
+        return is_array($result) ? $result : [];
+    }
+
+    /**
+     * Not every ISPConfig install exposes a remote listing for aliases/
+     * forwarders — swallow the fault and report "none found" rather than
+     * failing the whole import over an optional resource type.
+     *
+     * @param  array<string, mixed>  $filter
+     */
+    public function mailAliasList(string $sessionId, array $filter = []): array
+    {
+        try {
+            $result = $this->call('mail_aliasdomain_get', [$sessionId, $filter]);
+        } catch (IspConfigApiException) {
+            return [];
+        }
+
+        return is_array($result) ? $result : [];
+    }
+
+    /**
+     * @param  array<string, mixed>  $filter
+     */
+    public function databasesDatabaseList(string $sessionId, array $filter = []): array
+    {
+        $result = $this->call('sites_database_get', [$sessionId, $filter]);
+
+        return is_array($result) ? $result : [];
+    }
+
+    /**
+     * Optional — swallow the fault rather than failing the import if this
+     * ISPConfig install/version doesn't expose DNS zone listing remotely.
+     *
+     * @param  array<string, mixed>  $filter
+     */
+    public function dnsZoneList(string $sessionId, array $filter = []): array
+    {
+        try {
+            $result = $this->call('dns_zone_get', [$sessionId, $filter]);
+        } catch (IspConfigApiException) {
+            return [];
+        }
+
+        return is_array($result) ? $result : [];
+    }
+
     public function sitesWebDomainAdd(string $sessionId, int $clientId, array $params): int
     {
         return (int) $this->call('sites_web_domain_add', [$sessionId, $clientId, $params]);
@@ -138,6 +213,11 @@ class SoapIspConfigClient implements IspConfigClient
     public function sitesWebDomainDelete(string $sessionId, int $domainId): int
     {
         return (int) $this->call('sites_web_domain_delete', [$sessionId, $domainId]);
+    }
+
+    public function sitesWebDomainUpdate(string $sessionId, int $clientId, int $domainId, array $params): int
+    {
+        return (int) $this->call('sites_web_domain_update', [$sessionId, $clientId, $domainId, $params]);
     }
 
     public function mailDomainAdd(string $sessionId, int $clientId, array $params): int

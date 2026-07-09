@@ -36,7 +36,6 @@ import {
   Phone,
   Plus,
   Power,
-  Radio,
   RefreshCw,
   Save,
   Server,
@@ -53,6 +52,7 @@ import {
 } from "lucide-react";
 import { useToast } from "./toast/ToastProvider";
 import { useClientRoute, navigateClient, type ClientRouteName } from "./routing/useClientRoute";
+import { useAdminRoute, adminPath, adminClientDetailPath, adminServiceDetailPath, type AdminSectionId } from "./routing/useAdminRoute";
 import { consumePendingOrder, hasClientToken, savePendingOrder, startHostingOrder } from "./routing/pendingOrder";
 
 type LogoImage = {
@@ -170,6 +170,8 @@ type HostingPlanCard = {
   monthly: string;
   annual: string;
   featured: boolean;
+  badge: string | null;
+  ctaLabel: string;
   features: string[];
 };
 
@@ -212,6 +214,7 @@ type PricingPackage = {
   monthly_price_kobo: number;
   annual_price_kobo: number;
   setup_fee_kobo: number;
+  currency?: string;
   monthly_price?: string;
   annual_price?: string;
   setup_fee?: string;
@@ -224,9 +227,16 @@ type PricingPackage = {
   support_tier: string;
   migration_included: boolean;
   is_featured: boolean;
+  is_popular: boolean;
+  is_recommended: boolean;
   is_active: boolean;
+  status?: string;
   sort_order: number;
+  display_badge: string;
+  cta_label: string;
   internal_notes?: string;
+  public_features: string[];
+  internal_limits: Record<string, unknown>;
 };
 
 type ClientAuthMode = "login" | "register" | "forgot" | "reset";
@@ -242,10 +252,8 @@ type LaravelPage<T = Record<string, unknown>> = {
 };
 
 type AdminRecordsSectionId =
-  | "clients"
   | "products"
   | "orders"
-  | "services"
   | "invoices"
   | "payments"
   | "support"
@@ -366,6 +374,19 @@ const services = [
   },
 ];
 
+const catalogCategoryIcons: Record<string, React.ComponentType<{ className?: string }>> = {
+  hosting: Server,
+  add_on: Settings,
+  web_development: Code2,
+  maintenance: ShieldCheck,
+  ai: Bot,
+  email_addon: Mail,
+};
+
+function catalogCategoryIcon(category: string): React.ComponentType<{ className?: string }> {
+  return catalogCategoryIcons[category] || PackageCheck;
+}
+
 const process = [
   {
     title: "Let's Talk",
@@ -478,40 +499,66 @@ const stats = [
 
 const fallbackHostingPlans: HostingPlanCard[] = [
   {
-    name: "Starter",
-    slug: "starter",
-    audience: "Perfect for small websites",
-    monthly: "₦15,000",
-    annual: "₦150,000",
+    name: "Starter Website Care",
+    slug: "starter-website-care",
+    audience: "Basic website care for small businesses, personal brands, churches, schools, landing pages, and simple company websites.",
+    monthly: "₦5,000",
+    annual: "₦50,000",
     featured: false,
-    features: ["1 website", "10GB SSD storage", "Unmetered bandwidth", "1 email account", "Free SSL certificate"],
+    badge: null,
+    ctaLabel: "Start Basic",
+    features: [
+      "Website hosting",
+      "Website security lock / SSL",
+      "1 professional business email",
+      "Weekly website backup",
+      "Basic website support",
+      "Renewal reminders",
+      "Website recovery support",
+      "Peace of mind",
+    ],
   },
   {
-    name: "Business",
-    slug: "business",
-    audience: "Great for growing businesses",
-    monthly: "₦25,000",
-    annual: "₦250,000",
+    name: "Business Website Care",
+    slug: "business-website-care",
+    audience: "Recommended for growing businesses that need reliable website care, business email, backup protection, faster support, and peace of mind.",
+    monthly: "₦10,000",
+    annual: "₦100,000",
     featured: true,
-    features: ["Unlimited websites", "20GB SSD storage", "Unmetered bandwidth", "10 email accounts", "Free SSL certificate"],
+    badge: "Most Popular",
+    ctaLabel: "Choose Business Care",
+    features: [
+      "Everything in Starter",
+      "Up to 5 professional business emails",
+      "Priority support",
+      "Regular website health checks",
+      "Stronger backup protection",
+      "Basic security monitoring",
+      "Faster issue resolution",
+      "Minor content update assistance",
+      "Peace of mind support",
+    ],
   },
   {
-    name: "Professional",
-    slug: "professional",
-    audience: "Advanced for professionals",
-    monthly: "₦45,000",
-    annual: "₦450,000",
+    name: "Premium Website Care",
+    slug: "premium-website-care",
+    audience: "Full website care for businesses that want priority support, frequent backups, security review, performance review, and more managed assistance.",
+    monthly: "₦18,000",
+    annual: "₦180,000",
     featured: false,
-    features: ["Unlimited websites", "40GB SSD storage", "Unmetered bandwidth", "Unlimited email accounts", "Free SSL certificate"],
-  },
-  {
-    name: "Managed",
-    slug: "managed",
-    audience: "For high performance needs",
-    monthly: "₦85,000",
-    annual: "₦850,000",
-    featured: false,
-    features: ["Unlimited everything", "80GB SSD storage", "Priority support", "Managed backups", "Free SSL certificate"],
+    badge: null,
+    ctaLabel: "Get Premium Care",
+    features: [
+      "Everything in Business",
+      "Up to 30 professional business emails",
+      "Frequent website backups",
+      "Monthly website checkup",
+      "Priority issue resolution",
+      "Security review",
+      "Performance review",
+      "More content update assistance",
+      "Maximum peace of mind",
+    ],
   },
 ];
 
@@ -933,7 +980,6 @@ function Services() {
 }
 
 function Portfolio({ projects }: { projects: Project[] }) {
-  const shown = projects.slice(0, 4);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
   useEffect(() => {
@@ -972,22 +1018,26 @@ function Portfolio({ projects }: { projects: Project[] }) {
             <ArrowRight className="h-4 w-4" />
           </a>
         </div>
-        <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {shown.map((project) => (
+      </div>
+      <div className="mt-8 project-marquee">
+        <div className="project-marquee-track">
+          {[...projects, ...projects].map((project, index) => (
             <button
-              key={project.title}
+              key={`${project.title}-${index}`}
               type="button"
-              className="project-card cursor-pointer text-left"
+              className="project-slide cursor-pointer text-left"
               onClick={() => setSelectedProject(project)}
               aria-label={`View details for ${project.title}`}
+              tabIndex={index < projects.length ? 0 : -1}
+              aria-hidden={index >= projects.length}
             >
-              <img src={project.img} alt={`${project.title} project preview`} className="h-32 w-full rounded-md object-cover sm:h-36" />
-              <div className="mt-5">
-                <h3 className="text-lg font-black text-white">{project.title}</h3>
-                <p className="mt-3 text-sm leading-6 text-white/60">{project.details.solution}</p>
-                <span className="project-tag mt-5 inline-flex rounded-full border px-3 py-1 text-[11px] font-bold">
+              <img src={project.img} alt={`${project.title} project preview`} loading="lazy" />
+              <div className="project-slide-overlay" />
+              <div className="project-slide-info">
+                <span className="project-tag inline-flex rounded-full border px-3 py-1 text-[11px] font-bold">
                   {project.category.split(",")[0].trim()}
                 </span>
+                <h3 className="mt-2 text-lg font-black text-white">{project.title}</h3>
               </div>
             </button>
           ))}
@@ -1138,20 +1188,15 @@ function HostingSection() {
 
         setPlans(
           data.map((plan) => ({
-            name: String(plan.name || "Hosting Plan"),
+            name: String(plan.name || "Website Care Plan"),
             slug: String(plan.slug || ""),
-            audience: String(plan.short_description || "Managed hosting package"),
+            audience: String(plan.short_description || "Website care for your business"),
             monthly: String(plan.monthly_price || "₦0"),
             annual: String(plan.annual_price || "₦0"),
-            featured: Boolean(plan.is_featured),
-            features: [
-              String(plan.storage_allocation || "SSD storage"),
-              String(plan.bandwidth_policy || "Bandwidth included"),
-              `${Number(plan.websites || 0) || "Multiple"} website${Number(plan.websites || 0) === 1 ? "" : "s"}`,
-              `${Number(plan.email_accounts || 0) || "Multiple"} email account${Number(plan.email_accounts || 0) === 1 ? "" : "s"}`,
-              plan.backup_frequency ? `${String(plan.backup_frequency)} backups` : "Backup support",
-              `${String(plan.support_tier || "Standard")} support`,
-            ],
+            featured: Boolean(plan.is_popular),
+            badge: plan.display_badge ? String(plan.display_badge) : null,
+            ctaLabel: plan.cta_label ? String(plan.cta_label) : "Choose plan",
+            features: Array.isArray(plan.public_features) ? plan.public_features.map(String) : [],
           })),
         );
       })
@@ -1167,16 +1212,16 @@ function HostingSection() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="hosting-hero">
           <div className="max-w-xl">
-            <span className="eyebrow">Managed hosting</span>
+            <span className="eyebrow">Website Care</span>
             <h2 className="mt-4 text-4xl font-black leading-tight text-white sm:text-5xl">
-              Reliable Hosting <span className="section-title-gradient">Built for Growth</span>
+              Website Care <span className="section-title-gradient">Built for Growing Businesses</span>
             </h2>
             <p className="mt-5 text-sm leading-7 text-white/66 sm:text-base">
-              Fast, secure and scalable hosting for websites with 24/7 support you can trust.
-              Packages include SSL, backups where applicable, email hosting and migration support.
+              We keep your business website online, secure, backed up and supported — so you can
+              focus on running your business instead of worrying about servers.
             </p>
             <div className="mt-5 grid gap-2 text-sm text-white/74 sm:grid-cols-2">
-              {["99.9% uptime guarantee", "Free SSL certificate", "Daily backups", "24/7 expert support"].map((item) => (
+              {["99.9% uptime guarantee", "Free SSL certificate", "Regular backups", "Real support when you need it"].map((item) => (
                 <div key={item} className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-primary" />
                   {item}
@@ -1204,21 +1249,24 @@ function HostingSection() {
         </div>
 
         <div id="hosting-packages" className="mt-12">
-          <div className="text-center">
-            <h3 className="text-3xl font-black text-white">Simple, Transparent Pricing</h3>
-            <p className="mt-3 text-sm text-white/58">Choose the perfect hosting plan for your needs.</p>
+          <div className="mx-auto max-w-2xl text-center">
+            <h3 className="text-3xl font-black text-white">Website Care Plans for Growing Businesses</h3>
+            <p className="mt-3 text-sm leading-6 text-white/58">
+              No technical stress. No confusing server settings. We keep your website online, secure,
+              backed up, and supported so you can focus on running your business.
+            </p>
           </div>
-          <div className="mt-8 grid gap-4 lg:grid-cols-4">
+          <div className="mt-8 grid gap-4 lg:grid-cols-3">
             {plans.map((plan) => (
               <article key={plan.name} className={plan.featured ? "hosting-plan featured" : "hosting-plan"}>
-                {plan.featured && <span className="hosting-badge">Most popular</span>}
+                {plan.badge && <span className="hosting-badge">{plan.badge}</span>}
                 <h4 className="text-xl font-black text-white">{plan.name}</h4>
                 <p className="mt-2 min-h-10 text-sm text-white/58">{plan.audience}</p>
                 <div className="mt-6 flex items-end gap-1">
                   <span className="text-3xl font-black text-white">{plan.monthly}</span>
-                  <span className="pb-1 text-xs text-white/48">/mo</span>
+                  <span className="pb-1 text-xs text-white/48">/month</span>
                 </div>
-                <p className="mt-1 text-xs text-primary">{plan.annual} yearly</p>
+                <p className="mt-1 text-xs text-primary">{plan.annual}/year</p>
                 <div className="mt-6 grid gap-3">
                   {plan.features.map((feature) => (
                     <div key={feature} className="flex items-center gap-2 text-sm text-white/68">
@@ -1232,7 +1280,7 @@ function HostingSection() {
                   onClick={() => startHostingOrder(plan.slug)}
                   className={plan.featured ? "btn-primary mt-7 w-full justify-center" : "btn-outline mt-7 w-full justify-center"}
                 >
-                  Choose plan
+                  {plan.ctaLabel}
                 </button>
               </article>
             ))}
@@ -1243,7 +1291,374 @@ function HostingSection() {
   );
 }
 
-function AdminDashboardOverview({ data, isLoading }: { data: AdminDashboardSnapshot | null; isLoading: boolean }) {
+const REASON_CATEGORIES: Array<{ value: string; label: string }> = [
+  { value: "hosting_expired", label: "Hosting expired" },
+  { value: "non_payment", label: "Non-payment" },
+  { value: "abuse_report", label: "Abuse report" },
+  { value: "security_threat", label: "Malware/security threat" },
+  { value: "suspicious_activity", label: "Suspicious activity" },
+  { value: "client_request", label: "Client request" },
+  { value: "terms_violation", label: "Terms violation" },
+  { value: "administrative_correction", label: "Administrative correction" },
+  { value: "other", label: "Other" },
+];
+
+type ReasonFormPayload = {
+  reason_category: string;
+  reason_note: string;
+  notify_client: boolean;
+  effective_at: string;
+  supporting_reference: string;
+};
+
+/**
+ * Required before every sensitive account/service/website action (suspend,
+ * deactivate, soft-delete, deactivate website hosting...). Collects the
+ * structured fields the backend's audit log expects, plus an optional
+ * slot for action-specific extra fields (e.g. a security-action checkbox).
+ */
+function ReasonFormModal({
+  title,
+  actionLabel,
+  onClose,
+  onSubmit,
+  isSubmitting,
+  error,
+  children,
+}: {
+  title: string;
+  actionLabel: string;
+  onClose: () => void;
+  onSubmit: (payload: ReasonFormPayload) => void;
+  isSubmitting: boolean;
+  error?: string | null;
+  children?: (state: { extra: Record<string, unknown>; setExtra: (key: string, value: unknown) => void }) => React.ReactNode;
+}) {
+  const [reasonCategory, setReasonCategory] = useState("");
+  const [reasonNote, setReasonNote] = useState("");
+  const [notifyClient, setNotifyClient] = useState(true);
+  const [effectiveAt, setEffectiveAt] = useState("");
+  const [supportingReference, setSupportingReference] = useState("");
+  const [extra, setExtraState] = useState<Record<string, unknown>>({});
+
+  const setExtra = (key: string, value: unknown) => setExtraState((current) => ({ ...current, [key]: value }));
+
+  return (
+    <div className="hosting-modal-backdrop" role="presentation" onClick={onClose}>
+      <div className="hosting-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+        <form
+          className="grid gap-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSubmit({
+              reason_category: reasonCategory,
+              reason_note: reasonNote,
+              notify_client: notifyClient,
+              effective_at: effectiveAt,
+              supporting_reference: supportingReference,
+              ...extra,
+            } as ReasonFormPayload);
+          }}
+        >
+          <h3 className="text-lg font-black text-white">{title}</h3>
+          {error && <p className="form-message error">{error}</p>}
+
+          <label className="admin-field">
+            <span>Reason category</span>
+            <select required value={reasonCategory} onChange={(event) => setReasonCategory(event.target.value)}>
+              <option value="" disabled>Select a reason...</option>
+              {REASON_CATEGORIES.map((category) => (
+                <option key={category.value} value={category.value}>{category.label}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="admin-field">
+            <span>Detailed reason / note</span>
+            <textarea
+              required
+              rows={3}
+              placeholder="Explain what happened and why this action is being taken..."
+              value={reasonNote}
+              onChange={(event) => setReasonNote(event.target.value)}
+            />
+          </label>
+
+          {children?.({ extra, setExtra })}
+
+          <label className="admin-field">
+            <span>Effective date/time (optional — defaults to now)</span>
+            <input type="datetime-local" value={effectiveAt} onChange={(event) => setEffectiveAt(event.target.value)} />
+          </label>
+
+          <label className="admin-field">
+            <span>Supporting evidence / internal reference (optional)</span>
+            <input type="text" placeholder="e.g. ticket number, report link" value={supportingReference} onChange={(event) => setSupportingReference(event.target.value)} />
+          </label>
+
+          <label className="flex items-center gap-2 text-sm text-white/70">
+            <input type="checkbox" checked={notifyClient} onChange={(event) => setNotifyClient(event.target.checked)} />
+            Notify the client by email
+          </label>
+
+          <div className="mt-2 flex gap-3">
+            <button type="button" className="btn-outline flex-1 justify-center" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn-primary flex-1 justify-center" disabled={isSubmitting || !reasonCategory || !reasonNote}>
+              {isSubmitting ? "Working..." : actionLabel}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function formatKobo(kobo: number | null | undefined): string {
+  if (kobo === null || kobo === undefined) return "—";
+  return `₦${Math.round(kobo / 100).toLocaleString()}`;
+}
+
+/** Laravel serializes date-cast fields as full ISO datetimes (e.g. "2027-06-26T00:00:00.000000Z") — show just the date part. */
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}/;
+
+/** ISO "YYYY-MM-DD" — required for native <input type="date"> values. */
+function toDateInputValue(value: string | null | undefined): string {
+  if (!value) return "";
+  return value.slice(0, 10);
+}
+
+/** House style: every date in the app displays as dd/mm/yyyy, including ISPConfig-derived dates. */
+function formatDate(value: string | null | undefined): string {
+  if (!value) return "—";
+  const [year, month, day] = value.slice(0, 10).split("-");
+  if (!year || !month || !day) return value;
+  return `${day}/${month}/${year}`;
+}
+
+/** dd/mm/yyyy, HH:MM — for timestamps where the time also matters (audit logs, sync status...). */
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return formatDate(value);
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${day}/${month}/${date.getFullYear()}, ${hours}:${minutes}`;
+}
+
+const ACCOUNT_TYPE_LABELS: Record<string, string> = {
+  imported_legacy_client: "Legacy Client",
+  registered_user: "Registered User",
+  billing_client: "Billing Client",
+  hosting_client: "Hosting Client",
+  prospect: "Prospect",
+  new_customer: "New Customer",
+  manual_admin_created: "Manually Added",
+  website_care_customer: "Website Care Customer",
+};
+
+function accountTypeLabel(value: string | null | undefined): string {
+  if (!value) return "—";
+  return ACCOUNT_TYPE_LABELS[value] || value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function clientStatusPillClass(status: string | null | undefined): string {
+  if (status === "active") return "status-pill paid";
+  if (status === "suspended" || status === "deactivated") return "status-pill failed";
+  if (status === "deleted") return "status-pill pending";
+  return "status-pill pending";
+}
+
+/**
+ * Shows "Admin > Section > Detail" and makes every crumb except the last
+ * one clickable, so admins always have a stable way back without relying
+ * solely on the browser's own back button.
+ */
+function AdminBreadcrumbs({ items }: { items: Array<{ label: string; onClick?: () => void }> }) {
+  return (
+    <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-2 text-xs font-bold text-white/50">
+      {items.map((item, index) => (
+        <span key={`${item.label}-${index}`} className="flex items-center gap-2">
+          {index > 0 && <span className="text-white/25">/</span>}
+          {item.onClick ? (
+            <button type="button" className="text-white/60 hover:text-primary" onClick={item.onClick}>
+              {item.label}
+            </button>
+          ) : (
+            <span className="text-white">{item.label}</span>
+          )}
+        </span>
+      ))}
+    </nav>
+  );
+}
+
+type ServiceGroupMetrics = {
+  service_type: string;
+  label: string;
+  active_count: number;
+  suspended_count: number;
+  expired_count: number;
+  client_count: number;
+  pending_renewals_count: number;
+  due_soon_count: number;
+  overdue_renewals_count: number;
+  recently_activated_count: number;
+  revenue_generated_kobo: number;
+  revenue_generated: string;
+  expected_renewal_revenue_kobo: number;
+  expected_renewal_revenue: string;
+};
+
+const SERVICE_STATUS_OPTIONS = [
+  "active",
+  "suspended",
+  "deactivated",
+  "expired",
+  "grace_period",
+  "pending_deletion",
+  "deleted_from_ispconfig",
+  "cancelled",
+];
+
+function AdminServicesGroupedDashboard({
+  adminToken,
+  initialStatusFilter,
+  onOpenService,
+}: {
+  adminToken: string;
+  initialStatusFilter?: string;
+  onOpenService: (serviceId: number) => void;
+}) {
+  const [groups, setGroups] = useState<ServiceGroupMetrics[] | null>(null);
+  const [selectedType, setSelectedType] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState(initialStatusFilter || "");
+  const [clientIdFilter, setClientIdFilter] = useState("");
+  const [sourceFilter, setSourceFilter] = useState("");
+  const [records, setRecords] = useState<LaravelPage | null>(null);
+  const [isLoadingRecords, setIsLoadingRecords] = useState(false);
+
+  useEffect(() => {
+    if (!adminToken) return;
+    laravelApi<{ data: ServiceGroupMetrics[] }>("/api/v1/admin/services/grouped", adminToken)
+      .then((response) => setGroups(response.data))
+      .catch(() => setGroups([]));
+  }, [adminToken]);
+
+  useEffect(() => {
+    if (!adminToken) return;
+    setIsLoadingRecords(true);
+    const params = new URLSearchParams();
+    if (selectedType) params.set("service_type", selectedType);
+    if (statusFilter) params.set("status", statusFilter);
+    if (clientIdFilter) params.set("client_id", clientIdFilter);
+    if (sourceFilter) params.set("source", sourceFilter);
+
+    laravelApi<LaravelPage>(`/api/v1/admin/services?${params.toString()}`, adminToken)
+      .then(setRecords)
+      .catch(() => setRecords(null))
+      .finally(() => setIsLoadingRecords(false));
+  }, [adminToken, selectedType, statusFilter, clientIdFilter, sourceFilter]);
+
+  const selectedLabel = groups?.find((group) => group.service_type === selectedType)?.label;
+  const hasActiveFilters = Boolean(selectedType || statusFilter || clientIdFilter || sourceFilter);
+
+  return (
+    <section className="grid gap-5">
+      <div>
+        <h2 className="text-2xl font-black text-white">Active Services</h2>
+        <p className="mt-1 text-sm text-white/58">Services grouped by type, with health and revenue at a glance. Click a group to filter the list below.</p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {(groups || []).map((group) => (
+          <button
+            type="button"
+            key={group.service_type}
+            className={`admin-panel !p-4 text-left transition hover:border-primary/40 ${selectedType === group.service_type ? "border-primary/60 bg-primary/[0.04]" : ""}`}
+            onClick={() => setSelectedType(selectedType === group.service_type ? null : group.service_type)}
+          >
+            <h3 className="text-base font-black text-white">{group.label}</h3>
+            <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs text-white/60">
+              <span>Active: <strong className="text-white">{group.active_count}</strong></span>
+              <span>Suspended: <strong className="text-white">{group.suspended_count}</strong></span>
+              <span>Expired: <strong className="text-white">{group.expired_count}</strong></span>
+              <span>Clients: <strong className="text-white">{group.client_count}</strong></span>
+              <span>Due soon: <strong className="text-white">{group.due_soon_count}</strong></span>
+              <span>Overdue: <strong className="text-white">{group.overdue_renewals_count}</strong></span>
+              <span>Pending renewals: <strong className="text-white">{group.pending_renewals_count}</strong></span>
+              <span>Recently activated: <strong className="text-white">{group.recently_activated_count}</strong></span>
+            </div>
+            <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-3 text-xs">
+              <span className="text-white/60">Revenue: <strong className="text-primary">{group.revenue_generated}</strong></span>
+              <span className="text-white/60">Expected: <strong className="text-white">{group.expected_renewal_revenue}</strong></span>
+            </div>
+          </button>
+        ))}
+        {!groups && <p className="text-sm text-white/50">Loading service groups...</p>}
+      </div>
+
+      <div className="admin-panel">
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="admin-field w-full sm:w-48">
+            <span>Status</span>
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+              <option value="">All statuses</option>
+              {SERVICE_STATUS_OPTIONS.map((status) => (
+                <option key={status} value={status}>{status.replace(/_/g, " ")}</option>
+              ))}
+            </select>
+          </label>
+          <label className="admin-field w-full sm:w-48">
+            <span>Source</span>
+            <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
+              <option value="">All sources</option>
+              <option value="checkout">New (application)</option>
+              <option value="ispconfig_import">Imported legacy</option>
+            </select>
+          </label>
+          <label className="admin-field w-full sm:w-40">
+            <span>Client ID</span>
+            <input type="number" min={1} value={clientIdFilter} onChange={(event) => setClientIdFilter(event.target.value)} placeholder="e.g. 12" />
+          </label>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              className="btn-outline"
+              onClick={() => {
+                setSelectedType(null);
+                setStatusFilter("");
+                setClientIdFilter("");
+                setSourceFilter("");
+              }}
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+      </div>
+
+      <AdminRecordsSection
+        title={selectedLabel ? `${selectedLabel} services` : "All Services"}
+        description="Click a row to view service details and lifecycle actions."
+        records={records}
+        isLoading={isLoadingRecords}
+        onRowClick={(row) => onOpenService(Number(row.id))}
+      />
+    </section>
+  );
+}
+
+function AdminDashboardOverview({
+  data,
+  isLoading,
+  onNavigate,
+}: {
+  data: AdminDashboardSnapshot | null;
+  isLoading: boolean;
+  onNavigate?: (section: string) => void;
+}) {
   const dashboardMetrics = data?.metrics?.length
     ? data.metrics.map((metric, index) => ({
         ...metric,
@@ -1277,8 +1692,26 @@ function AdminDashboardOverview({ data, isLoading }: { data: AdminDashboardSnaps
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         {dashboardMetrics.map((metric) => {
           const Icon = metric.icon;
+          const targetSection = metric.label === "Active Services" ? "services" : metric.label === "New Clients" ? "clients" : null;
+          const isClickable = Boolean(onNavigate && targetSection);
           return (
-            <article key={metric.label} className={`metric-card tone-${metric.tone}`}>
+            <article
+              key={metric.label}
+              className={`metric-card tone-${metric.tone} ${isClickable ? "cursor-pointer transition hover:-translate-y-0.5 hover:border-primary/40" : ""}`}
+              role={isClickable ? "button" : undefined}
+              tabIndex={isClickable ? 0 : undefined}
+              onClick={isClickable ? () => onNavigate?.(targetSection as string) : undefined}
+              onKeyDown={
+                isClickable
+                  ? (event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onNavigate?.(targetSection as string);
+                      }
+                    }
+                  : undefined
+              }
+            >
               <div className="metric-icon"><Icon className="h-5 w-5" /></div>
               <p className="mt-4 text-xs text-white/58">{metric.label}</p>
               <h3 className="mt-2 text-2xl font-black text-white">{metric.value}</h3>
@@ -1321,7 +1754,7 @@ function AdminDashboardOverview({ data, isLoading }: { data: AdminDashboardSnaps
                   <p>{renewal.primary_domain || renewal.client || renewal.service_number}</p>
                   <small>{renewal.plan || renewal.status}</small>
                 </div>
-                <small>{renewal.renews_at || "No date"}</small>
+                <small>{renewal.renews_at ? formatDate(renewal.renews_at) : "No date"}</small>
                 <strong>{renewal.status}</strong>
               </div>
             )) : adminRenewals.map(([name, type, due, amount]) => (
@@ -1354,7 +1787,7 @@ function AdminDashboardOverview({ data, isLoading }: { data: AdminDashboardSnaps
                 <span className={payment.status === "paid" ? "status-pill paid" : "status-pill failed"}>{payment.status}</span>
                 <div className="text-right">
                   <strong>{payment.amount}</strong>
-                  <small className="block">{payment.paid_at || ""}</small>
+                  <small className="block">{payment.paid_at ? formatDate(payment.paid_at) : ""}</small>
                 </div>
               </div>
             )) : adminPayments.map(([name, invoice, status, amount, date]) => (
@@ -1439,7 +1872,7 @@ function AdminDashboardOverview({ data, isLoading }: { data: AdminDashboardSnaps
                 <td>{order.billing_cycle} hosting</td>
                 <td>{order.total}</td>
                 <td><span className={order.status === "completed" ? "status-pill paid" : "status-pill pending"}>{order.status}</span></td>
-                <td>{order.created_at}</td>
+                <td>{formatDate(order.created_at)}</td>
                 <td><MoreVertical className="h-4 w-4" /></td>
               </tr>
             )) : adminPayments.map(([name, invoice, status, amount, date], index) => (
@@ -1466,18 +1899,23 @@ function AdminRecordsSection({
   records,
   isLoading,
   renderRowActions,
+  onRowClick,
 }: {
   title: string;
   description: string;
   records: LaravelPage | null;
   isLoading: boolean;
   renderRowActions?: (row: Record<string, unknown>) => React.ReactNode;
+  onRowClick?: (row: Record<string, unknown>) => void;
 }) {
   const rows = records?.data || [];
-  const columns = rows[0] ? Object.keys(rows[0]).filter((key) => !["links", "meta"].includes(key)).slice(0, 7) : [];
+  const columns = rows[0] ? Object.keys(rows[0]).filter((key) => !["links", "meta", "user_id"].includes(key)).slice(0, 7) : [];
 
   const renderValue = (value: unknown): string => {
     if (value === null || value === undefined) return "";
+    if (typeof value === "string" && ISO_DATE_PATTERN.test(value)) {
+      return value.length > 10 ? formatDateTime(value) : formatDate(value);
+    }
     if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
     if (Array.isArray(value)) return `${value.length} item${value.length === 1 ? "" : "s"}`;
     if (typeof value === "object") {
@@ -1512,16 +1950,782 @@ function AdminRecordsSection({
                 {columns.map((column) => (
                   <th key={column}>{column.replaceAll("_", " ")}</th>
                 ))}
-                {renderRowActions && <th></th>}
+                {(renderRowActions || onRowClick) && <th></th>}
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, index) => (
-                <tr key={String((row as Record<string, unknown>).id || index)}>
-                  {columns.map((column) => (
-                    <td key={column}>{renderValue((row as Record<string, unknown>)[column])}</td>
-                  ))}
-                  {renderRowActions && <td>{renderRowActions(row as Record<string, unknown>)}</td>}
+              {rows.map((row, index) => {
+                const typedRow = row as Record<string, unknown>;
+                return (
+                  <tr
+                    key={String(typedRow.id || index)}
+                    className={onRowClick ? "cursor-pointer hover:bg-white/5" : undefined}
+                    onClick={onRowClick ? () => onRowClick(typedRow) : undefined}
+                  >
+                    {columns.map((column) => (
+                      <td key={column}>{renderValue(typedRow[column])}</td>
+                    ))}
+                    {(renderRowActions || onRowClick) && (
+                      <td>{renderRowActions ? renderRowActions(typedRow) : null}</td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        ) : (
+          <div className="rounded-lg border border-white/10 bg-black/20 p-6 text-sm font-bold text-white/60">No records found.</div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+type LegacyImportSiteResult = {
+  domain: string | null;
+  action: string;
+  suggested_renewal_date: string | null;
+  manual_renewal_date_required: boolean;
+};
+
+type LegacyImportClientResult = {
+  ispconfig_client_id: string | null;
+  client_id?: number | null;
+  client_name: string | null;
+  import_status: string;
+  websites?: string[];
+  email_accounts_count?: number;
+  databases_count?: number;
+  ispconfig_created_at?: string | null;
+  suggested_renewal_date?: string | null;
+  renewal_amount?: string;
+  manual_renewal_date_required?: boolean;
+  sites?: LegacyImportSiteResult[];
+  reason?: string;
+};
+
+type LegacyImportResult = {
+  dry_run: boolean;
+  clients: LegacyImportClientResult[];
+};
+
+const LEGACY_IMPORT_STATUS_LABELS: Record<string, string> = {
+  imported_client: "New client imported",
+  linked_existing_client: "Linked to existing client",
+  failed: "Failed",
+};
+
+/**
+ * Admin-triggered mirror of ISPConfig's existing clients/websites/mailboxes/
+ * databases into NAITALK under the hidden "Legacy Hosting + SSL" package.
+ * Always preview (dry run) before running for real — the backend guarantees
+ * the import itself never calls any ISPConfig write method.
+ */
+function AdminIspConfigImportPanel({ adminToken }: { adminToken: string }) {
+  const [result, setResult] = useState<LegacyImportResult | null>(null);
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hasRunImport, setHasRunImport] = useState(false);
+
+  const runPreview = async () => {
+    setIsPreviewing(true);
+    setError(null);
+    try {
+      const data = await laravelApi<LegacyImportResult>("/api/v1/admin/ispconfig/legacy-import/preview", adminToken, { method: "POST" });
+      setResult(data);
+      setHasRunImport(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Preview failed");
+    } finally {
+      setIsPreviewing(false);
+    }
+  };
+
+  const runImport = async () => {
+    if (!window.confirm("This will import ISPConfig clients, websites, mailboxes and databases into NAITALK. Continue?")) return;
+
+    setIsRunning(true);
+    setError(null);
+    try {
+      const data = await laravelApi<LegacyImportResult>("/api/v1/admin/ispconfig/legacy-import/run", adminToken, {
+        method: "POST",
+        body: JSON.stringify({ dry_run: false }),
+      });
+      setResult(data);
+      setHasRunImport(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Import failed");
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  const totals = useMemo(() => {
+    if (!result) return null;
+    const clients = result.clients;
+    return {
+      total: clients.length,
+      imported: clients.filter((client) => client.import_status === "imported_client").length,
+      linked: clients.filter((client) => client.import_status === "linked_existing_client").length,
+      failed: clients.filter((client) => client.import_status === "failed").length,
+      websites: clients.reduce((sum, client) => sum + (client.websites?.length || 0), 0),
+      mailboxes: clients.reduce((sum, client) => sum + (client.email_accounts_count || 0), 0),
+      databases: clients.reduce((sum, client) => sum + (client.databases_count || 0), 0),
+      manualRenewalNeeded: clients.filter((client) => client.manual_renewal_date_required).length,
+    };
+  }, [result]);
+
+  return (
+    <section className="admin-panel">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-black">ISPConfig Legacy Import</h2>
+          <p className="mt-1 text-sm text-white/55">
+            Pulls existing clients, websites, mailboxes and databases out of ISPConfig and mirrors them into
+            NAITALK under the hidden "Legacy Hosting + SSL" package. Never writes back to ISPConfig.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button type="button" className="btn-outline !min-h-10 !px-4 !py-2 !text-xs" disabled={isPreviewing || isRunning} onClick={() => void runPreview()}>
+            {isPreviewing ? "Previewing..." : "Preview Import"}
+          </button>
+          <button type="button" className="btn-primary !min-h-10 !px-4 !py-2 !text-xs" disabled={isPreviewing || isRunning} onClick={() => void runImport()}>
+            {isRunning ? "Importing..." : "Run Import"}
+          </button>
+        </div>
+      </div>
+
+      {error && <p className="form-message error mt-4">{error}</p>}
+
+      {result && totals && (
+        <>
+          <div className={`mt-5 rounded-lg border p-3 text-xs font-bold ${hasRunImport ? "border-primary/30 bg-primary/10 text-primary" : "border-white/10 bg-black/20 text-white/60"}`}>
+            {hasRunImport ? "Import completed — changes were written to the NAITALK database." : "Preview only — nothing has been written yet. Run the import when this looks right."}
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+            {[
+              ["Clients", totals.total],
+              ["New", totals.imported],
+              ["Linked", totals.linked],
+              ["Failed", totals.failed],
+              ["Websites", totals.websites],
+              ["Mailboxes", totals.mailboxes],
+              ["Manual renewal", totals.manualRenewalNeeded],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-lg border border-white/10 bg-black/20 p-3">
+                <p className="text-[10px] uppercase tracking-wide text-white/50">{label}</p>
+                <p className="text-lg font-black text-white">{value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-6 overflow-x-auto">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>ISPConfig ID</th>
+                  <th>Client</th>
+                  <th>Status</th>
+                  <th>Websites</th>
+                  <th>Emails</th>
+                  <th>Databases</th>
+                  <th>Renewal date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.clients.map((client, index) => (
+                  <tr key={`${client.ispconfig_client_id || "unknown"}-${index}`}>
+                    <td>{client.ispconfig_client_id || "—"}</td>
+                    <td>{client.client_name || "—"}</td>
+                    <td>
+                      {LEGACY_IMPORT_STATUS_LABELS[client.import_status] || client.import_status}
+                      {client.reason && <span className="block text-[11px] text-white/45">{client.reason}</span>}
+                    </td>
+                    <td>{client.websites?.length ?? 0}</td>
+                    <td>{client.email_accounts_count ?? 0}</td>
+                    <td>{client.databases_count ?? 0}</td>
+                    <td>
+                      {client.suggested_renewal_date ? (
+                        formatDate(client.suggested_renewal_date)
+                      ) : client.manual_renewal_date_required ? (
+                        <span className="text-amber-400">Manual required</span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {!result && !isPreviewing && (
+        <div className="mt-6 rounded-lg border border-white/10 bg-black/20 p-6 text-sm font-bold text-white/60">
+          Run a preview first to see what would be imported before writing any changes.
+        </div>
+      )}
+    </section>
+  );
+}
+
+type AdminClientDetail = {
+  id: number;
+  company_name: string | null;
+  account_type: string;
+  client_status: string;
+  billing_email: string | null;
+  billing_phone: string | null;
+  suspended_at: string | null;
+  deactivated_at: string | null;
+  deleted_at: string | null;
+  created_at: string;
+  total_revenue_kobo: number | null;
+  user?: { id: number; name: string; email: string; phone?: string | null } | null;
+  hosting_services?: Array<Record<string, any>>;
+  invoices?: Array<Record<string, any>>;
+  payments?: Array<Record<string, any>>;
+  audit_logs?: Array<Record<string, any>>;
+  notification_logs?: Array<Record<string, any>>;
+};
+
+/**
+ * /admin/clients/:id — replaces the old "click a row to impersonate
+ * immediately" behaviour with a full management page: account info,
+ * services, invoices, action log, and the suspend/deactivate/delete/
+ * restore actions (each gated by the required reason form except restore,
+ * which the backend doesn't treat as destructive).
+ */
+function ClientDetailPage({
+  clientId,
+  adminToken,
+  onBack,
+  onOpenService,
+  onImpersonate,
+  impersonatingClientId,
+}: {
+  clientId: number;
+  adminToken: string;
+  onBack: () => void;
+  onOpenService: (serviceId: number) => void;
+  onImpersonate: (clientId: number) => void;
+  impersonatingClientId: number | null;
+}) {
+  const [client, setClient] = useState<AdminClientDetail | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeModal, setActiveModal] = useState<"suspend" | "deactivate" | "delete" | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+
+  const load = () => {
+    setIsLoading(true);
+    laravelApi<AdminClientDetail>(`/api/v1/admin/clients/${clientId}`, adminToken)
+      .then(setClient)
+      .catch(() => setClient(null))
+      .finally(() => setIsLoading(false));
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId, adminToken]);
+
+  const runAction = async (path: string, method: string, payload?: Record<string, unknown>) => {
+    setIsSubmitting(true);
+    setActionError(null);
+    try {
+      await laravelApi(`/api/v1/admin${path}`, adminToken, {
+        method,
+        body: payload ? JSON.stringify(payload) : undefined,
+      });
+      setActiveModal(null);
+      setMessage("Action completed.");
+      load();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Action failed.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isLoading) {
+    return <p className="text-sm text-white/50">Loading client...</p>;
+  }
+
+  if (!client) {
+    return (
+      <section className="admin-panel">
+        <p className="text-sm text-white/60">Client not found.</p>
+        <button type="button" className="btn-outline mt-4" onClick={onBack}>Back to Clients</button>
+      </section>
+    );
+  }
+
+  const isDeleted = Boolean(client.deleted_at);
+  const services = client.hosting_services || [];
+
+  return (
+    <section className="grid gap-5">
+      <AdminBreadcrumbs
+        items={[
+          { label: "Clients", onClick: onBack },
+          { label: client.company_name || client.user?.name || `Client #${client.id}` },
+        ]}
+      />
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-black text-white">{client.company_name || client.user?.name || `Client #${client.id}`}</h2>
+          <p className="mt-1 text-sm text-white/58">{client.user?.email || client.billing_email}</p>
+        </div>
+        <button type="button" className="btn-outline" onClick={onBack}>← Back</button>
+      </div>
+
+      {message && <p className="form-message success">{message}</p>}
+      {isDeleted && <p className="form-message error">This client has been soft-deleted. Restore it to resume normal management.</p>}
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <div className="admin-panel !p-4"><p className="text-xs text-white/50">Account Type</p><p className="mt-1 font-black text-white">{accountTypeLabel(client.account_type)}</p></div>
+        <div className="admin-panel !p-4"><p className="text-xs text-white/50">Status</p><p className="mt-1"><span className={clientStatusPillClass(client.client_status)}>{client.client_status}</span></p></div>
+        <div className="admin-panel !p-4"><p className="text-xs text-white/50">Active Services</p><p className="mt-1 font-black text-white">{services.filter((service) => service.status === "active").length}</p></div>
+        <div className="admin-panel !p-4"><p className="text-xs text-white/50">Total Revenue</p><p className="mt-1 font-black text-primary">{formatKobo(client.total_revenue_kobo)}</p></div>
+      </div>
+
+      <div className="admin-panel">
+        <h3 className="text-lg font-black text-white">Actions</h3>
+        <div className="mt-3 flex flex-wrap gap-3">
+          {isDeleted ? (
+            <button type="button" className="btn-primary" disabled={isSubmitting} onClick={() => runAction(`/clients/${clientId}/restore`, "POST", {})}>
+              {isSubmitting ? "Restoring..." : "Restore Client"}
+            </button>
+          ) : (
+            <>
+              <button type="button" className="btn-outline" disabled={impersonatingClientId === client.id} onClick={() => onImpersonate(client.id)}>
+                {impersonatingClientId === client.id ? "Entering..." : "Enter as Client"}
+              </button>
+              <button type="button" className="btn-outline" onClick={() => setActiveModal("suspend")}>Suspend Account</button>
+              <button type="button" className="btn-outline" onClick={() => setActiveModal("deactivate")}>Deactivate Account</button>
+              <button type="button" className="btn-outline !border-accent-rose/40 !text-accent-rose" onClick={() => setActiveModal("delete")}>Soft-Delete Client</button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <section className="admin-panel overflow-x-auto">
+        <h3 className="text-lg font-black text-white">Hosting Services</h3>
+        <table className="admin-table mt-4">
+          <thead><tr><th>Domain</th><th>Plan</th><th>Type</th><th>Status</th><th>Renews</th><th></th></tr></thead>
+          <tbody>
+            {services.map((service) => (
+              <tr key={service.id} className="cursor-pointer hover:bg-white/5" onClick={() => onOpenService(Number(service.id))}>
+                <td>{service.primary_domain || service.service_number}</td>
+                <td>{service.hosting_plan?.name || "—"}</td>
+                <td>{String(service.service_type || "hosting").replace(/_/g, " ")}</td>
+                <td>{service.status}</td>
+                <td>{formatDate(service.renews_at)}</td>
+                <td><span className="text-xs font-bold text-primary">View →</span></td>
+              </tr>
+            ))}
+            {services.length === 0 && <tr><td colSpan={6} className="text-white/50">No hosting services.</td></tr>}
+          </tbody>
+        </table>
+      </section>
+
+      <section className="admin-panel overflow-x-auto">
+        <h3 className="text-lg font-black text-white">Invoices</h3>
+        <table className="admin-table mt-4">
+          <thead><tr><th>Invoice #</th><th>Status</th><th>Total</th><th>Issued</th></tr></thead>
+          <tbody>
+            {(client.invoices || []).map((invoice) => (
+              <tr key={invoice.id}>
+                <td>{invoice.invoice_number}</td>
+                <td>{invoice.status}</td>
+                <td>{formatKobo(invoice.total_kobo)}</td>
+                <td>{formatDate(invoice.issued_at)}</td>
+              </tr>
+            ))}
+            {(client.invoices || []).length === 0 && <tr><td colSpan={4} className="text-white/50">No invoices.</td></tr>}
+          </tbody>
+        </table>
+      </section>
+
+      <section className="admin-panel overflow-x-auto">
+        <h3 className="text-lg font-black text-white">Action Log</h3>
+        <table className="admin-table mt-4">
+          <thead><tr><th>Action</th><th>Reason</th><th>Source</th><th>When</th></tr></thead>
+          <tbody>
+            {(client.audit_logs || []).map((log) => (
+              <tr key={log.id}>
+                <td>{log.action}</td>
+                <td>{log.reason_category ? `${log.reason_category}: ${log.reason || ""}` : log.reason || "—"}</td>
+                <td>{log.source || "admin"}</td>
+                <td>{formatDateTime(log.created_at)}</td>
+              </tr>
+            ))}
+            {(client.audit_logs || []).length === 0 && <tr><td colSpan={4} className="text-white/50">No actions logged yet.</td></tr>}
+          </tbody>
+        </table>
+      </section>
+
+      {activeModal === "suspend" && (
+        <ReasonFormModal
+          title="Suspend Client Account"
+          actionLabel="Suspend Account"
+          isSubmitting={isSubmitting}
+          error={actionError}
+          onClose={() => { setActiveModal(null); setActionError(null); }}
+          onSubmit={(payload) => runAction(`/clients/${clientId}/suspend`, "POST", payload)}
+        />
+      )}
+      {activeModal === "deactivate" && (
+        <ReasonFormModal
+          title="Deactivate Client Account"
+          actionLabel="Deactivate Account"
+          isSubmitting={isSubmitting}
+          error={actionError}
+          onClose={() => { setActiveModal(null); setActionError(null); }}
+          onSubmit={(payload) => runAction(`/clients/${clientId}/deactivate`, "POST", payload)}
+        />
+      )}
+      {activeModal === "delete" && (
+        <ReasonFormModal
+          title="Soft-Delete Client"
+          actionLabel="Soft-Delete Client"
+          isSubmitting={isSubmitting}
+          error={actionError}
+          onClose={() => { setActiveModal(null); setActionError(null); }}
+          onSubmit={(payload) => runAction(`/clients/${clientId}`, "DELETE", payload)}
+        />
+      )}
+    </section>
+  );
+}
+
+type AdminServiceDetail = {
+  id: number;
+  service_number: string;
+  primary_domain: string | null;
+  status: string;
+  service_type: string;
+  source: string;
+  renews_at: string | null;
+  grace_period_ends_at: string | null;
+  scheduled_deletion_at: string | null;
+  is_security_action: boolean;
+  deleted_at: string | null;
+  client?: { id: number; company_name: string | null; user?: { name: string; email: string } | null } | null;
+  hosting_plan?: { id: number; name: string } | null;
+  mailbox_records?: Array<Record<string, any>>;
+  database_records?: Array<Record<string, any>>;
+  audit_logs?: Array<Record<string, any>>;
+};
+
+/**
+ * /admin/services/:id — service-level lifecycle actions (suspend, deactivate
+ * website hosting in ISPConfig, reactivate, soft-delete, schedule automatic
+ * deletion, override the grace period). Every destructive action is gated
+ * behind the same required reason form as the client-level actions.
+ */
+function ServiceDetailPanel({
+  serviceId,
+  adminToken,
+  onBack,
+  onOpenClient,
+}: {
+  serviceId: number;
+  adminToken: string;
+  onBack: () => void;
+  onOpenClient: (clientId: number) => void;
+}) {
+  const [service, setService] = useState<AdminServiceDetail | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeModal, setActiveModal] = useState<"suspend" | "deactivate" | "reactivate" | "delete" | "schedule" | "grace" | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+  const [dateFieldValue, setDateFieldValue] = useState("");
+
+  const load = () => {
+    setIsLoading(true);
+    laravelApi<AdminServiceDetail>(`/api/v1/admin/services/${serviceId}`, adminToken)
+      .then(setService)
+      .catch(() => setService(null))
+      .finally(() => setIsLoading(false));
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serviceId, adminToken]);
+
+  const runAction = async (path: string, method: string, payload?: Record<string, unknown>) => {
+    setIsSubmitting(true);
+    setActionError(null);
+    try {
+      await laravelApi(`/api/v1/admin${path}`, adminToken, {
+        method,
+        body: payload ? JSON.stringify(payload) : undefined,
+      });
+      setActiveModal(null);
+      setMessage("Action completed.");
+      load();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Action failed.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isLoading) {
+    return <p className="text-sm text-white/50">Loading service...</p>;
+  }
+
+  if (!service) {
+    return (
+      <section className="admin-panel">
+        <p className="text-sm text-white/60">Service not found.</p>
+        <button type="button" className="btn-outline mt-4" onClick={onBack}>Back to Services</button>
+      </section>
+    );
+  }
+
+  const isDeleted = Boolean(service.deleted_at);
+  const label = service.primary_domain || service.service_number;
+
+  return (
+    <section className="grid gap-5">
+      <AdminBreadcrumbs items={[{ label: "Services", onClick: onBack }, { label }]} />
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-black text-white">{label}</h2>
+          <p className="mt-1 text-sm text-white/58">
+            {service.client?.company_name || service.client?.user?.name || "Unknown client"} · {String(service.service_type || "hosting").replace(/_/g, " ")}
+          </p>
+        </div>
+        <button type="button" className="btn-outline" onClick={onBack}>← Back</button>
+      </div>
+
+      {message && <p className="form-message success">{message}</p>}
+      {service.is_security_action && <p className="form-message error">This service was deactivated as a security action.</p>}
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <div className="admin-panel !p-4"><p className="text-xs text-white/50">Status</p><p className="mt-1 font-black text-white">{service.status}</p></div>
+        <div className="admin-panel !p-4"><p className="text-xs text-white/50">Renews</p><p className="mt-1 font-black text-white">{formatDate(service.renews_at)}</p></div>
+        <div className="admin-panel !p-4"><p className="text-xs text-white/50">Grace period ends</p><p className="mt-1 font-black text-white">{formatDate(service.grace_period_ends_at)}</p></div>
+        <div className="admin-panel !p-4"><p className="text-xs text-white/50">Scheduled deletion</p><p className="mt-1 font-black text-white">{formatDate(service.scheduled_deletion_at)}</p></div>
+      </div>
+
+      <div className="admin-panel">
+        <h3 className="text-lg font-black text-white">Actions</h3>
+        <div className="mt-3 flex flex-wrap gap-3">
+          {isDeleted ? (
+            <p className="text-sm text-white/50">This service has been soft-deleted.</p>
+          ) : (
+            <>
+              {service.client && (
+                <button type="button" className="btn-outline" onClick={() => onOpenClient(service.client!.id)}>View Client</button>
+              )}
+              {service.status === "active" ? (
+                <>
+                  <button type="button" className="btn-outline" onClick={() => setActiveModal("suspend")}>Suspend Service</button>
+                  <button type="button" className="btn-outline" onClick={() => setActiveModal("deactivate")}>Deactivate Website Hosting</button>
+                </>
+              ) : (
+                !["deleted_from_ispconfig", "cancelled"].includes(service.status) && (
+                  <button type="button" className="btn-outline" onClick={() => setActiveModal("reactivate")}>Reactivate Website Hosting</button>
+                )
+              )}
+              <button type="button" className="btn-outline" onClick={() => { setDateFieldValue(toDateInputValue(service.grace_period_ends_at)); setActiveModal("grace"); }}>Override Grace Period</button>
+              <button type="button" className="btn-outline" onClick={() => { setDateFieldValue(toDateInputValue(service.scheduled_deletion_at)); setActiveModal("schedule"); }}>Schedule Deletion</button>
+              <button type="button" className="btn-outline !border-accent-rose/40 !text-accent-rose" onClick={() => setActiveModal("delete")}>Delete Service</button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <section className="admin-panel overflow-x-auto">
+        <h3 className="text-lg font-black text-white">Action Log</h3>
+        <table className="admin-table mt-4">
+          <thead><tr><th>Action</th><th>Reason</th><th>Source</th><th>When</th></tr></thead>
+          <tbody>
+            {(service.audit_logs || []).map((log) => (
+              <tr key={log.id}>
+                <td>{log.action}</td>
+                <td>{log.reason_category ? `${log.reason_category}: ${log.reason || ""}` : log.reason || "—"}</td>
+                <td>{log.source || "admin"}</td>
+                <td>{formatDateTime(log.created_at)}</td>
+              </tr>
+            ))}
+            {(service.audit_logs || []).length === 0 && <tr><td colSpan={4} className="text-white/50">No actions logged yet.</td></tr>}
+          </tbody>
+        </table>
+      </section>
+
+      {activeModal === "suspend" && (
+        <ReasonFormModal
+          title="Suspend Service"
+          actionLabel="Suspend Service"
+          isSubmitting={isSubmitting}
+          error={actionError}
+          onClose={() => { setActiveModal(null); setActionError(null); }}
+          onSubmit={(payload) => runAction(`/services/${serviceId}/suspend`, "POST", payload)}
+        />
+      )}
+      {activeModal === "deactivate" && (
+        <ReasonFormModal
+          title="Deactivate Website Hosting"
+          actionLabel="Deactivate Website"
+          isSubmitting={isSubmitting}
+          error={actionError}
+          onClose={() => { setActiveModal(null); setActionError(null); }}
+          onSubmit={(payload) => runAction(`/services/${serviceId}/deactivate-website`, "POST", payload)}
+        >
+          {({ extra, setExtra }) => (
+            <label className="flex items-center gap-2 text-sm text-white/70">
+              <input type="checkbox" checked={Boolean(extra.is_security_action)} onChange={(event) => setExtra("is_security_action", event.target.checked)} />
+              This is a security-related emergency deactivation (malware, abuse, server risk...)
+            </label>
+          )}
+        </ReasonFormModal>
+      )}
+      {activeModal === "reactivate" && (
+        <ReasonFormModal
+          title="Reactivate Website Hosting"
+          actionLabel="Reactivate Website"
+          isSubmitting={isSubmitting}
+          error={actionError}
+          onClose={() => { setActiveModal(null); setActionError(null); }}
+          onSubmit={(payload) => runAction(`/services/${serviceId}/reactivate-website`, "POST", payload)}
+        />
+      )}
+      {activeModal === "delete" && (
+        <ReasonFormModal
+          title="Delete Service"
+          actionLabel="Delete Service"
+          isSubmitting={isSubmitting}
+          error={actionError}
+          onClose={() => { setActiveModal(null); setActionError(null); }}
+          onSubmit={(payload) => runAction(`/services/${serviceId}`, "DELETE", payload)}
+        />
+      )}
+      {activeModal === "grace" && (
+        <ReasonFormModal
+          title="Override Grace Period"
+          actionLabel="Save Grace Period"
+          isSubmitting={isSubmitting}
+          error={actionError}
+          onClose={() => { setActiveModal(null); setActionError(null); }}
+          onSubmit={(payload) => runAction(`/services/${serviceId}/override-grace-period`, "POST", { ...payload, grace_period_ends_at: dateFieldValue })}
+        >
+          {() => (
+            <label className="admin-field">
+              <span>New grace period end date</span>
+              <input required type="date" value={dateFieldValue} onChange={(event) => setDateFieldValue(event.target.value)} />
+            </label>
+          )}
+        </ReasonFormModal>
+      )}
+      {activeModal === "schedule" && (
+        <ReasonFormModal
+          title="Schedule Automatic Deletion"
+          actionLabel="Schedule Deletion"
+          isSubmitting={isSubmitting}
+          error={actionError}
+          onClose={() => { setActiveModal(null); setActionError(null); }}
+          onSubmit={(payload) => runAction(`/services/${serviceId}/schedule-deletion`, "POST", { ...payload, scheduled_deletion_at: dateFieldValue })}
+        >
+          {() => (
+            <label className="admin-field">
+              <span>Scheduled deletion date</span>
+              <input required type="date" value={dateFieldValue} onChange={(event) => setDateFieldValue(event.target.value)} />
+            </label>
+          )}
+        </ReasonFormModal>
+      )}
+    </section>
+  );
+}
+
+function AdminClientsList({
+  adminToken,
+  onOpenClient,
+}: {
+  adminToken: string;
+  onOpenClient: (clientId: number) => void;
+}) {
+  const [records, setRecords] = useState<LaravelPage | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("");
+
+  useEffect(() => {
+    if (!adminToken) return;
+    setIsLoading(true);
+    const params = new URLSearchParams();
+    if (statusFilter) params.set("client_status", statusFilter);
+
+    laravelApi<LaravelPage>(`/api/v1/admin/clients?${params.toString()}`, adminToken)
+      .then(setRecords)
+      .catch(() => setRecords(null))
+      .finally(() => setIsLoading(false));
+  }, [adminToken, statusFilter]);
+
+  const rows = (records?.data || []) as Array<Record<string, any>>;
+
+  return (
+    <section className="admin-panel">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-black">Clients</h2>
+          <p className="mt-1 text-sm text-white/55">Laravel client accounts and billing profiles. Click a row for full details and actions.</p>
+        </div>
+        <label className="admin-field w-full sm:w-56">
+          <span>Status</span>
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+            <option value="">All statuses</option>
+            <option value="active">Active</option>
+            <option value="suspended">Suspended</option>
+            <option value="deactivated">Deactivated</option>
+          </select>
+        </label>
+      </div>
+
+      <div className="mt-6 overflow-x-auto">
+        {isLoading ? (
+          <div className="rounded-lg border border-white/10 bg-black/20 p-6 text-sm font-bold text-white/60">Loading Laravel records...</div>
+        ) : rows.length ? (
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Client name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Account type</th>
+                <th>Status</th>
+                <th>Active services</th>
+                <th>Renewal due</th>
+                <th>Total revenue</th>
+                <th>Created</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id} className="cursor-pointer hover:bg-white/5" onClick={() => onOpenClient(Number(row.id))}>
+                  <td>{row.company_name || row.user?.name || "—"}</td>
+                  <td>{row.user?.email || row.billing_email || "—"}</td>
+                  <td>{row.billing_phone || row.user?.phone || "—"}</td>
+                  <td>{accountTypeLabel(row.account_type)}</td>
+                  <td><span className={clientStatusPillClass(row.client_status)}>{row.client_status}</span></td>
+                  <td>{row.active_services_count ?? 0}</td>
+                  <td>{formatDate(row.next_renewal_due)}</td>
+                  <td>{formatKobo(row.total_revenue_kobo)}</td>
+                  <td>{formatDate(row.created_at)}</td>
+                  <td><span className="text-xs font-bold text-primary">View →</span></td>
                 </tr>
               ))}
             </tbody>
@@ -1625,6 +2829,14 @@ function ClientPortalShell({
       </aside>
 
       <main className="portal-main">
+        {Boolean(sessionStorage.getItem("naitalk_laravel_admin_token")) && (
+          <div className="form-message warning mb-2 flex flex-wrap items-center justify-between gap-3">
+            <span>You are viewing this account as an admin.</span>
+            <button type="button" className="btn-outline" onClick={() => { window.location.href = "/admin"; }}>
+              Return to Admin
+            </button>
+          </div>
+        )}
         {!hideWelcomeHeader && (
           <header className="portal-header">
             <div>
@@ -1659,6 +2871,7 @@ type HostingManageOverview = {
     provisioning_status: string;
     billing_cycle: string;
     renews_at: string | null;
+    auto_renew_enabled: boolean;
     last_synced_at: string | null;
   };
   usage: {
@@ -1750,6 +2963,7 @@ function HostingManagePanel({
   const [ftpAccounts, setFtpAccounts] = useState<{ items: HostingFtpAccount[]; limit: number; serverHostname: string | null } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isTogglingAutoRenew, setIsTogglingAutoRenew] = useState(false);
   const [modal, setModal] = useState<HostingModalState>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -1788,6 +3002,22 @@ function HostingManagePanel({
       toast.push({ type: "error", message: error instanceof Error ? error.message : "Refresh request failed." });
     } finally {
       setIsRefreshing(false);
+    }
+  };
+
+  const handleToggleAutoRenew = async (enabled: boolean) => {
+    setIsTogglingAutoRenew(true);
+    try {
+      await laravelApi(`${base}/manage/auto-renew`, token, {
+        method: "POST",
+        body: JSON.stringify({ auto_renew_enabled: enabled }),
+      });
+      toast.push({ type: "success", message: enabled ? "Auto-renew turned on." : "Auto-renew turned off." });
+      await loadAll();
+    } catch (error) {
+      toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not update auto-renew." });
+    } finally {
+      setIsTogglingAutoRenew(false);
     }
   };
 
@@ -1838,12 +3068,22 @@ function HostingManagePanel({
         <div className="hosting-header-meta">
           <div>
             <span>Next Renewal</span>
-            <strong>{overview.renews_at || "—"}</strong>
+            <strong>{formatDate(overview.renews_at)}</strong>
           </div>
           <div>
             <span>Service ID</span>
             <strong>SRV-{serviceId}</strong>
           </div>
+          <label className="flex items-center gap-2 text-xs font-bold text-white/68">
+            <input
+              type="checkbox"
+              className="h-4 w-4"
+              checked={overview.auto_renew_enabled}
+              disabled={isTogglingAutoRenew}
+              onChange={(event) => void handleToggleAutoRenew(event.target.checked)}
+            />
+            Auto-renew
+          </label>
           <button type="button" className="btn-outline" onClick={() => void handleRefresh()} disabled={isRefreshing}>
             <RefreshCw className={isRefreshing ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
             Refresh
@@ -1958,7 +3198,7 @@ function HostingManagePanel({
                           <td>{mailbox.display_name || "—"}</td>
                           <td>{mailbox.quota_mb ? formatMb(mailbox.quota_mb) : "—"}</td>
                           <td><span className={hostingStatusPillClass(mailbox.status)}>{mailbox.status}</span></td>
-                          <td className="text-white/40">{mailbox.last_synced_at ? new Date(mailbox.last_synced_at).toLocaleString() : "Pending"}</td>
+                          <td className="text-white/40">{mailbox.last_synced_at ? formatDateTime(mailbox.last_synced_at) : "Pending"}</td>
                           <td>
                             <div className="flex items-center justify-end gap-2">
                               <button
@@ -2051,7 +3291,7 @@ function HostingManagePanel({
                           <td className="font-bold text-white">{database.database_name}</td>
                           <td>{database.username}</td>
                           <td><span className={hostingStatusPillClass(database.status)}>{database.status}</span></td>
-                          <td className="text-white/40">{database.last_synced_at ? new Date(database.last_synced_at).toLocaleString() : "Pending"}</td>
+                          <td className="text-white/40">{database.last_synced_at ? formatDateTime(database.last_synced_at) : "Pending"}</td>
                           <td>
                             <div className="flex items-center justify-end gap-2">
                               <button
@@ -2119,7 +3359,7 @@ function HostingManagePanel({
                         <tr key={account.id}>
                           <td className="font-bold text-white">{account.username}</td>
                           <td><span className={hostingStatusPillClass(account.status)}>{account.status}</span></td>
-                          <td className="text-white/40">{account.last_synced_at ? new Date(account.last_synced_at).toLocaleString() : "Pending"}</td>
+                          <td className="text-white/40">{account.last_synced_at ? formatDateTime(account.last_synced_at) : "Pending"}</td>
                           <td>
                             <div className="flex items-center justify-end gap-2">
                               <button
@@ -2177,7 +3417,7 @@ function HostingManagePanel({
             <div className="hosting-summary-row"><span>Email Accounts</span><strong>{usage?.email_accounts_used ?? 0} / {usage?.email_accounts_limit ?? 0}</strong></div>
             <div className="hosting-summary-row"><span>Databases</span><strong>{usage?.databases_used ?? 0} / {usage?.databases_limit ?? 0}</strong></div>
             <div className="hosting-summary-row"><span>FTP Accounts</span><strong>{usage?.ftp_accounts_used ?? 0} / {usage?.ftp_accounts_limit ?? 0}</strong></div>
-            <div className="hosting-summary-row"><span>Last Synced</span><strong>{overview.last_synced_at ? new Date(overview.last_synced_at).toLocaleString() : "Never"}</strong></div>
+            <div className="hosting-summary-row"><span>Last Synced</span><strong>{overview.last_synced_at ? formatDateTime(overview.last_synced_at) : "Never"}</strong></div>
           </div>
         </aside>
       </div>
@@ -2414,11 +3654,11 @@ function ClientInvoicePage({
         <div className="grid gap-4 border-b border-white/10 p-6 sm:grid-cols-4">
           <div>
             <p className="text-[10px] font-black uppercase text-white/40">Issue Date</p>
-            <p className="mt-1 text-sm font-bold text-white">{invoice.issued_at || "—"}</p>
+            <p className="mt-1 text-sm font-bold text-white">{formatDate(invoice.issued_at)}</p>
           </div>
           <div>
             <p className="text-[10px] font-black uppercase text-white/40">Due Date</p>
-            <p className="mt-1 text-sm font-bold text-white">{invoice.due_at || "—"}</p>
+            <p className="mt-1 text-sm font-bold text-white">{formatDate(invoice.due_at)}</p>
           </div>
           <div>
             <p className="text-[10px] font-black uppercase text-white/40">Status</p>
@@ -2427,7 +3667,7 @@ function ClientInvoicePage({
           {invoice.paid_at && (
             <div>
               <p className="text-[10px] font-black uppercase text-white/40">Paid Date</p>
-              <p className="mt-1 text-sm font-bold text-white">{invoice.paid_at}</p>
+              <p className="mt-1 text-sm font-bold text-white">{formatDate(invoice.paid_at)}</p>
             </div>
           )}
         </div>
@@ -2880,7 +4120,8 @@ function ClientPortal() {
   const [isVerifyingCode, setIsVerifyingCode] = useState(false);
   const [catalog, setCatalog] = useState<ServiceCatalogItem[] | null>(null);
   const [orders, setOrders] = useState<ClientOrderSummary[] | null>(null);
-  const [hostingPlans, setHostingPlans] = useState<HostingPlanCard[]>(fallbackHostingPlans);
+  const [hostingPlans, setHostingPlans] = useState<HostingPlanCard[]>([]);
+  const [isLoadingHostingPlans, setIsLoadingHostingPlans] = useState(false);
   const [addOns, setAddOns] = useState<Array<{ name: string; slug: string; monthly_price: string; annual_price: string }>>([]);
   const [orderDraft, setOrderDraft] = useState(INITIAL_ORDER_DRAFT);
   const [checkoutResult, setCheckoutResult] = useState<{
@@ -2973,6 +4214,8 @@ function ClientPortal() {
       setOrderDraft((current) => ({ ...current, plan_slug: preselected }));
     }
 
+    setIsLoadingHostingPlans(true);
+
     Promise.all([
       laravelApi<Array<Record<string, unknown>>>("/api/v1/public/hosting-plans"),
       laravelApi<Array<Record<string, unknown>>>("/api/v1/public/hosting-add-ons"),
@@ -2980,12 +4223,14 @@ function ClientPortal() {
       .then(([plans, planAddOns]) => {
         if (Array.isArray(plans) && plans.length) {
           const mapped = plans.map((plan) => ({
-            name: String(plan.name || "Hosting Plan"),
+            name: String(plan.name || "Website Care Plan"),
             slug: String(plan.slug || ""),
-            audience: String(plan.short_description || "Managed hosting package"),
+            audience: String(plan.short_description || "Website care for your business"),
             monthly: String(plan.monthly_price || "₦0"),
             annual: String(plan.annual_price || "₦0"),
-            featured: Boolean(plan.is_featured),
+            featured: Boolean(plan.is_popular),
+            badge: plan.display_badge ? String(plan.display_badge) : null,
+            ctaLabel: plan.cta_label ? String(plan.cta_label) : "Choose plan",
             features: [] as string[],
           }));
           setHostingPlans(mapped);
@@ -3002,7 +4247,10 @@ function ClientPortal() {
           );
         }
       })
-      .catch(() => setHostingPlans(fallbackHostingPlans));
+      .catch((error) =>
+        toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not load hosting plans from the catalogue." }),
+      )
+      .finally(() => setIsLoadingHostingPlans(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route]);
 
@@ -3566,47 +4814,62 @@ function ClientPortal() {
         <section>
           <h2 className="text-2xl font-black text-white">Explore NAI TALK Services</h2>
           <p className="mt-2 text-sm text-white/58">Hosting, websites, maintenance, AI solutions and add-ons — order directly from your account.</p>
-          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {(catalog || []).map((item) => (
-              <article key={item.slug} className="portal-card">
-                <span className="hosting-badge !static !ml-0 mb-2 inline-flex w-fit">{item.category.replace("_", " ")}</span>
-                <h3 className="text-lg font-black text-white">{item.name}</h3>
-                <p className="mt-2 text-sm text-white/58">{item.short_description}</p>
-                {item.benefits.length > 0 && (
-                  <ul className="mt-3 grid gap-1.5 text-xs text-white/68">
-                    {item.benefits.map((benefit) => (
-                      <li key={benefit} className="flex items-center gap-2">
-                        <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
-                        {benefit}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <p className="mt-4 text-xl font-black text-primary">
-                  {item.starting_price ? `From ${item.starting_price}` : "Custom quote"}
-                  <span className="ml-1 text-xs font-bold text-white/45">{item.billing_type.replace("_", " ")}</span>
-                </p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {!item.is_quote_only && item.order_route && (
-                    <button type="button" className="btn-primary justify-center" onClick={() => navigate(item.order_route!)}>
-                      Order Now
-                    </button>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {(catalog || []).map((item) => {
+              const isContactOnly = item.slug === "website-migration";
+              const Icon = catalogCategoryIcon(item.category);
+
+              return (
+                <article key={item.slug} className="catalog-card">
+                  <div className="catalog-card-icon">
+                    <Icon className="h-6 w-6" />
+                  </div>
+                  <span className="hosting-badge !static !ml-0 mt-4 inline-flex w-fit">{item.category.replace("_", " ")}</span>
+                  <h3 className="mt-3 text-lg font-black text-white">{item.name}</h3>
+                  <p className="mt-2 text-sm leading-6 text-white/58">{item.short_description}</p>
+                  {item.benefits.length > 0 && (
+                    <ul className="mt-3 grid gap-1.5 text-xs text-white/68">
+                      {item.benefits.map((benefit) => (
+                        <li key={benefit} className="flex items-center gap-2">
+                          <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+                          {benefit}
+                        </li>
+                      ))}
+                    </ul>
                   )}
-                  {item.is_quote_only && (
-                    <button
-                      type="button"
-                      className="btn-primary justify-center"
-                      onClick={() => window.open(whatsappUrl, "_blank", "noopener,noreferrer")}
-                    >
-                      Request Quote
-                    </button>
+                  {!isContactOnly && (
+                    <p className="mt-4 text-xl font-black text-primary">
+                      {item.starting_price ? `From ${item.starting_price}` : "Custom quote"}
+                      <span className="ml-1 text-xs font-bold text-white/45">{item.billing_type.replace("_", " ")}</span>
+                    </p>
                   )}
-                  <button type="button" className="btn-outline justify-center" onClick={() => window.open("/#services", "_blank", "noopener,noreferrer")}>
-                    Learn More
-                  </button>
-                </div>
-              </article>
-            ))}
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {isContactOnly && (
+                      <a href="mailto:info@naitalk.com" className="btn-outline justify-center">
+                        Contact Us
+                      </a>
+                    )}
+                    {!isContactOnly && !item.is_quote_only && item.order_route && (
+                      <button type="button" className="btn-outline catalog-order-btn justify-center" onClick={() => navigate(item.order_route!)}>
+                        Order Now
+                      </button>
+                    )}
+                    {!isContactOnly && item.is_quote_only && (
+                      <button
+                        type="button"
+                        className="btn-outline justify-center"
+                        onClick={() => window.open(whatsappUrl, "_blank", "noopener,noreferrer")}
+                      >
+                        Request Quote
+                      </button>
+                    )}
+                    <button type="button" className="btn-outline justify-center" onClick={() => window.open("/#services", "_blank", "noopener,noreferrer")}>
+                      Learn More
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
             {!catalog && <p className="text-sm text-white/50">Loading services...</p>}
           </div>
         </section>
@@ -3666,8 +4929,13 @@ function ClientPortal() {
                 />
               </label>
 
-              <h2 className="mt-6 text-xl font-black text-white">Choose your hosting plan</h2>
+              <h2 className="mt-6 text-xl font-black text-white">Choose your website care plan</h2>
               <div className="mt-5 grid gap-3">
+                {isLoadingHostingPlans ? (
+                  <p className="text-sm text-white/55">Loading plans from the service catalogue...</p>
+                ) : hostingPlans.length === 0 ? (
+                  <p className="text-sm text-white/55">No hosting plans are available right now. Please try again shortly.</p>
+                ) : null}
                 {hostingPlans.map((plan) => (
                   <label
                     key={plan.slug}
@@ -3681,7 +4949,14 @@ function ClientPortal() {
                       onChange={() => setOrderDraft((current) => ({ ...current, plan_slug: plan.slug }))}
                     />
                     <div className="min-w-0 flex-1">
-                      <p>{plan.name}</p>
+                      <p className="flex items-center gap-2">
+                        {plan.name}
+                        {plan.badge && (
+                          <span className="rounded-full bg-primary px-2 py-0.5 text-[9px] font-black uppercase text-on-primary">
+                            {plan.badge}
+                          </span>
+                        )}
+                      </p>
                       <small>{plan.audience}</small>
                     </div>
                     <strong>{orderDraft.billing_cycle === "monthly" ? plan.monthly : plan.annual}</strong>
@@ -3733,16 +5008,6 @@ function ClientPortal() {
                   </div>
                 </div>
               )}
-
-              <label className="mt-6 flex items-center gap-2 text-sm font-bold text-white/68">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4"
-                  checked={orderDraft.auto_renew}
-                  onChange={(event) => setOrderDraft((current) => ({ ...current, auto_renew: event.target.checked }))}
-                />
-                Enable auto-renewal
-              </label>
             </div>
 
             <aside className="portal-card">
@@ -3801,7 +5066,7 @@ function ClientPortal() {
                   <strong className="text-white">Add-ons:</strong>{" "}
                   {selectedAddOns.length ? selectedAddOns.map((addOn) => addOn.name).join(", ") : "None"}
                 </p>
-                <p><strong className="text-white">Auto-renew:</strong> {orderDraft.auto_renew ? "Enabled" : "Disabled"}</p>
+                <p><strong className="text-white">Auto-renew:</strong> Enabled by default — you can turn this off anytime from your service's Manage Hosting page.</p>
                 <p><strong className="text-white">Total:</strong> {formatNaira(orderTotal)}</p>
               </div>
               <div className="mt-5 border-t border-white/10 pt-5 text-sm text-white/72">
@@ -4043,15 +5308,12 @@ function ClientPortal() {
           <p className="mt-1 text-sm text-white/60">
             Explore our hosting plans, request a website project, or speak with our team about a solution for your business.
           </p>
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
             <button type="button" className="btn-primary justify-center" onClick={() => navigate("/client/order/hosting")}>
-              Explore Hosting Plans
+              Order Services
             </button>
             <button type="button" className="btn-outline justify-center" onClick={() => navigate("/client/services/catalog")}>
               Request a Website
-            </button>
-            <button type="button" className="btn-outline justify-center" onClick={() => (window.location.href = "/#contact")}>
-              Contact NAI TALK
             </button>
           </div>
         </section>
@@ -4094,7 +5356,7 @@ function ClientPortal() {
                     <small>{service.plan || "Hosting Service"}</small>
                   </div>
                   <span className={hostingStatusPillClass(service.status)}>{service.status}</span>
-                  <small>{service.renews_at || "No date"}</small>
+                  <small>{service.renews_at ? formatDate(service.renews_at) : "No date"}</small>
                   <strong>{service.service_number}</strong>
                 </button>
               ))}
@@ -4313,9 +5575,15 @@ function Contact({ logo }: { logo: LogoImage }) {
   );
 }
 
+const socialLinks = [
+  [Twitter, "Twitter", "https://twitter.com/naitalkc"],
+  [Facebook, "Facebook", "https://facebook.com/naitalk"],
+  [Linkedin, "LinkedIn", "https://www.linkedin.com/company/naitalk/"],
+] as const;
+
 function Footer({ logo }: { logo: LogoImage }) {
   return (
-    <footer className="border-t border-white/10 py-8">
+    <footer className="border-t border-white/10 py-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
         <div>
           <Logo logo={logo} />
@@ -4328,19 +5596,16 @@ function Footer({ logo }: { logo: LogoImage }) {
           <a href="#contact" className="hover:text-primary">Contact</a>
         </div>
         <div className="flex gap-3">
-          {[
-            [Linkedin, "LinkedIn"],
-            [Twitter, "X"],
-            [Facebook, "Facebook"],
-            [Radio, "Media"],
-          ].map(([Icon, label]) => (
+          {socialLinks.map(([Icon, label, href]) => (
             <a
-              key={label as string}
-              href="#home"
-              aria-label={label as string}
+              key={label}
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={label}
               className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-white/55 transition hover:border-primary/40 hover:text-primary"
             >
-              {React.createElement(Icon as React.ComponentType<{ className?: string }>, { className: "h-4 w-4" })}
+              {React.createElement(Icon, { className: "h-4 w-4" })}
             </a>
           ))}
         </div>
@@ -4419,6 +5684,7 @@ function emptyPricingPackage(): PricingPackage {
     monthly_price_kobo: 0,
     annual_price_kobo: 0,
     setup_fee_kobo: 0,
+    currency: "NGN",
     storage_allocation: "10GB SSD",
     bandwidth_policy: "Unmetered bandwidth",
     websites: 1,
@@ -4428,9 +5694,16 @@ function emptyPricingPackage(): PricingPackage {
     support_tier: "standard",
     migration_included: false,
     is_featured: false,
+    is_popular: false,
+    is_recommended: false,
     is_active: true,
+    status: "active",
     sort_order: 0,
+    display_badge: "",
+    cta_label: "Choose plan",
     internal_notes: "",
+    public_features: [],
+    internal_limits: {},
   };
 }
 
@@ -4443,26 +5716,33 @@ function fileToDataUrl(file: File) {
   });
 }
 
+const adminSections: Array<{ id: AdminSectionId; label: string; icon: typeof BarChart3 }> = [
+  { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+  { id: "logo", label: "Logo", icon: ImageIcon },
+  { id: "clientLogos", label: "Client Logos", icon: Users },
+  { id: "portfolio", label: "Portfolio", icon: Eye },
+  { id: "testimonials", label: "Reviews", icon: MessageCircle },
+  { id: "pricing", label: "Pricing", icon: PackageCheck },
+  { id: "clients", label: "Clients", icon: Users },
+  { id: "products", label: "Products", icon: PackageCheck },
+  { id: "orders", label: "Orders", icon: MoreVertical },
+  { id: "services", label: "Services", icon: Server },
+  { id: "invoices", label: "Invoices", icon: FileText },
+  { id: "payments", label: "Payments", icon: CreditCard },
+  { id: "support", label: "Support", icon: MessageCircle },
+  { id: "provisioning", label: "Provisioning", icon: Settings },
+  { id: "ispconfigMappings", label: "ISPConfig", icon: Server },
+  { id: "ispconfigImport", label: "ISPConfig Import", icon: Upload },
+  { id: "paymentVerification", label: "Payment Verification", icon: CreditCard },
+  { id: "auditLogs", label: "Audit Logs", icon: ShieldCheck },
+];
+
+const adminSectionLabels: Record<AdminSectionId, string> = Object.fromEntries(
+  adminSections.map((section) => [section.id, section.label]),
+) as Record<AdminSectionId, string>;
+
 function AdminApp() {
-  const adminSections = [
-    { id: "dashboard", label: "Dashboard", icon: BarChart3 },
-    { id: "logo", label: "Logo", icon: ImageIcon },
-    { id: "clientLogos", label: "Client Logos", icon: Users },
-    { id: "portfolio", label: "Portfolio", icon: Eye },
-    { id: "testimonials", label: "Reviews", icon: MessageCircle },
-    { id: "pricing", label: "Pricing", icon: PackageCheck },
-    { id: "clients", label: "Clients", icon: Users },
-    { id: "products", label: "Products", icon: PackageCheck },
-    { id: "orders", label: "Orders", icon: MoreVertical },
-    { id: "services", label: "Services", icon: Server },
-    { id: "invoices", label: "Invoices", icon: FileText },
-    { id: "payments", label: "Payments", icon: CreditCard },
-    { id: "support", label: "Support", icon: MessageCircle },
-    { id: "provisioning", label: "Provisioning", icon: Settings },
-    { id: "ispconfigMappings", label: "ISPConfig", icon: Server },
-    { id: "auditLogs", label: "Audit Logs", icon: ShieldCheck },
-  ] as const;
-  type AdminSectionId = (typeof adminSections)[number]["id"];
+  const { section: activeSection, clientId: routeClientId, serviceId: routeServiceId, isServicesActiveRoute, navigate: navigateAdminRoute, navigateToSection } = useAdminRoute();
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isBooting, setIsBooting] = useState(true);
@@ -4471,10 +5751,6 @@ function AdminApp() {
   const [message, setMessage] = useState("");
   const [login, setLogin] = useState({ username: "", password: "" });
   const [content, setContent] = useState<SiteContent>(fallbackSiteContent);
-  const [activeSection, setActiveSection] = useState<AdminSectionId>(() => {
-    const requestedSection = new URLSearchParams(window.location.search).get("section");
-    return (adminSections.some((section) => section.id === requestedSection) ? requestedSection : "dashboard") as AdminSectionId;
-  });
   const [adminToken, setAdminToken] = useState(() => sessionStorage.getItem("naitalk_laravel_admin_token") || "");
   const [dashboardData, setDashboardData] = useState<AdminDashboardSnapshot | null>(null);
   const [isDashboardLoading, setIsDashboardLoading] = useState(false);
@@ -4543,10 +5819,8 @@ function AdminApp() {
   };
 
   const adminRecordEndpoints: Record<AdminRecordsSectionId, string> = {
-    clients: "/api/v1/admin/clients",
     products: "/api/v1/admin/products",
     orders: "/api/v1/admin/orders",
-    services: "/api/v1/admin/services",
     invoices: "/api/v1/admin/invoices",
     payments: "/api/v1/admin/payments",
     support: "/api/v1/admin/support-tickets",
@@ -4556,10 +5830,8 @@ function AdminApp() {
   };
 
   const adminRecordLabels: Record<AdminRecordsSectionId, { title: string; description: string }> = {
-    clients: { title: "Clients", description: "Laravel client accounts and billing profiles." },
     products: { title: "Products & Pricing", description: "Hosting plans configured in the Laravel billing engine." },
     orders: { title: "Orders", description: "Commercial hosting orders created through checkout." },
-    services: { title: "Hosting Services", description: "Customer hosting services and lifecycle statuses." },
     invoices: { title: "Invoices", description: "Issued invoices, balances, due dates and payment status." },
     payments: { title: "Payments", description: "Paystack and Flutterwave payment records." },
     support: { title: "Support Tickets", description: "Client support tickets attached to accounts and services." },
@@ -4593,7 +5865,6 @@ function AdminApp() {
         method: "POST",
         body: JSON.stringify({ reason: "Retried from admin services panel" }),
       });
-      await loadAdminRecords("services", adminToken, true);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Retry provisioning failed");
     } finally {
@@ -4609,7 +5880,6 @@ function AdminApp() {
     try {
       await laravelApi(`/api/v1/admin/invoices/${invoiceNumber}/mark-paid`, adminToken, { method: "POST" });
       await loadAdminRecords("payments", adminToken, true);
-      await loadAdminRecords("services", adminToken, true);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Approving payment failed");
     } finally {
@@ -4647,6 +5917,24 @@ function AdminApp() {
       window.open(url, "_blank", "noopener,noreferrer");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not download this receipt.");
+    }
+  };
+
+  const [impersonatingClientId, setImpersonatingClientId] = useState<number | null>(null);
+
+  const impersonateClient = async (clientId: number) => {
+    if (impersonatingClientId) return;
+    setImpersonatingClientId(clientId);
+
+    try {
+      const data = await laravelApi<{ token: string }>(`/api/v1/admin/clients/${clientId}/impersonate`, adminToken, {
+        method: "POST",
+      });
+      sessionStorage.setItem("naitalk_laravel_client_token", data.token);
+      window.location.href = "/client/dashboard";
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not enter this client's account.");
+      setImpersonatingClientId(null);
     }
   };
 
@@ -4690,6 +5978,9 @@ function AdminApp() {
   useEffect(() => {
     if (isAuthenticated && isRecordSection(activeSection)) {
       void loadAdminRecords(activeSection);
+    }
+    if (isAuthenticated && activeSection === "paymentVerification") {
+      void loadAdminRecords("payments");
     }
     if (isAuthenticated && activeSection === "pricing") {
       void loadPricingPackages();
@@ -4951,6 +6242,15 @@ function AdminApp() {
       <main className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:px-8">
         {message && <p className={message.includes("saved") || message.includes("uploaded") ? "form-message success" : "form-message error"}>{message}</p>}
 
+        {activeSection !== "dashboard" && !routeClientId && !routeServiceId && (
+          <AdminBreadcrumbs
+            items={[
+              { label: "Dashboard", onClick: () => navigateToSection("dashboard") },
+              { label: adminSectionLabels[activeSection] },
+            ]}
+          />
+        )}
+
         <nav className="admin-section-nav" aria-label="Backend sections">
           {adminSections.map((section) => {
             const Icon = section.icon;
@@ -4959,7 +6259,7 @@ function AdminApp() {
                 key={section.id}
                 type="button"
                 className={activeSection === section.id ? "admin-section-tab active" : "admin-section-tab"}
-                onClick={() => setActiveSection(section.id)}
+                onClick={() => navigateToSection(section.id)}
               >
                 <Icon className="h-4 w-4" />
                 {section.label}
@@ -4973,28 +6273,84 @@ function AdminApp() {
           })}
         </nav>
 
-        {activeSection === "dashboard" && <AdminDashboardOverview data={dashboardData} isLoading={isDashboardLoading} />}
+        {routeClientId && (
+          <ClientDetailPage
+            clientId={routeClientId}
+            adminToken={adminToken}
+            onBack={() => navigateAdminRoute(adminPath("clients"))}
+            onOpenService={(serviceId) => navigateAdminRoute(adminServiceDetailPath(serviceId))}
+            onImpersonate={(id) => void impersonateClient(id)}
+            impersonatingClientId={impersonatingClientId}
+          />
+        )}
 
-        {isRecordSection(activeSection) && (
+        {routeServiceId && !routeClientId && (
+          <ServiceDetailPanel
+            serviceId={routeServiceId}
+            adminToken={adminToken}
+            onBack={() => navigateAdminRoute(adminPath("services"))}
+            onOpenClient={(clientId) => navigateAdminRoute(adminClientDetailPath(clientId))}
+          />
+        )}
+
+        {activeSection === "dashboard" && !routeClientId && !routeServiceId && (
+          <AdminDashboardOverview
+            data={dashboardData}
+            isLoading={isDashboardLoading}
+            onNavigate={(section) => navigateToSection(section as AdminSectionId)}
+          />
+        )}
+
+        {activeSection === "clients" && !routeClientId && !routeServiceId && (
+          <AdminClientsList adminToken={adminToken} onOpenClient={(id) => navigateAdminRoute(adminClientDetailPath(id))} />
+        )}
+
+        {activeSection === "paymentVerification" && !routeClientId && !routeServiceId && (
+          <AdminRecordsSection
+            title="Payment Verification"
+            description="Bank transfer payments awaiting manual review and approval."
+            records={adminRecords.payments || null}
+            isLoading={Boolean(loadingRecords.payments)}
+            renderRowActions={(row) => {
+              const invoiceNumber = (row.invoice as { invoice_number?: string } | null)?.invoice_number;
+              const paymentId = Number(row.id);
+              const isBusy = approvingPaymentId === paymentId;
+
+              if (row.gateway !== "bank_transfer" || row.status !== "pending_review" || !invoiceNumber) return null;
+
+              return (
+                <div className="flex items-center justify-end gap-2">
+                  <button type="button" className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]" onClick={() => void downloadReceipt(paymentId)}>View Proof</button>
+                  <button type="button" className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]" disabled={isBusy} onClick={() => void approveBankTransferPayment(invoiceNumber, paymentId)}>
+                    {isBusy ? "Approving..." : "Approve"}
+                  </button>
+                  <button type="button" className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]" disabled={isBusy} onClick={() => void rejectBankTransferPayment(invoiceNumber, paymentId)}>Reject</button>
+                </div>
+              );
+            }}
+          />
+        )}
+
+        {activeSection === "services" && !routeClientId && !routeServiceId && (
+          <AdminServicesGroupedDashboard
+            adminToken={adminToken}
+            initialStatusFilter={isServicesActiveRoute ? "active" : undefined}
+            onOpenService={(id) => navigateAdminRoute(adminServiceDetailPath(id))}
+          />
+        )}
+
+        {activeSection === "ispconfigImport" && !routeClientId && !routeServiceId && (
+          <AdminIspConfigImportPanel adminToken={adminToken} />
+        )}
+
+        {isRecordSection(activeSection) && !routeClientId && !routeServiceId && (
           <AdminRecordsSection
             title={adminRecordLabels[activeSection].title}
             description={adminRecordLabels[activeSection].description}
             records={adminRecords[activeSection] || null}
             isLoading={Boolean(loadingRecords[activeSection])}
             renderRowActions={
-              activeSection === "services"
-                ? (row) =>
-                    ["awaiting_provisioning", "provisioning_failed"].includes(String(row.provisioning_status)) ? (
-                      <button
-                        type="button"
-                        className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
-                        disabled={retryingServiceId === Number(row.id)}
-                        onClick={() => void retryServiceProvisioning(Number(row.id))}
-                      >
-                        {retryingServiceId === Number(row.id) ? "Retrying..." : "Retry Provisioning"}
-                      </button>
-                    ) : null
-                : activeSection === "payments"
+              activeSection === "payments"
                 ? (row) => {
                     const invoiceNumber = (row.invoice as { invoice_number?: string } | null)?.invoice_number;
                     const paymentId = Number(row.id);
@@ -5039,8 +6395,11 @@ function AdminApp() {
           <section className="admin-panel">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-2xl font-black">Pricing Packages</h2>
-                <p className="mt-1 text-sm text-white/55">Manage the Laravel hosting plans shown on the public website.</p>
+                <h2 className="text-2xl font-black">Website Care Packages</h2>
+                <p className="mt-1 text-sm text-white/55">
+                  Manage the Website Care packages shown on the public pricing page. Technical limits stay internal —
+                  the public site only shows the customer-friendly features below.
+                </p>
               </div>
               <button
                 type="button"
@@ -5084,6 +6443,37 @@ function AdminApp() {
                         onChange={(event) => updatePricingPackage(index, { short_description: event.target.value })}
                       />
                     </label>
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <label className="admin-field">
+                        <span>Display badge (e.g. "Most Popular")</span>
+                        <input
+                          value={plan.display_badge || ""}
+                          onChange={(event) => updatePricingPackage(index, { display_badge: event.target.value })}
+                        />
+                      </label>
+                      <label className="admin-field">
+                        <span>CTA button label</span>
+                        <input
+                          value={plan.cta_label || ""}
+                          onChange={(event) => updatePricingPackage(index, { cta_label: event.target.value })}
+                        />
+                      </label>
+                    </div>
+                    <label className="admin-field mt-4">
+                      <span>Public features (one per line — shown on the pricing page)</span>
+                      <textarea
+                        defaultValue={(plan.public_features || []).join("\n")}
+                        onBlur={(event) =>
+                          updatePricingPackage(index, {
+                            public_features: event.target.value
+                              .split("\n")
+                              .map((line) => line.trim())
+                              .filter(Boolean),
+                          })
+                        }
+                        rows={6}
+                      />
+                    </label>
                     <div className="mt-4 grid gap-4 md:grid-cols-3">
                       <label className="admin-field">
                         <span>Monthly price (kobo)</span>
@@ -5113,7 +6503,45 @@ function AdminApp() {
                         />
                       </label>
                     </div>
-                    <div className="mt-4 grid gap-4 md:grid-cols-3">
+                    <div className="mt-5 flex flex-wrap gap-4">
+                      <label className="admin-check">
+                        <input
+                          type="checkbox"
+                          checked={plan.is_popular}
+                          onChange={(event) => updatePricingPackage(index, { is_popular: event.target.checked })}
+                        />
+                        Most popular
+                      </label>
+                      <label className="admin-check">
+                        <input
+                          type="checkbox"
+                          checked={plan.is_recommended}
+                          onChange={(event) => updatePricingPackage(index, { is_recommended: event.target.checked })}
+                        />
+                        Recommended
+                      </label>
+                      <label className="admin-check">
+                        <input
+                          type="checkbox"
+                          checked={plan.is_active}
+                          onChange={(event) => updatePricingPackage(index, { is_active: event.target.checked })}
+                        />
+                        Active
+                      </label>
+                      <label className="admin-check">
+                        <input
+                          type="checkbox"
+                          checked={plan.migration_included}
+                          onChange={(event) => updatePricingPackage(index, { migration_included: event.target.checked })}
+                        />
+                        Migration included
+                      </label>
+                    </div>
+
+                    <p className="mt-6 text-xs font-black uppercase tracking-wide text-white/40">
+                      Internal limits — used for provisioning, never shown on the public site
+                    </p>
+                    <div className="mt-3 grid gap-4 md:grid-cols-3">
                       <label className="admin-field">
                         <span>Storage</span>
                         <input value={plan.storage_allocation} onChange={(event) => updatePricingPackage(index, { storage_allocation: event.target.value })} />
@@ -5145,32 +6573,21 @@ function AdminApp() {
                         <input value={plan.backup_frequency || ""} onChange={(event) => updatePricingPackage(index, { backup_frequency: event.target.value })} />
                       </label>
                     </div>
-                    <div className="mt-5 flex flex-wrap gap-4">
-                      <label className="admin-check">
-                        <input
-                          type="checkbox"
-                          checked={plan.is_featured}
-                          onChange={(event) => updatePricingPackage(index, { is_featured: event.target.checked })}
-                        />
-                        Featured
-                      </label>
-                      <label className="admin-check">
-                        <input
-                          type="checkbox"
-                          checked={plan.is_active}
-                          onChange={(event) => updatePricingPackage(index, { is_active: event.target.checked })}
-                        />
-                        Active
-                      </label>
-                      <label className="admin-check">
-                        <input
-                          type="checkbox"
-                          checked={plan.migration_included}
-                          onChange={(event) => updatePricingPackage(index, { migration_included: event.target.checked })}
-                        />
-                        Migration included
-                      </label>
-                    </div>
+                    <label className="admin-field mt-4">
+                      <span>Internal limits (JSON — business_emails, support_level, security_monitoring, etc.)</span>
+                      <textarea
+                        defaultValue={JSON.stringify(plan.internal_limits || {}, null, 2)}
+                        onBlur={(event) => {
+                          try {
+                            updatePricingPackage(index, { internal_limits: JSON.parse(event.target.value || "{}") });
+                          } catch {
+                            setMessage("Internal limits must be valid JSON — change not applied.");
+                          }
+                        }}
+                        rows={6}
+                        className="font-mono"
+                      />
+                    </label>
                     <label className="admin-field mt-4">
                       <span>Internal notes</span>
                       <textarea
