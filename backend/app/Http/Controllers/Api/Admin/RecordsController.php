@@ -3,10 +3,16 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\AdminDomainOrderResource;
+use App\Http\Resources\AdminDomainResource;
+use App\Http\Resources\AdminDomainTransferResource;
 use App\Http\Resources\AdminInvoiceResource;
 use App\Http\Resources\AdminPaymentResource;
 use App\Models\AuditLog;
 use App\Models\Client;
+use App\Models\Domain;
+use App\Models\DomainOrder;
+use App\Models\DomainTransfer;
 use App\Models\HostingPlan;
 use App\Models\HostingService;
 use App\Models\Invoice;
@@ -77,14 +83,24 @@ class RecordsController extends Controller
         return response()->json($clientModel);
     }
 
-    public function products()
+    public function products(Request $request)
     {
-        return HostingPlan::query()->orderBy('sort_order')->paginate(20);
+        return HostingPlan::query()
+            ->when($request->filled('is_active'), fn ($query) => $query->where('is_active', $request->boolean('is_active')))
+            ->orderBy('sort_order')
+            ->paginate(20)
+            ->withQueryString();
     }
 
-    public function orders()
+    public function orders(Request $request)
     {
-        return Order::query()->with(['client.user', 'items'])->latest()->paginate(20);
+        return Order::query()
+            ->with(['client.user', 'items'])
+            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
+            ->when($request->filled('billing_cycle'), fn ($query) => $query->where('billing_cycle', $request->string('billing_cycle')))
+            ->latest()
+            ->paginate(20)
+            ->withQueryString();
     }
 
     public function services(Request $request)
@@ -127,37 +143,123 @@ class RecordsController extends Controller
         return response()->json($serviceModel);
     }
 
-    public function invoices()
+    public function invoices(Request $request)
     {
         return AdminInvoiceResource::collection(
-            Invoice::query()->with('client.user')->latest()->paginate(20)
+            Invoice::query()
+                ->with('client.user')
+                ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
+                ->latest()
+                ->paginate(20)
+                ->withQueryString()
         );
     }
 
-    public function payments()
+    public function payments(Request $request)
     {
         return AdminPaymentResource::collection(
-            Payment::query()->with(['client.user', 'invoice'])->latest()->paginate(20)
+            Payment::query()
+                ->with(['client.user', 'invoice'])
+                ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
+                ->when($request->filled('gateway'), fn ($query) => $query->where('gateway', $request->string('gateway')))
+                ->latest()
+                ->paginate(20)
+                ->withQueryString()
         );
     }
 
-    public function tickets()
+    public function tickets(Request $request)
     {
-        return SupportTicket::query()->with(['client.user', 'hostingService'])->latest()->paginate(20);
+        return SupportTicket::query()
+            ->with(['client.user', 'hostingService'])
+            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
+            ->when($request->filled('priority'), fn ($query) => $query->where('priority', $request->string('priority')))
+            ->latest()
+            ->paginate(20)
+            ->withQueryString();
     }
 
-    public function provisioningLogs()
+    public function provisioningLogs(Request $request)
     {
-        return ProvisioningLog::query()->with(['client.user', 'hostingService', 'order'])->latest()->paginate(20);
+        return ProvisioningLog::query()
+            ->with(['client.user', 'hostingService', 'order'])
+            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
+            ->latest()
+            ->paginate(20)
+            ->withQueryString();
     }
 
-    public function ispConfigClientMappings()
+    public function ispConfigClientMappings(Request $request)
     {
-        return IspConfigClientMapping::query()->with('client.user')->latest()->paginate(20);
+        return IspConfigClientMapping::query()
+            ->with('client.user')
+            ->when($request->filled('sync_status'), fn ($query) => $query->where('sync_status', $request->string('sync_status')))
+            ->latest()
+            ->paginate(20)
+            ->withQueryString();
     }
 
-    public function auditLogs()
+    public function auditLogs(Request $request)
     {
-        return AuditLog::query()->with(['client.user', 'hostingService', 'invoice'])->latest()->paginate(20);
+        return AuditLog::query()
+            ->with(['client.user', 'hostingService', 'invoice'])
+            ->when($request->filled('action'), fn ($query) => $query->where('action', 'like', '%'.$request->string('action').'%'))
+            ->latest()
+            ->paginate(20)
+            ->withQueryString();
+    }
+
+    /**
+     * Admin filters per spec §7: domain status, source, TLD, expiry date,
+     * client, provider, linked-hosting status, transfer status.
+     */
+    public function domains(Request $request)
+    {
+        return AdminDomainResource::collection(
+            Domain::query()
+                ->with(['client.user', 'linkedHostingService'])
+                ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
+                ->when($request->filled('source'), fn ($query) => $query->where('source', $request->string('source')))
+                ->when($request->filled('tld'), fn ($query) => $query->where('tld', $request->string('tld')))
+                ->when($request->filled('provider'), fn ($query) => $query->where('provider', $request->string('provider')))
+                ->when($request->filled('client_id'), fn ($query) => $query->where('client_id', $request->integer('client_id')))
+                ->when($request->filled('transfer_status'), fn ($query) => $query->where('transfer_status', $request->string('transfer_status')))
+                ->when($request->filled('expires_before'), fn ($query) => $query->whereDate('expires_at', '<=', $request->string('expires_before')))
+                ->when($request->boolean('without_hosting'), fn ($query) => $query->whereNull('linked_hosting_service_id'))
+                ->when($request->boolean('with_hosting'), fn ($query) => $query->whereNotNull('linked_hosting_service_id'))
+                ->when($request->boolean('expired'), fn ($query) => $query->whereDate('expires_at', '<', now()->toDateString()))
+                ->when($request->boolean('renewal_due'), fn ($query) => $query->whereBetween('expires_at', [now()->toDateString(), now()->addDays(30)->toDateString()]))
+                ->latest()
+                ->paginate(20)
+                ->withQueryString()
+        );
+    }
+
+    public function domainOrders(Request $request)
+    {
+        return AdminDomainOrderResource::collection(
+            DomainOrder::query()
+                ->with(['client.user', 'invoice'])
+                ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
+                ->when($request->filled('order_type'), fn ($query) => $query->where('order_type', $request->string('order_type')))
+                ->when($request->filled('client_id'), fn ($query) => $query->where('client_id', $request->integer('client_id')))
+                ->when($request->boolean('failed'), fn ($query) => $query->where('status', 'failed'))
+                ->latest()
+                ->paginate(20)
+                ->withQueryString()
+        );
+    }
+
+    public function domainTransfers(Request $request)
+    {
+        return AdminDomainTransferResource::collection(
+            DomainTransfer::query()
+                ->with(['client.user', 'invoice'])
+                ->when($request->filled('transfer_status'), fn ($query) => $query->where('transfer_status', $request->string('transfer_status')))
+                ->when($request->filled('client_id'), fn ($query) => $query->where('client_id', $request->integer('client_id')))
+                ->latest()
+                ->paginate(20)
+                ->withQueryString()
+        );
     }
 }

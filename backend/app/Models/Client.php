@@ -103,4 +103,24 @@ class Client extends Model
     {
         return $this->hasMany(SavedPaymentMethod::class);
     }
+
+    public function domains(): HasMany
+    {
+        return $this->hasMany(Domain::class);
+    }
+
+    public function domainOrders(): HasMany
+    {
+        return $this->hasMany(DomainOrder::class);
+    }
+
+    public function domainTransfers(): HasMany
+    {
+        return $this->hasMany(DomainTransfer::class);
+    }
+
+    public function domainContact(): HasOne
+    {
+        return $this->hasOne(DomainContact::class);
+    }
 }

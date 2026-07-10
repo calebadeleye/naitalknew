@@ -3,6 +3,7 @@
 namespace App\Services\Billing;
 
 use App\Models\Client;
+use App\Models\Domain;
 use App\Models\HostingAddOn;
 use App\Models\HostingPlan;
 use App\Models\HostingService;
@@ -122,6 +123,11 @@ class CheckoutService
 
             $invoice->forceFill(['hosting_service_id' => $service->id])->save();
 
+            // Flow 3 ("Hosting Only With Existing Domain") — the client typed a
+            // domain they already own elsewhere. Track it as an external domain
+            // for the dashboard; never register/transfer it through Spaceship.
+            $this->recordExternalDomainIfNeeded($client, $payload['primary_domain'], $service);
+
             return [
                 'order' => $order->load('items'),
                 'invoice' => $invoice,
@@ -132,6 +138,39 @@ class CheckoutService
         $client->user?->notify(new NaiTalkInvoiceCreated($result['invoice']));
 
         return $result;
+    }
+
+    private function recordExternalDomainIfNeeded(Client $client, ?string $domainName, HostingService $service): void
+    {
+        if (! $domainName) {
+            return;
+        }
+
+        $domainName = Str::of($domainName)->lower()->trim()->toString();
+        $existing = Domain::query()->where('client_id', $client->id)->where('domain_name', $domainName)->first();
+
+        if ($existing) {
+            if (! $existing->linked_hosting_service_id) {
+                $existing->forceFill(['linked_hosting_service_id' => $service->id])->save();
+            }
+
+            return;
+        }
+
+        $parts = explode('.', $domainName);
+        array_shift($parts);
+        $tld = '.'.implode('.', $parts);
+
+        Domain::query()->create([
+            'client_id' => $client->id,
+            'domain_name' => $domainName,
+            'tld' => $tld,
+            'source' => 'external',
+            'provider' => 'external',
+            'status' => 'active',
+            'auto_renew' => false,
+            'linked_hosting_service_id' => $service->id,
+        ]);
     }
 
     private function promoteToBillingClient(Client $client): void

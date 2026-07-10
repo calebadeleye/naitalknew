@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class HostingService extends Model
@@ -150,5 +151,15 @@ class HostingService extends Model
     public function latestUsageSnapshot(): ?HostingUsageSnapshot
     {
         return $this->usageSnapshots()->latest('captured_at')->first();
+    }
+
+    public function linkedDomain(): HasOne
+    {
+        return $this->hasOne(Domain::class, 'linked_hosting_service_id');
+    }
+
+    public function domainOrders(): HasMany
+    {
+        return $this->hasMany(DomainOrder::class);
     }
 }

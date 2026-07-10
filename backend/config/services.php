@@ -52,4 +52,16 @@ return [
         'account_number' => env('BANK_TRANSFER_ACCOUNT_NUMBER', '1310414891'),
     ],
 
+    'spaceship' => [
+        'api_key' => env('SPACESHIP_API_KEY'),
+        'api_secret' => env('SPACESHIP_API_SECRET'),
+        'base_url' => env('SPACESHIP_API_BASE_URL', 'https://spaceship.dev/api/v1'),
+        // Spaceship has no public sandbox environment — when true, SpaceshipClient
+        // simulates responses locally instead of calling the live (real-money,
+        // irreversible) API. Defaults to true so a fresh checkout of this app
+        // never accidentally registers a real domain.
+        'sandbox_mode' => (bool) env('SPACESHIP_SANDBOX_MODE', true),
+        'webhook_secret' => env('SPACESHIP_WEBHOOK_SECRET'),
+    ],
+
 ];

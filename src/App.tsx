@@ -1,13 +1,17 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import type { LucideIcon } from "lucide-react";
 import {
   ArrowRight,
+  ArrowRightLeft,
+  BadgeCheck,
   BarChart3,
   Bell,
   Bot,
   CalendarClock,
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
   Code2,
   CreditCard,
   Database,
@@ -15,6 +19,7 @@ import {
   Eye,
   Facebook,
   FileText,
+  Gift,
   Globe2,
   HardDrive,
   Headphones,
@@ -30,6 +35,7 @@ import {
   Menu,
   MessageCircle,
   MonitorSmartphone,
+  MousePointer2,
   MoreVertical,
   PackageCheck,
   Pencil,
@@ -37,7 +43,9 @@ import {
   Plus,
   Power,
   RefreshCw,
+  Rocket,
   Save,
+  Search,
   Server,
   Settings,
   ShieldCheck,
@@ -259,7 +267,10 @@ type AdminRecordsSectionId =
   | "support"
   | "provisioning"
   | "ispconfigMappings"
-  | "auditLogs";
+  | "auditLogs"
+  | "domains"
+  | "domainOrders"
+  | "domainTransfers";
 
 const LARAVEL_API_BASE_URL =
   (import.meta.env.VITE_LARAVEL_API_URL as string | undefined)?.replace(/\/$/, "") || "http://127.0.0.1:8000";
@@ -308,6 +319,7 @@ const staticNavGroups = [
     items: [
       { label: "Services", href: "#services" },
       { label: "Hosting", href: "#hosting" },
+      { label: "Domains", href: "/domains" },
       { label: "AI Solutions", href: "#ai" },
     ],
   },
@@ -872,6 +884,36 @@ function DeviceShowcase({ projects, logo }: { projects: Project[]; logo: LogoIma
   );
 }
 
+function HeroDomainSearch() {
+  const [domainInput, setDomainInput] = useState("");
+
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const domain = domainInput.trim().toLowerCase();
+    window.location.href = domain ? `/domains?domain=${encodeURIComponent(domain)}` : "/domains";
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="hero-domain-search mt-8 flex max-w-lg items-center gap-2 rounded-xl border border-white/10 bg-white/5 p-1.5">
+      <label htmlFor="hero-domain-search" className="sr-only">
+        Search for a domain name
+      </label>
+      <Globe2 className="ml-2 h-4 w-4 shrink-0 text-white/40" aria-hidden="true" />
+      <input
+        id="hero-domain-search"
+        value={domainInput}
+        onChange={(event) => setDomainInput(event.target.value)}
+        placeholder="Find your perfect domain e.g. mybusiness.com"
+        className="w-full bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none"
+      />
+      <button type="submit" className="btn-primary shrink-0 !min-h-9 !py-2 !text-xs">
+        Search
+        <ArrowRight className="h-4 w-4" />
+      </button>
+    </form>
+  );
+}
+
 function Hero({ projects, logo }: { projects: Project[]; logo: LogoImage }) {
   return (
     <section id="home" className="hero-grid relative overflow-hidden pb-14 pt-28 sm:pb-18 lg:pt-32">
@@ -900,6 +942,7 @@ function Hero({ projects, logo }: { projects: Project[]; logo: LogoImage }) {
               Chat on WhatsApp
             </a>
           </div>
+          <HeroDomainSearch />
           <div className="mt-9 grid gap-4 sm:grid-cols-3">
             {[
               ["Modern & scalable", "Future-ready solutions"],
@@ -1538,6 +1581,7 @@ function AdminServicesGroupedDashboard({
   const [sourceFilter, setSourceFilter] = useState("");
   const [records, setRecords] = useState<LaravelPage | null>(null);
   const [isLoadingRecords, setIsLoadingRecords] = useState(false);
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     if (!adminToken) return;
@@ -1547,6 +1591,10 @@ function AdminServicesGroupedDashboard({
   }, [adminToken]);
 
   useEffect(() => {
+    setPage(1);
+  }, [selectedType, statusFilter, clientIdFilter, sourceFilter]);
+
+  useEffect(() => {
     if (!adminToken) return;
     setIsLoadingRecords(true);
     const params = new URLSearchParams();
@@ -1554,12 +1602,13 @@ function AdminServicesGroupedDashboard({
     if (statusFilter) params.set("status", statusFilter);
     if (clientIdFilter) params.set("client_id", clientIdFilter);
     if (sourceFilter) params.set("source", sourceFilter);
+    if (page > 1) params.set("page", String(page));
 
     laravelApi<LaravelPage>(`/api/v1/admin/services?${params.toString()}`, adminToken)
       .then(setRecords)
       .catch(() => setRecords(null))
       .finally(() => setIsLoadingRecords(false));
-  }, [adminToken, selectedType, statusFilter, clientIdFilter, sourceFilter]);
+  }, [adminToken, selectedType, statusFilter, clientIdFilter, sourceFilter, page]);
 
   const selectedLabel = groups?.find((group) => group.service_type === selectedType)?.label;
   const hasActiveFilters = Boolean(selectedType || statusFilter || clientIdFilter || sourceFilter);
@@ -1645,6 +1694,8 @@ function AdminServicesGroupedDashboard({
         records={records}
         isLoading={isLoadingRecords}
         onRowClick={(row) => onOpenService(Number(row.id))}
+        page={page}
+        onPageChange={setPage}
       />
     </section>
   );
@@ -1687,6 +1738,39 @@ function AdminDashboardOverview({
           <button type="button" className="btn-outline justify-center">Jun 1 - Jun 30, 2026</button>
           <button type="button" className="btn-primary justify-center">Export report</button>
         </div>
+      </div>
+
+      <div className="grid gap-6">
+        {adminSectionGroups
+          .filter((group) => group.label !== "Overview")
+          .map((group) => (
+            <div key={group.label} className="admin-quick-group">
+              <p className="admin-quick-group-header">{group.label}</p>
+              <div className="admin-quick-grid">
+                {group.sections.map((section, index) => {
+                  const Icon = section.icon;
+                  const tones = ["", "tone-cyan", "tone-violet", "tone-gold"];
+                  return (
+                    <button
+                      key={section.id}
+                      type="button"
+                      className="admin-quick-card group"
+                      onClick={() => onNavigate?.(section.id)}
+                    >
+                      <span className={`admin-quick-card-icon ${tones[index % tones.length]}`}>
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="admin-quick-card-title block">{section.label}</span>
+                        <span className="admin-quick-card-desc block">{adminSectionDescriptions[section.id] || "Manage this section"}</span>
+                      </span>
+                      <ChevronRight className="admin-quick-card-chevron h-4 w-4" />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
@@ -1893,6 +1977,14 @@ function AdminDashboardOverview({
   );
 }
 
+type AdminRecordFilterDef = {
+  key: string;
+  label: string;
+  type?: "select" | "text";
+  options?: Array<{ value: string; label: string }>;
+  placeholder?: string;
+};
+
 function AdminRecordsSection({
   title,
   description,
@@ -1900,6 +1992,12 @@ function AdminRecordsSection({
   isLoading,
   renderRowActions,
   onRowClick,
+  filters,
+  filterValues,
+  onFilterChange,
+  onClearFilters,
+  page = 1,
+  onPageChange,
 }: {
   title: string;
   description: string;
@@ -1907,9 +2005,18 @@ function AdminRecordsSection({
   isLoading: boolean;
   renderRowActions?: (row: Record<string, unknown>) => React.ReactNode;
   onRowClick?: (row: Record<string, unknown>) => void;
+  filters?: AdminRecordFilterDef[];
+  filterValues?: Record<string, string>;
+  onFilterChange?: (key: string, value: string) => void;
+  onClearFilters?: () => void;
+  page?: number;
+  onPageChange?: (page: number) => void;
 }) {
   const rows = records?.data || [];
   const columns = rows[0] ? Object.keys(rows[0]).filter((key) => !["links", "meta", "user_id"].includes(key)).slice(0, 7) : [];
+  const lastPage = records?.meta?.last_page ?? 1;
+  const total = records?.meta?.total ?? rows.length;
+  const hasActiveFilters = Boolean(filterValues && Object.values(filterValues).some((value) => value));
 
   const renderValue = (value: unknown): string => {
     if (value === null || value === undefined) return "";
@@ -1936,9 +2043,38 @@ function AdminRecordsSection({
           <p className="mt-1 text-sm text-white/55">{description}</p>
         </div>
         <span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-black text-primary">
-          {records?.meta?.total ?? rows.length} records
+          {total} records
         </span>
       </div>
+
+      {filters && filters.length > 0 && (
+        <div className="mt-5 flex flex-wrap items-end gap-3 border-t border-white/10 pt-5">
+          {filters.map((filter) => (
+            <label key={filter.key} className="admin-field w-full sm:w-48">
+              <span>{filter.label}</span>
+              {filter.type === "text" ? (
+                <input
+                  value={filterValues?.[filter.key] || ""}
+                  placeholder={filter.placeholder}
+                  onChange={(event) => onFilterChange?.(filter.key, event.target.value)}
+                />
+              ) : (
+                <select value={filterValues?.[filter.key] || ""} onChange={(event) => onFilterChange?.(filter.key, event.target.value)}>
+                  <option value="">All</option>
+                  {(filter.options || []).map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              )}
+            </label>
+          ))}
+          {hasActiveFilters && (
+            <button type="button" className="btn-outline !min-h-11" onClick={onClearFilters}>
+              Clear filters
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="mt-6 overflow-x-auto">
         {isLoading ? (
@@ -1977,6 +2113,18 @@ function AdminRecordsSection({
           <div className="rounded-lg border border-white/10 bg-black/20 p-6 text-sm font-bold text-white/60">No records found.</div>
         )}
       </div>
+
+      {onPageChange && lastPage > 1 && (
+        <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/10 pt-5 text-xs font-bold text-white/55">
+          <button type="button" className="btn-outline !min-h-9 !px-3 !text-[11px]" disabled={page <= 1 || isLoading} onClick={() => onPageChange(page - 1)}>
+            Previous
+          </button>
+          <span>Page {page} of {lastPage}</span>
+          <button type="button" className="btn-outline !min-h-9 !px-3 !text-[11px]" disabled={page >= lastPage || isLoading} onClick={() => onPageChange(page + 1)}>
+            Next
+          </button>
+        </div>
+      )}
     </section>
   );
 }
@@ -2661,20 +2809,27 @@ function AdminClientsList({
   const [records, setRecords] = useState<LaravelPage | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState("");
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter]);
 
   useEffect(() => {
     if (!adminToken) return;
     setIsLoading(true);
     const params = new URLSearchParams();
     if (statusFilter) params.set("client_status", statusFilter);
+    if (page > 1) params.set("page", String(page));
 
     laravelApi<LaravelPage>(`/api/v1/admin/clients?${params.toString()}`, adminToken)
       .then(setRecords)
       .catch(() => setRecords(null))
       .finally(() => setIsLoading(false));
-  }, [adminToken, statusFilter]);
+  }, [adminToken, statusFilter, page]);
 
   const rows = (records?.data || []) as Array<Record<string, any>>;
+  const lastPage = records?.meta?.last_page ?? 1;
 
   return (
     <section className="admin-panel">
@@ -2734,6 +2889,18 @@ function AdminClientsList({
           <div className="rounded-lg border border-white/10 bg-black/20 p-6 text-sm font-bold text-white/60">No records found.</div>
         )}
       </div>
+
+      {lastPage > 1 && (
+        <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/10 pt-5 text-xs font-bold text-white/55">
+          <button type="button" className="btn-outline !min-h-9 !px-3 !text-[11px]" disabled={page <= 1 || isLoading} onClick={() => setPage((current) => current - 1)}>
+            Previous
+          </button>
+          <span>Page {page} of {lastPage}</span>
+          <button type="button" className="btn-outline !min-h-9 !px-3 !text-[11px]" disabled={page >= lastPage || isLoading} onClick={() => setPage((current) => current + 1)}>
+            Next
+          </button>
+        </div>
+      )}
     </section>
   );
 }
@@ -2754,12 +2921,15 @@ const INITIAL_ORDER_DRAFT = {
   add_ons: [] as string[],
   primary_domain: "",
   auto_renew: true,
+  register_domain: false,
 };
 
 const portalNavLinks = [
   { icon: Home, label: "Dashboard", route: "dashboard" as ClientRouteName, path: "/client/dashboard" },
   { icon: PackageCheck, label: "Services Catalog", route: "services-catalog" as ClientRouteName, path: "/client/services/catalog" },
   { icon: FileText, label: "My Orders", route: "orders" as ClientRouteName, path: "/client/orders" },
+  { icon: Globe2, label: "My Domains", route: "domains" as ClientRouteName, path: "/client/domains" },
+  { icon: Globe2, label: "Search Domains", route: "domain-search" as ClientRouteName, path: "/client/domains/search" },
   { icon: Wallet, label: "Wallet", route: "wallet" as ClientRouteName, path: "/client/wallet" },
   { icon: CreditCard, label: "Saved Payment Methods", route: "payment-methods" as ClientRouteName, path: "/client/payment-methods" },
   { icon: User, label: "My Profile", route: null, path: null },
@@ -4342,6 +4512,835 @@ function ClientPaymentMethodsPage({ token, toast }: { token: string; toast: Retu
   );
 }
 
+type DomainSuggestion = {
+  domain: string;
+  tld: string;
+  registration_price_kobo: number;
+  renewal_price_kobo: number;
+  currency: string;
+};
+
+type DomainSearchResult = {
+  domain: string;
+  tld: string;
+  available: boolean;
+  tld_supported: boolean;
+  premium: boolean;
+  registration_price_kobo: number | null;
+  renewal_price_kobo: number | null;
+  transfer_price_kobo: number | null;
+  currency: string | null;
+  suggestions: DomainSuggestion[];
+};
+
+type DomainCheckoutResult = {
+  order: { order_number: string };
+  invoice: { invoice_number: string; total_kobo: number; total?: string };
+};
+
+function DomainSearchPage({
+  navigate,
+  toast,
+}: {
+  navigate: (path: string) => void;
+  toast: ReturnType<typeof useToast>;
+}) {
+  const [domainInput, setDomainInput] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [result, setResult] = useState<DomainSearchResult | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
+
+  const search = async () => {
+    const domain = domainInput.trim().toLowerCase();
+    if (!domain) return;
+    setIsSearching(true);
+    setResult(null);
+
+    try {
+      const data = await laravelApi<DomainSearchResult>(`/api/v1/public/domains/search?domain=${encodeURIComponent(domain)}`);
+      setResult(data);
+      setHasSearched(true);
+    } catch (error) {
+      toast.push({
+        type: "error",
+        message: error instanceof Error ? error.message : "Domain search is temporarily unavailable. Please try again shortly.",
+      });
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const hasPricing = result !== null && result.registration_price_kobo !== null;
+
+  return (
+    <section>
+      <h2 className="text-2xl font-black text-white">Search Domains</h2>
+      <p className="mt-1 text-sm text-white/55">Find and register a new domain, or add hosting to a domain you already own.</p>
+
+      <div className="portal-card mt-5 max-w-xl">
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="flex flex-1 items-center gap-2 rounded-lg border border-white/10 bg-[#041015] px-4 py-3 transition focus-within:border-accent-cyan/55">
+            <Search className="h-4 w-4 shrink-0 text-white/40" aria-hidden="true" />
+            <input
+              className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/32"
+              placeholder="Search a domain, e.g. yourbusiness.com"
+              value={domainInput}
+              onChange={(event) => setDomainInput(event.target.value)}
+              onKeyDown={(event) => event.key === "Enter" && void search()}
+            />
+          </div>
+          <button type="button" className="btn-primary justify-center !text-[11px]" disabled={isSearching || !domainInput.trim()} onClick={() => void search()}>
+            {isSearching ? "Searching..." : "Search"}
+          </button>
+        </div>
+
+        <p className="mt-3 text-xs text-white/45">
+          Looking to transfer a domain you already own?{" "}
+          <button type="button" className="font-bold text-primary underline" onClick={() => navigate("/client/domains/transfer")}>
+            Transfer it here
+          </button>
+        </p>
+
+        {hasSearched && result && (
+          <div className="mt-5 rounded-lg border border-white/10 bg-black/20 p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-lg font-black text-white">{result.domain}</p>
+              <span className={result.available ? "status-pill paid" : "status-pill failed"}>
+                {result.available ? "Available" : result.tld_supported ? "Not Available" : "Not Supported"}
+              </span>
+            </div>
+
+            {result.available && result.premium && <p className="mt-2 text-xs font-bold uppercase text-yellow-300">Premium domain</p>}
+
+            {result.available && hasPricing && (
+              <>
+                <div className="mt-3 grid gap-1 text-sm text-white/70">
+                  <div className="flex items-center justify-between">
+                    <span>Registration (1 year)</span>
+                    <strong className="text-white">{formatNaira((result.registration_price_kobo || 0) / 100)}</strong>
+                  </div>
+                  {result.renewal_price_kobo !== null && (
+                    <div className="flex items-center justify-between">
+                      <span>Renewal (per year)</span>
+                      <strong className="text-white">{formatNaira(result.renewal_price_kobo / 100)}</strong>
+                    </div>
+                  )}
+                </div>
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    className="btn-primary justify-center !text-[11px]"
+                    onClick={() => navigate(`/client/domains/checkout?domain=${encodeURIComponent(result.domain)}`)}
+                  >
+                    Buy Domain Only
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-outline justify-center !text-[11px]"
+                    onClick={() => navigate(`/client/order/hosting?domain=${encodeURIComponent(result.domain)}&register_domain=1`)}
+                  >
+                    Buy Domain + Hosting
+                  </button>
+                </div>
+              </>
+            )}
+
+            {result.available && !hasPricing && (
+              <p className="mt-3 text-sm text-white/60">
+                Pricing for this domain extension is being finalized. Please contact NAI TALK support to register it.
+              </p>
+            )}
+
+            {!result.available && !result.tld_supported && (
+              <p className="mt-3 text-sm text-white/60">
+                This domain extension isn't currently supported for registration. Please try .com, .org, .net, or a
+                different name.
+              </p>
+            )}
+
+            {!result.available && result.tld_supported && (
+              <>
+                <p className="mt-3 text-sm text-white/60">This domain is already taken. Here are some available alternatives:</p>
+                {result.suggestions.length > 0 ? (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {result.suggestions.map((suggestion) => (
+                      <button
+                        key={suggestion.domain}
+                        type="button"
+                        onClick={() => navigate(`/client/domains/checkout?domain=${encodeURIComponent(suggestion.domain)}`)}
+                        className="flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-left transition hover:border-primary/40"
+                      >
+                        <span className="text-xs font-bold text-white">{suggestion.domain}</span>
+                        <span className="text-[11px] font-black text-primary">
+                          {formatNaira(suggestion.registration_price_kobo / 100)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-white/40">No alternatives found right now — try a different name.</p>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function DomainOnlyCheckoutPage({
+  token,
+  domainName,
+  navigate,
+  toast,
+  isInitiatingPayment,
+  onPayWithGateway,
+  onPayByBankTransfer,
+}: {
+  token: string;
+  domainName: string | null;
+  navigate: (path: string) => void;
+  toast: ReturnType<typeof useToast>;
+  isInitiatingPayment: boolean;
+  onPayWithGateway: (invoiceNumber: string, gateway: "paystack" | "flutterwave") => Promise<void>;
+  onPayByBankTransfer: (invoiceNumber: string) => Promise<void>;
+}) {
+  const [order, setOrder] = useState<DomainCheckoutResult | null>(null);
+  const [isCreating, setIsCreating] = useState(true);
+  const hasCreatedRef = React.useRef(false);
+
+  useEffect(() => {
+    if (hasCreatedRef.current || !domainName) return;
+    hasCreatedRef.current = true;
+    setIsCreating(true);
+
+    laravelApi<DomainCheckoutResult>("/api/v1/client/domains/orders", token, {
+      method: "POST",
+      body: JSON.stringify({ domain_name: domainName }),
+    })
+      .then(setOrder)
+      .catch((error) => toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not create your domain order." }))
+      .finally(() => setIsCreating(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [domainName, token]);
+
+  if (!domainName) {
+    return (
+      <section className="portal-card mx-auto max-w-lg text-center">
+        <p className="text-sm text-white/60">No domain selected. Please search for a domain first.</p>
+        <button type="button" className="btn-primary mt-4 justify-center" onClick={() => navigate("/client/domains/search")}>
+          Search Domains
+        </button>
+      </section>
+    );
+  }
+
+  if (isCreating || !order) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center text-white/50">
+        <Loader2 className="h-6 w-6 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <section className="mx-auto max-w-xl portal-card text-center">
+      <h2 className="text-xl font-black text-white">Domain Checkout</h2>
+      <p className="mt-3 text-sm text-white/60">
+        Order {order.order.order_number} created. Invoice <strong className="text-white">{order.invoice.invoice_number}</strong> for{" "}
+        <strong className="text-white">{order.invoice.total || formatNaira(order.invoice.total_kobo / 100)}</strong> has been emailed to you.
+      </p>
+      <p className="mt-2 text-sm text-white/60">Choose how you'd like to pay:</p>
+      <div className="mt-5">
+        <PaymentOptionsPanel
+          token={token}
+          invoiceNumber={order.invoice.invoice_number}
+          outstandingKobo={order.invoice.total_kobo}
+          walletMode="full-only"
+          isInitiatingPayment={isInitiatingPayment}
+          onPayWithGateway={onPayWithGateway}
+          onPayByBankTransfer={onPayByBankTransfer}
+          toast={toast}
+          onPaid={() => navigate(`/client/orders/${order.order.order_number}`)}
+        />
+      </div>
+      <button type="button" className="btn-outline mt-2 w-full justify-center !min-h-9 !py-1.5 !text-[11px]" onClick={() => navigate("/client/orders")}>
+        Pay Later
+      </button>
+    </section>
+  );
+}
+
+function DomainTransferPage({
+  token,
+  navigate,
+  toast,
+  isInitiatingPayment,
+  onPayWithGateway,
+  onPayByBankTransfer,
+}: {
+  token: string;
+  navigate: (path: string) => void;
+  toast: ReturnType<typeof useToast>;
+  isInitiatingPayment: boolean;
+  onPayWithGateway: (invoiceNumber: string, gateway: "paystack" | "flutterwave") => Promise<void>;
+  onPayByBankTransfer: (invoiceNumber: string) => Promise<void>;
+}) {
+  const [domainName, setDomainName] = useState("");
+  const [eppCode, setEppCode] = useState("");
+  const [isCheckingEligibility, setIsCheckingEligibility] = useState(false);
+  const [eligibility, setEligibility] = useState<{ eligible: boolean; status: string } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [order, setOrder] = useState<DomainCheckoutResult | null>(null);
+
+  const checkEligibility = async () => {
+    if (!domainName.trim()) return;
+    setIsCheckingEligibility(true);
+    setEligibility(null);
+
+    try {
+      const data = await laravelApi<{ eligible: boolean; status: string }>(
+        `/api/v1/client/domains/transfers/eligibility?domain=${encodeURIComponent(domainName.trim().toLowerCase())}`,
+        token,
+      );
+      setEligibility(data);
+    } catch (error) {
+      toast.push({ type: "error", message: error instanceof Error ? error.message : "Transfer eligibility check is temporarily unavailable." });
+    } finally {
+      setIsCheckingEligibility(false);
+    }
+  };
+
+  const submitTransfer = async () => {
+    if (!domainName.trim() || !eppCode.trim()) {
+      toast.push({ type: "error", message: "Please enter both the domain name and your EPP/auth code." });
+
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const data = await laravelApi<DomainCheckoutResult>("/api/v1/client/domains/transfers", token, {
+        method: "POST",
+        body: JSON.stringify({ domain_name: domainName.trim().toLowerCase(), epp_code: eppCode.trim() }),
+      });
+      setOrder(data);
+    } catch (error) {
+      toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not start this domain transfer." });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (order) {
+    return (
+      <section className="mx-auto max-w-xl portal-card text-center">
+        <h2 className="text-xl font-black text-white">Domain Transfer Checkout</h2>
+        <p className="mt-3 text-sm text-white/60">
+          Transfer order {order.order.order_number} created. Invoice <strong className="text-white">{order.invoice.invoice_number}</strong> for{" "}
+          <strong className="text-white">{order.invoice.total || formatNaira(order.invoice.total_kobo / 100)}</strong> has been emailed to you.
+        </p>
+        <p className="mt-2 text-sm text-white/60">Choose how you'd like to pay:</p>
+        <div className="mt-5">
+          <PaymentOptionsPanel
+            token={token}
+            invoiceNumber={order.invoice.invoice_number}
+            outstandingKobo={order.invoice.total_kobo}
+            walletMode="full-only"
+            isInitiatingPayment={isInitiatingPayment}
+            onPayWithGateway={onPayWithGateway}
+            onPayByBankTransfer={onPayByBankTransfer}
+            toast={toast}
+            onPaid={() => navigate(`/client/orders/${order.order.order_number}`)}
+          />
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="mx-auto max-w-xl">
+      <h2 className="text-2xl font-black text-white">Transfer a Domain to NAI TALK</h2>
+      <p className="mt-1 text-sm text-white/55">Enter the domain and the EPP/auth code from your current registrar.</p>
+
+      <div className="portal-card mt-5">
+        <label className="admin-field">
+          <span>Domain name</span>
+          <input value={domainName} onChange={(event) => setDomainName(event.target.value)} placeholder="yourbusiness.com" />
+        </label>
+        <label className="admin-field mt-3">
+          <span>EPP / Auth Code</span>
+          <input value={eppCode} onChange={(event) => setEppCode(event.target.value)} placeholder="Provided by your current registrar" />
+        </label>
+
+        <button
+          type="button"
+          className="btn-outline mt-4 w-full justify-center"
+          disabled={isCheckingEligibility || !domainName.trim()}
+          onClick={() => void checkEligibility()}
+        >
+          {isCheckingEligibility ? "Checking..." : "Check Transfer Eligibility"}
+        </button>
+
+        {eligibility && (
+          <p className="mt-3 text-sm text-white/60">
+            {eligibility.eligible
+              ? "This domain looks eligible for transfer. You can proceed below."
+              : "We could not automatically confirm eligibility — you can still proceed, and our team will review it."}
+          </p>
+        )}
+
+        <button
+          type="button"
+          className="btn-primary mt-4 w-full justify-center"
+          disabled={isSubmitting || !domainName.trim() || !eppCode.trim()}
+          onClick={() => void submitTransfer()}
+        >
+          {isSubmitting ? "Submitting..." : "Proceed to Checkout"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+type DomainRow = {
+  id: number;
+  domain_name: string;
+  tld: string;
+  source: string;
+  source_label: string;
+  provider_label: string;
+  status: string;
+  registration_status: string;
+  transfer_status: string | null;
+  registered_at: string | null;
+  expires_at: string | null;
+  days_to_expiry: number | null;
+  renewal_due: boolean;
+  auto_renew: boolean;
+  linked_hosting_service: { id: number; service_number: string; status: string } | null;
+  can_add_hosting: boolean;
+  shows_dns_instructions: boolean;
+  server_hostname: string | null;
+};
+
+function ClientDomainsPage({
+  token,
+  navigate,
+  toast,
+}: {
+  token: string;
+  navigate: (path: string) => void;
+  toast: ReturnType<typeof useToast>;
+}) {
+  const [domains, setDomains] = useState<DomainRow[] | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+
+  const load = React.useCallback(() => {
+    laravelApi<{ data: DomainRow[] }>("/api/v1/client/domains", token)
+      .then((response) => setDomains(response.data || []))
+      .catch(() => setDomains([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const toggleAutoRenew = async (domain: DomainRow) => {
+    setBusyId(domain.id);
+
+    try {
+      await laravelApi(`/api/v1/client/domains/${domain.id}/auto-renew`, token, {
+        method: "PATCH",
+        body: JSON.stringify({ auto_renew: !domain.auto_renew }),
+      });
+      load();
+    } catch (error) {
+      toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not update auto-renew." });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const renewDomain = async (domain: DomainRow) => {
+    setBusyId(domain.id);
+
+    try {
+      const data = await laravelApi<{ invoice_number: string | null }>(`/api/v1/client/domains/${domain.id}/renew`, token, {
+        method: "POST",
+      });
+
+      if (data.invoice_number) {
+        navigate(`/client/orders/${data.invoice_number}`);
+      } else {
+        toast.push({ type: "info", message: "A renewal invoice already exists for this domain." });
+        load();
+      }
+    } catch (error) {
+      toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not start renewal." });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  if (domains === null) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center text-white/50">
+        <Loader2 className="h-6 w-6 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <section>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-black text-white">My Domains</h2>
+          <p className="mt-1 text-sm text-white/55">Manage domains you've registered, transferred, or connected to NAI TALK.</p>
+        </div>
+        <div className="flex gap-2">
+          <button type="button" className="btn-outline justify-center !text-[11px]" onClick={() => navigate("/client/domain-contact")}>
+            Contact Profile
+          </button>
+          <button type="button" className="btn-primary justify-center !text-[11px]" onClick={() => navigate("/client/domains/search")}>
+            Search Domains
+          </button>
+        </div>
+      </div>
+
+      {domains.length === 0 ? (
+        <div className="portal-card mt-6 text-center text-sm text-white/55">You don't have any domains yet.</div>
+      ) : (
+        <div className="mt-6 grid gap-4">
+          {domains.map((domain) => (
+            <div key={domain.id} className="portal-card">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-lg font-black text-white">{domain.domain_name}</p>
+                  <p className="text-xs text-white/45">
+                    {domain.source_label} • {domain.provider_label}
+                  </p>
+                </div>
+                <span className={domain.status === "active" ? "status-pill paid" : "status-pill failed"}>{domain.status}</span>
+              </div>
+
+              <div className="mt-4 grid gap-1 text-sm text-white/68 sm:grid-cols-2">
+                <p>
+                  <strong className="text-white">Registered:</strong> {domain.registered_at || "—"}
+                </p>
+                <p>
+                  <strong className="text-white">Expires:</strong> {domain.expires_at || "—"}
+                </p>
+                {domain.transfer_status && (
+                  <p>
+                    <strong className="text-white">Transfer status:</strong> {domain.transfer_status}
+                  </p>
+                )}
+                <p>
+                  <strong className="text-white">Linked hosting:</strong>{" "}
+                  {domain.linked_hosting_service ? domain.linked_hosting_service.service_number : "None"}
+                </p>
+              </div>
+
+              {domain.shows_dns_instructions && (
+                <p className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3 text-xs text-white/60">
+                  Point this domain's DNS to <strong className="text-white">{domain.server_hostname}</strong> to connect your hosting.
+                </p>
+              )}
+
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className="btn-outline justify-center !text-[11px]"
+                  disabled={busyId === domain.id}
+                  onClick={() => void toggleAutoRenew(domain)}
+                >
+                  {domain.auto_renew ? "Disable Auto-Renew" : "Enable Auto-Renew"}
+                </button>
+
+                {domain.renewal_due && (
+                  <button
+                    type="button"
+                    className="btn-primary justify-center !text-[11px]"
+                    disabled={busyId === domain.id}
+                    onClick={() => void renewDomain(domain)}
+                  >
+                    Renew Now
+                  </button>
+                )}
+
+                {domain.can_add_hosting && (
+                  <button type="button" className="btn-primary justify-center !text-[11px]" onClick={() => navigate(`/client/domains/${domain.id}`)}>
+                    Add Hosting
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DomainAddHostingPage({
+  token,
+  domainId,
+  navigate,
+  toast,
+  isInitiatingPayment,
+  onPayWithGateway,
+  onPayByBankTransfer,
+}: {
+  token: string;
+  domainId: number | null;
+  navigate: (path: string) => void;
+  toast: ReturnType<typeof useToast>;
+  isInitiatingPayment: boolean;
+  onPayWithGateway: (invoiceNumber: string, gateway: "paystack" | "flutterwave") => Promise<void>;
+  onPayByBankTransfer: (invoiceNumber: string) => Promise<void>;
+}) {
+  const [domain, setDomain] = useState<DomainRow | null>(null);
+  const [plans, setPlans] = useState<Array<{ name: string; slug: string; monthly: string; annual: string }>>([]);
+  const [planSlug, setPlanSlug] = useState("");
+  const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("annual");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [order, setOrder] = useState<DomainCheckoutResult | null>(null);
+
+  useEffect(() => {
+    if (!domainId) return;
+
+    laravelApi<DomainRow>(`/api/v1/client/domains/${domainId}`, token)
+      .then(setDomain)
+      .catch(() => undefined);
+
+    laravelApi<Array<Record<string, unknown>>>("/api/v1/public/hosting-plans")
+      .then((data) => {
+        const mapped = (data || []).map((plan) => ({
+          name: String(plan.name || "Website Care Plan"),
+          slug: String(plan.slug || ""),
+          monthly: String(plan.monthly_price || "₦0"),
+          annual: String(plan.annual_price || "₦0"),
+        }));
+        setPlans(mapped);
+        setPlanSlug((current) => current || mapped[0]?.slug || "");
+      })
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [domainId, token]);
+
+  const submit = async () => {
+    if (!domainId || !planSlug) return;
+    setIsSubmitting(true);
+
+    try {
+      const data = await laravelApi<DomainCheckoutResult>(`/api/v1/client/domains/${domainId}/hosting`, token, {
+        method: "POST",
+        body: JSON.stringify({ plan_slug: planSlug, billing_cycle: billingCycle, add_ons: [] }),
+      });
+      setOrder(data);
+    } catch (error) {
+      toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not add hosting to this domain." });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!domainId) {
+    return (
+      <section className="portal-card mx-auto max-w-lg text-center">
+        <p className="text-sm text-white/60">Domain not found.</p>
+        <button type="button" className="btn-primary mt-4 justify-center" onClick={() => navigate("/client/domains")}>
+          Back to Domains
+        </button>
+      </section>
+    );
+  }
+
+  if (order) {
+    return (
+      <section className="mx-auto max-w-xl portal-card text-center">
+        <h2 className="text-xl font-black text-white">Hosting Checkout</h2>
+        <p className="mt-3 text-sm text-white/60">
+          Order {order.order.order_number} created. Invoice <strong className="text-white">{order.invoice.invoice_number}</strong> for{" "}
+          <strong className="text-white">{order.invoice.total || formatNaira(order.invoice.total_kobo / 100)}</strong> has been emailed to you.
+        </p>
+        <div className="mt-5">
+          <PaymentOptionsPanel
+            token={token}
+            invoiceNumber={order.invoice.invoice_number}
+            outstandingKobo={order.invoice.total_kobo}
+            walletMode="full-only"
+            isInitiatingPayment={isInitiatingPayment}
+            onPayWithGateway={onPayWithGateway}
+            onPayByBankTransfer={onPayByBankTransfer}
+            toast={toast}
+            onPaid={() => navigate(`/client/orders/${order.order.order_number}`)}
+          />
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="mx-auto max-w-xl">
+      <h2 className="text-2xl font-black text-white">Add Hosting to {domain?.domain_name || "your domain"}</h2>
+      <p className="mt-1 text-sm text-white/55">Choose a website care plan to connect to this domain.</p>
+
+      <div className="portal-card mt-5">
+        <div className="grid gap-3">
+          {plans.map((plan) => (
+            <label key={plan.slug} className={`client-service-row cursor-pointer ${planSlug === plan.slug ? "border-primary/50" : ""}`}>
+              <input
+                type="radio"
+                name="add-hosting-plan"
+                className="h-4 w-4"
+                checked={planSlug === plan.slug}
+                onChange={() => setPlanSlug(plan.slug)}
+              />
+              <div className="min-w-0 flex-1">
+                <p>{plan.name}</p>
+              </div>
+              <strong>{billingCycle === "monthly" ? plan.monthly : plan.annual}</strong>
+            </label>
+          ))}
+        </div>
+
+        <div className="mt-5 flex items-center gap-3">
+          <span className="text-sm font-bold text-white/68">Billing cycle</span>
+          <div className="inline-flex overflow-hidden rounded-lg border border-white/10">
+            {(["monthly", "annual"] as const).map((cycle) => (
+              <button
+                key={cycle}
+                type="button"
+                className={`px-4 py-2 text-xs font-black uppercase ${billingCycle === cycle ? "bg-primary text-on-primary" : "bg-transparent text-white/60"}`}
+                onClick={() => setBillingCycle(cycle)}
+              >
+                {cycle}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <button type="button" className="btn-primary mt-6 w-full justify-center" disabled={isSubmitting || !planSlug} onClick={() => void submit()}>
+          {isSubmitting ? "Creating order..." : "Create Hosting Order"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+const INITIAL_DOMAIN_CONTACT = {
+  full_name: "",
+  company_name: "",
+  email: "",
+  phone: "",
+  address: "",
+  city: "",
+  state: "",
+  country: "",
+  postal_code: "",
+};
+
+function DomainContactProfilePage({ token, toast }: { token: string; toast: ReturnType<typeof useToast> }) {
+  const [form, setForm] = useState(INITIAL_DOMAIN_CONTACT);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isComplete, setIsComplete] = useState(false);
+
+  useEffect(() => {
+    laravelApi<{ data: (typeof INITIAL_DOMAIN_CONTACT & { id: number }) | null; is_complete: boolean }>("/api/v1/client/domain-contact", token)
+      .then((response) => {
+        if (response.data) {
+          setForm({
+            full_name: response.data.full_name || "",
+            company_name: response.data.company_name || "",
+            email: response.data.email || "",
+            phone: response.data.phone || "",
+            address: response.data.address || "",
+            city: response.data.city || "",
+            state: response.data.state || "",
+            country: response.data.country || "",
+            postal_code: response.data.postal_code || "",
+          });
+        }
+        setIsComplete(response.is_complete);
+      })
+      .catch(() => undefined)
+      .finally(() => setIsLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  const field = (key: keyof typeof form, label: string, required = true) => (
+    <label className="admin-field" key={key}>
+      <span>
+        {label}
+        {required ? "" : " (optional)"}
+      </span>
+      <input value={form[key] || ""} onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))} />
+    </label>
+  );
+
+  const save = async () => {
+    setIsSaving(true);
+
+    try {
+      const response = await laravelApi<{ data: unknown; is_complete: boolean }>("/api/v1/client/domain-contact", token, {
+        method: "PUT",
+        body: JSON.stringify(form),
+      });
+      setIsComplete(response.is_complete);
+      toast.push({ type: "success", message: "Domain contact details saved." });
+    } catch (error) {
+      toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not save domain contact details." });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center text-white/50">
+        <Loader2 className="h-6 w-6 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <section className="mx-auto max-w-xl">
+      <h2 className="text-2xl font-black text-white">Domain Contact Profile</h2>
+      <p className="mt-1 text-sm text-white/55">
+        Required by domain registries as the registrant/admin/technical/billing contact for any domain you register or transfer.
+      </p>
+
+      {!isComplete && (
+        <p className="mt-3 rounded-lg border border-yellow-400/30 bg-yellow-400/10 p-3 text-xs font-bold text-yellow-200">
+          Complete this profile before you can register or transfer a domain.
+        </p>
+      )}
+
+      <div className="portal-card mt-5 grid gap-3 sm:grid-cols-2">
+        {field("full_name", "Full name")}
+        {field("company_name", "Company name", false)}
+        {field("email", "Email")}
+        {field("phone", "Phone")}
+        {field("address", "Address")}
+        {field("city", "City")}
+        {field("state", "State")}
+        {field("country", "Country")}
+        {field("postal_code", "Postal code")}
+      </div>
+
+      <button type="button" className="btn-primary mt-5 w-full justify-center" disabled={isSaving} onClick={() => void save()}>
+        {isSaving ? "Saving..." : "Save Contact Profile"}
+      </button>
+    </section>
+  );
+}
+
 function HostingModalContent({
   modal,
   isSubmitting,
@@ -4561,7 +5560,7 @@ function HostingModalContent({
 
 function ClientPortal() {
   const toast = useToast();
-  const { route, search, hostingServiceId, orderNumber, navigate } = useClientRoute();
+  const { route, search, hostingServiceId, orderNumber, domainId, navigate } = useClientRoute();
   const [clientToken, setClientToken] = useState(() => sessionStorage.getItem("naitalk_laravel_client_token") || "");
   const [login, setLogin] = useState(INITIAL_LOGIN);
   const [registerForm, setRegisterForm] = useState(INITIAL_REGISTER);
@@ -4591,6 +5590,12 @@ function ClientPortal() {
   // preview always matches whatever VAT rate CheckoutService will actually apply.
   const [vatRate, setVatRate] = useState(0.075);
   const [orderDraft, setOrderDraft] = useState(INITIAL_ORDER_DRAFT);
+  // Preview only, for the domain+hosting wizard's Order Summary/Review/Checkout
+  // screens — re-fetched from the same public pricing the backend itself
+  // uses, so the preview total actually includes the domain fee instead of
+  // silently showing hosting-only (the bug this fixes). The invoice
+  // returned by POST /orders/hosting remains the sole authoritative charge.
+  const [domainRegistrationPriceKobo, setDomainRegistrationPriceKobo] = useState<number | null>(null);
   const [checkoutResult, setCheckoutResult] = useState<{
     order: { order_number: string };
     invoice: { invoice_number: string; total_kobo: number; total?: string };
@@ -4679,6 +5684,26 @@ function ClientPortal() {
     const preselected = search.get("plan");
     if (preselected) {
       setOrderDraft((current) => ({ ...current, plan_slug: preselected }));
+    }
+
+    const prefilledDomain = search.get("domain");
+    const prefilledRegisterDomain = search.get("register_domain") === "1";
+    if (prefilledDomain) {
+      setOrderDraft((current) => ({
+        ...current,
+        primary_domain: prefilledDomain,
+        register_domain: prefilledRegisterDomain,
+      }));
+    }
+
+    if (prefilledDomain && prefilledRegisterDomain) {
+      laravelApi<{ registration_price_kobo: number | null }>(
+        `/api/v1/public/domains/search?domain=${encodeURIComponent(prefilledDomain)}`,
+      )
+        .then((result) => setDomainRegistrationPriceKobo(result.registration_price_kobo ?? null))
+        .catch(() => setDomainRegistrationPriceKobo(null));
+    } else {
+      setDomainRegistrationPriceKobo(null);
     }
 
     setIsLoadingHostingPlans(true);
@@ -5377,9 +6402,11 @@ function ClientPortal() {
       (sum, addOn) => sum + parseNairaAmount(orderDraft.billing_cycle === "monthly" ? addOn.monthly_price : addOn.annual_price),
       0,
     );
+    const domainRegistrationAmount =
+      orderDraft.register_domain && domainRegistrationPriceKobo ? domainRegistrationPriceKobo / 100 : 0;
     // Preview only — the invoice returned by POST /orders/hosting is always the
     // authoritative, backend-calculated total actually charged.
-    const orderSubtotal = planAmount + addOnsAmount;
+    const orderSubtotal = planAmount + addOnsAmount + domainRegistrationAmount;
     const vatAmount = Math.round(orderSubtotal * vatRate);
     const orderTotal = orderSubtotal + vatAmount;
     const vatPercentLabel = `${(vatRate * 100).toFixed(vatRate * 100 % 1 === 0 ? 0 : 1)}%`;
@@ -5400,10 +6427,22 @@ function ClientPortal() {
                 <span>Primary domain (optional)</span>
                 <input
                   value={orderDraft.primary_domain}
-                  onChange={(event) => setOrderDraft((current) => ({ ...current, primary_domain: event.target.value }))}
+                  onChange={(event) => setOrderDraft((current) => ({ ...current, primary_domain: event.target.value, register_domain: false }))}
                   placeholder="yourbusiness.com"
+                  disabled={orderDraft.register_domain}
                 />
               </label>
+              {orderDraft.register_domain ? (
+                <p className="mt-2 text-xs font-bold text-primary">
+                  This domain will be registered for you as part of this order.
+                </p>
+              ) : (
+                orderDraft.primary_domain && (
+                  <p className="mt-2 text-xs text-white/45">
+                    We'll email you DNS instructions to point this domain to your new hosting once it's active.
+                  </p>
+                )
+              )}
 
               <h2 className="mt-6 text-xl font-black text-white">Choose your website care plan</h2>
               <div className="mt-5 grid gap-3">
@@ -5502,6 +6541,14 @@ function ClientPortal() {
                   ))}
                 </div>
               )}
+              {orderDraft.register_domain && orderDraft.primary_domain && (
+                <div className="mt-4 grid gap-2 border-t border-white/10 pt-4 text-sm text-white/68">
+                  <div className="flex items-center justify-between gap-2">
+                    <span>Domain Registration — {orderDraft.primary_domain}</span>
+                    <span>{domainRegistrationPriceKobo !== null ? formatNaira(domainRegistrationAmount) : "Loading…"}</span>
+                  </div>
+                </div>
+              )}
               <div className="mt-4 grid gap-2 border-t border-white/10 pt-4 text-sm text-white/68">
                 <div className="flex items-center justify-between"><span>Subtotal</span><span>{formatNaira(orderSubtotal)}</span></div>
                 <div className="flex items-center justify-between"><span>VAT {vatPercentLabel}</span><span>{formatNaira(vatAmount)}</span></div>
@@ -5539,7 +6586,10 @@ function ClientPortal() {
             <div className="portal-card">
               <h2 className="text-xl font-black text-white">Review your order</h2>
               <div className="mt-5 grid gap-3 text-sm text-white/72">
-                <p><strong className="text-white">Domain:</strong> {orderDraft.primary_domain || "Not set"}</p>
+                <p>
+                  <strong className="text-white">Domain:</strong> {orderDraft.primary_domain || "Not set"}
+                  {orderDraft.primary_domain && (orderDraft.register_domain ? " (will be registered with this order)" : " (existing domain)")}
+                </p>
                 <p><strong className="text-white">Plan:</strong> {selectedPlan?.name || "—"}</p>
                 <p><strong className="text-white">Billing cycle:</strong> {orderDraft.billing_cycle}</p>
                 <p>
@@ -5547,6 +6597,12 @@ function ClientPortal() {
                   {selectedAddOns.length ? selectedAddOns.map((addOn) => addOn.name).join(", ") : "None"}
                 </p>
                 <p><strong className="text-white">Auto-renew:</strong> Enabled by default — you can turn this off anytime from your service's Manage Hosting page.</p>
+                {orderDraft.register_domain && orderDraft.primary_domain && (
+                  <p>
+                    <strong className="text-white">Domain Registration — {orderDraft.primary_domain}:</strong>{" "}
+                    {domainRegistrationPriceKobo !== null ? formatNaira(domainRegistrationAmount) : "Loading…"}
+                  </p>
+                )}
                 <p><strong className="text-white">Subtotal:</strong> {formatNaira(orderSubtotal)}</p>
                 <p><strong className="text-white">VAT {vatPercentLabel}:</strong> {formatNaira(vatAmount)}</p>
                 <p><strong className="text-white">Total Payable:</strong> {formatNaira(orderTotal)}</p>
@@ -5700,6 +6756,119 @@ function ClientPortal() {
         onProfileClick={() => toast.push({ type: "info", message: "Account settings are coming soon." })}
       >
         <ClientPaymentMethodsPage token={clientToken} toast={toast} />
+      </ClientPortalShell>
+    );
+  }
+
+  if (route === "domain-search") {
+    return (
+      <ClientPortalShell
+        dashboard={dashboard}
+        route={route}
+        isVerified={isVerified}
+        navigate={navigate}
+        onLogout={() => void handleClientLogout()}
+        onProfileClick={() => toast.push({ type: "info", message: "Account settings are coming soon." })}
+      >
+        <DomainSearchPage navigate={navigate} toast={toast} />
+      </ClientPortalShell>
+    );
+  }
+
+  if (route === "domain-checkout") {
+    return (
+      <ClientPortalShell
+        dashboard={dashboard}
+        route={route}
+        isVerified={isVerified}
+        navigate={navigate}
+        onLogout={() => void handleClientLogout()}
+        onProfileClick={() => toast.push({ type: "info", message: "Account settings are coming soon." })}
+      >
+        <DomainOnlyCheckoutPage
+          token={clientToken}
+          domainName={search.get("domain")}
+          navigate={navigate}
+          toast={toast}
+          isInitiatingPayment={isInitiatingPayment}
+          onPayWithGateway={handlePayWithGateway}
+          onPayByBankTransfer={handlePayByBankTransfer}
+        />
+      </ClientPortalShell>
+    );
+  }
+
+  if (route === "domain-transfer") {
+    return (
+      <ClientPortalShell
+        dashboard={dashboard}
+        route={route}
+        isVerified={isVerified}
+        navigate={navigate}
+        onLogout={() => void handleClientLogout()}
+        onProfileClick={() => toast.push({ type: "info", message: "Account settings are coming soon." })}
+      >
+        <DomainTransferPage
+          token={clientToken}
+          navigate={navigate}
+          toast={toast}
+          isInitiatingPayment={isInitiatingPayment}
+          onPayWithGateway={handlePayWithGateway}
+          onPayByBankTransfer={handlePayByBankTransfer}
+        />
+      </ClientPortalShell>
+    );
+  }
+
+  if (route === "domains") {
+    return (
+      <ClientPortalShell
+        dashboard={dashboard}
+        route={route}
+        isVerified={isVerified}
+        navigate={navigate}
+        onLogout={() => void handleClientLogout()}
+        onProfileClick={() => toast.push({ type: "info", message: "Account settings are coming soon." })}
+      >
+        <ClientDomainsPage token={clientToken} navigate={navigate} toast={toast} />
+      </ClientPortalShell>
+    );
+  }
+
+  if (route === "domain-detail") {
+    return (
+      <ClientPortalShell
+        dashboard={dashboard}
+        route={route}
+        isVerified={isVerified}
+        navigate={navigate}
+        onLogout={() => void handleClientLogout()}
+        onProfileClick={() => toast.push({ type: "info", message: "Account settings are coming soon." })}
+      >
+        <DomainAddHostingPage
+          token={clientToken}
+          domainId={domainId}
+          navigate={navigate}
+          toast={toast}
+          isInitiatingPayment={isInitiatingPayment}
+          onPayWithGateway={handlePayWithGateway}
+          onPayByBankTransfer={handlePayByBankTransfer}
+        />
+      </ClientPortalShell>
+    );
+  }
+
+  if (route === "domain-contact") {
+    return (
+      <ClientPortalShell
+        dashboard={dashboard}
+        route={route}
+        isVerified={isVerified}
+        navigate={navigate}
+        onLogout={() => void handleClientLogout()}
+        onProfileClick={() => toast.push({ type: "info", message: "Account settings are coming soon." })}
+      >
+        <DomainContactProfilePage token={clientToken} toast={toast} />
       </ClientPortalShell>
     );
   }
@@ -6215,30 +7384,1028 @@ function fileToDataUrl(file: File) {
   });
 }
 
-const adminSections: Array<{ id: AdminSectionId; label: string; icon: typeof BarChart3 }> = [
-  { id: "dashboard", label: "Dashboard", icon: BarChart3 },
-  { id: "logo", label: "Logo", icon: ImageIcon },
-  { id: "clientLogos", label: "Client Logos", icon: Users },
-  { id: "portfolio", label: "Portfolio", icon: Eye },
-  { id: "testimonials", label: "Reviews", icon: MessageCircle },
-  { id: "pricing", label: "Pricing", icon: PackageCheck },
-  { id: "clients", label: "Clients", icon: Users },
-  { id: "products", label: "Products", icon: PackageCheck },
-  { id: "orders", label: "Orders", icon: MoreVertical },
-  { id: "services", label: "Services", icon: Server },
-  { id: "invoices", label: "Invoices", icon: FileText },
-  { id: "payments", label: "Payments", icon: CreditCard },
-  { id: "support", label: "Support", icon: MessageCircle },
-  { id: "provisioning", label: "Provisioning", icon: Settings },
-  { id: "ispconfigMappings", label: "ISPConfig", icon: Server },
-  { id: "ispconfigImport", label: "ISPConfig Import", icon: Upload },
-  { id: "paymentVerification", label: "Payment Verification", icon: CreditCard },
-  { id: "auditLogs", label: "Audit Logs", icon: ShieldCheck },
+type DomainMarkupType = "cost_plus_markup" | "percentage_markup" | "fixed_customer_price" | "manual_price";
+
+type DomainPricingRow = {
+  id: number | null;
+  tld: string;
+  provider: string;
+  currency: string;
+  provider_currency: string | null;
+  provider_registration_price: string | null;
+  provider_renewal_price: string | null;
+  provider_transfer_price: string | null;
+  exchange_rate_to_ngn: number | null;
+  safety_buffer_percent: number;
+  registration_price_kobo: number;
+  renewal_price_kobo: number;
+  transfer_price_kobo: number;
+  markup_type: DomainMarkupType;
+  markup_value_kobo: number | null;
+  markup_percent: number | null;
+  fixed_customer_price_kobo: number | null;
+  is_ready: boolean;
+  customer_registration_price: string | null;
+  customer_renewal_price: string | null;
+  customer_transfer_price: string | null;
+  status: "needs_review" | "active" | "inactive";
+  last_synced_at: string | null;
+  last_sync_status: string | null;
+  last_sync_error: string | null;
+};
+
+function emptyDomainPricingRow(): DomainPricingRow {
+  return {
+    id: null,
+    tld: "",
+    provider: "spaceship",
+    currency: "NGN",
+    provider_currency: null,
+    provider_registration_price: null,
+    provider_renewal_price: null,
+    provider_transfer_price: null,
+    exchange_rate_to_ngn: null,
+    safety_buffer_percent: 0,
+    registration_price_kobo: 0,
+    renewal_price_kobo: 0,
+    transfer_price_kobo: 0,
+    markup_type: "cost_plus_markup",
+    markup_value_kobo: 0,
+    markup_percent: null,
+    fixed_customer_price_kobo: null,
+    is_ready: false,
+    customer_registration_price: null,
+    customer_renewal_price: null,
+    customer_transfer_price: null,
+    status: "needs_review",
+    last_synced_at: null,
+    last_sync_status: null,
+    last_sync_error: null,
+  };
+}
+
+type DomainPricingSettingsData = {
+  base_currency: string;
+  target_currency: string;
+  exchange_rate: number | null;
+  safety_buffer_percent: number;
+  default_markup_type: DomainMarkupType;
+  default_markup_value_kobo: number | null;
+  default_markup_percent: number | null;
+  auto_sync_enabled: boolean;
+  sync_frequency: "manual" | "weekly" | "monthly";
+  last_updated_by: string | null;
+  updated_at: string | null;
+  manual_balance_ngn_kobo: number | null;
+  manual_balance_checked_at: string | null;
+  low_balance_threshold_kobo: number;
+  is_balance_low: boolean;
+};
+
+type DomainPricingSyncLogRow = {
+  id: number;
+  sync_type: string;
+  status: string;
+  started_at: string | null;
+  completed_at: string | null;
+  total_tlds_found: number;
+  total_tlds_created: number;
+  total_tlds_updated: number;
+  total_tlds_failed: number;
+  error_message: string | null;
+};
+
+/**
+ * Global FX rate + default markup + sync controls — the "only thing the
+ * admin should normally edit" per the pricing spec. Per-TLD markup is still
+ * editable individually further down the page.
+ */
+function AdminDomainPricingSettingsPanel({
+  adminToken,
+  onSynced,
+}: {
+  adminToken: string;
+  onSynced: () => void;
+}) {
+  const [settings, setSettings] = useState<DomainPricingSettingsData | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [notice, setNotice] = useState<{ text: string; isError: boolean } | null>(null);
+  const [logs, setLogs] = useState<DomainPricingSyncLogRow[]>([]);
+  const [showLogs, setShowLogs] = useState(false);
+  const [balanceInput, setBalanceInput] = useState("");
+  const [isSavingBalance, setIsSavingBalance] = useState(false);
+
+  const load = React.useCallback(() => {
+    laravelApi<DomainPricingSettingsData>("/api/v1/admin/domain-pricing-settings", adminToken)
+      .then(setSettings)
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminToken]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const loadLogs = () => {
+    laravelApi<{ data: DomainPricingSyncLogRow[] }>("/api/v1/admin/domain-pricing/sync-logs", adminToken)
+      .then((response) => setLogs(response.data || []))
+      .catch(() => undefined);
+  };
+
+  const save = async () => {
+    if (!settings) return;
+    setIsSaving(true);
+    setNotice(null);
+
+    try {
+      const saved = await laravelApi<DomainPricingSettingsData>("/api/v1/admin/domain-pricing-settings", adminToken, {
+        method: "PUT",
+        body: JSON.stringify(settings),
+      });
+      setSettings(saved);
+      setNotice({ text: "FX rate and default markup saved.", isError: false });
+    } catch (error) {
+      setNotice({ text: error instanceof Error ? error.message : "Saving settings failed.", isError: true });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const sync = async () => {
+    setIsSyncing(true);
+    setNotice(null);
+
+    try {
+      const response = await laravelApi<{ message: string }>("/api/v1/admin/domain-pricing/sync", adminToken, { method: "POST" });
+      setNotice({ text: response.message || "Sync started. Prices will update shortly.", isError: false });
+      onSynced();
+      loadLogs();
+    } catch (error) {
+      setNotice({ text: error instanceof Error ? error.message : "Starting the sync failed.", isError: true });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const saveBalance = async () => {
+    if (!settings || balanceInput.trim() === "") return;
+    setIsSavingBalance(true);
+
+    try {
+      const saved = await laravelApi<DomainPricingSettingsData>("/api/v1/admin/domain-pricing-settings/balance", adminToken, {
+        method: "PUT",
+        body: JSON.stringify({ manual_balance_ngn_kobo: Math.round(Number(balanceInput) * 100) }),
+      });
+      setSettings(saved);
+      setBalanceInput("");
+      setNotice({ text: "Spaceship balance recorded.", isError: false });
+    } catch (error) {
+      setNotice({ text: error instanceof Error ? error.message : "Saving the balance failed.", isError: true });
+    } finally {
+      setIsSavingBalance(false);
+    }
+  };
+
+  if (!settings) {
+    return (
+      <div className="admin-panel">
+        <p className="text-sm font-bold text-white/60">Loading pricing settings...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="admin-panel">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-black">FX Rate & Default Markup</h2>
+          <p className="mt-1 text-sm text-white/55">
+            The exchange rate and default markup used whenever new TLDs are synced from Spaceship. This is normally
+            the only thing you need to edit — per-TLD markup below can still be overridden individually.
+          </p>
+        </div>
+        <button type="button" className="btn-primary justify-center !text-[11px]" disabled={isSyncing} onClick={() => void sync()}>
+          <RefreshCw className="h-4 w-4" />
+          {isSyncing ? "Syncing..." : "Sync Prices from Spaceship"}
+        </button>
+      </div>
+
+      <p className="mt-3 rounded-lg border border-yellow-500/25 bg-yellow-500/10 p-3 text-xs font-semibold leading-5 text-yellow-200">
+        Note: Spaceship's official API does not currently provide a bulk TLD pricing endpoint (confirmed against
+        their docs), so this button will report a failed sync until they add one — it never overwrites existing
+        prices when that happens. Provider cost per TLD should be entered manually below (checked against Spaceship's
+        own pricing) until an automatic source is available.
+      </p>
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-4">
+        <label className="admin-field">
+          <span>Provider currency</span>
+          <input value={settings.base_currency} onChange={(event) => setSettings({ ...settings, base_currency: event.target.value.toUpperCase() })} />
+        </label>
+        <label className="admin-field">
+          <span>Target currency</span>
+          <input value={settings.target_currency} onChange={(event) => setSettings({ ...settings, target_currency: event.target.value.toUpperCase() })} />
+        </label>
+        <label className="admin-field">
+          <span>
+            Exchange rate (1 {settings.base_currency} = ₦)
+          </span>
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            value={settings.exchange_rate ?? ""}
+            onChange={(event) => setSettings({ ...settings, exchange_rate: event.target.value === "" ? null : Number(event.target.value) })}
+          />
+        </label>
+        <label className="admin-field">
+          <span>Safety buffer (%)</span>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            step="0.1"
+            value={settings.safety_buffer_percent}
+            onChange={(event) => setSettings({ ...settings, safety_buffer_percent: Number(event.target.value) })}
+          />
+        </label>
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-4">
+        <label className="admin-field">
+          <span>Default markup type</span>
+          <select
+            value={settings.default_markup_type}
+            onChange={(event) => setSettings({ ...settings, default_markup_type: event.target.value as DomainMarkupType })}
+          >
+            <option value="cost_plus_markup">Fixed amount</option>
+            <option value="percentage_markup">Percentage</option>
+            <option value="fixed_customer_price">Fixed customer price</option>
+          </select>
+        </label>
+        {settings.default_markup_type === "percentage_markup" ? (
+          <label className="admin-field">
+            <span>Default markup (%)</span>
+            <input
+              type="number"
+              min={0}
+              step="0.1"
+              value={settings.default_markup_percent ?? ""}
+              onChange={(event) => setSettings({ ...settings, default_markup_percent: event.target.value === "" ? null : Number(event.target.value) })}
+            />
+          </label>
+        ) : (
+          <label className="admin-field">
+            <span>Default markup (₦)</span>
+            <input
+              type="number"
+              min={0}
+              value={(settings.default_markup_value_kobo ?? 0) / 100}
+              onChange={(event) => setSettings({ ...settings, default_markup_value_kobo: Math.round(Number(event.target.value) * 100) })}
+            />
+          </label>
+        )}
+        <label className="admin-field">
+          <span>Auto-sync</span>
+          <select
+            value={settings.auto_sync_enabled ? "on" : "off"}
+            onChange={(event) => setSettings({ ...settings, auto_sync_enabled: event.target.value === "on" })}
+          >
+            <option value="off">Disabled</option>
+            <option value="on">Enabled</option>
+          </select>
+        </label>
+        <label className="admin-field">
+          <span>Sync frequency</span>
+          <select
+            value={settings.sync_frequency}
+            onChange={(event) => setSettings({ ...settings, sync_frequency: event.target.value as DomainPricingSettingsData["sync_frequency"] })}
+          >
+            <option value="manual">Manual only</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </label>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <button type="button" className="btn-outline justify-center !text-[11px]" disabled={isSaving} onClick={() => void save()}>
+          {isSaving ? "Saving..." : "Save Settings"}
+        </button>
+        <button
+          type="button"
+          className="text-[11px] font-bold text-white/50 underline"
+          onClick={() => {
+            setShowLogs((current) => !current);
+            if (!showLogs) loadLogs();
+          }}
+        >
+          {showLogs ? "Hide sync history" : "View sync history"}
+        </button>
+        {settings.last_updated_by && (
+          <span className="text-[11px] text-white/40">
+            Last updated by {settings.last_updated_by}
+            {settings.updated_at && ` on ${formatDateTime(settings.updated_at)}`}
+          </span>
+        )}
+        {notice && (
+          <span className={`rounded-full px-3 py-1.5 text-[11px] font-bold ${notice.isError ? "bg-red-500/15 text-red-400" : "bg-primary/15 text-primary"}`}>
+            {notice.text}
+          </span>
+        )}
+      </div>
+
+      <div className="mt-5 rounded-lg border border-white/10 bg-black/20 p-4">
+        <p className="text-sm font-black text-white">Spaceship Balance</p>
+        <p className="mt-1 text-xs text-white/50">
+          Spaceship's API has no wallet/balance endpoint, so this is tracked manually — check your balance on
+          Spaceship's own site and record it here.
+        </p>
+
+        {settings.manual_balance_ngn_kobo !== null && (
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <span className="text-lg font-black text-white">{formatNaira(settings.manual_balance_ngn_kobo / 100)}</span>
+            {settings.manual_balance_checked_at && (
+              <span className="text-[11px] text-white/40">Checked {formatDateTime(settings.manual_balance_checked_at)}</span>
+            )}
+            {settings.is_balance_low && (
+              <span className="rounded-full bg-red-500/15 px-3 py-1 text-[11px] font-black text-red-400">
+                Warning: balance may be too low for automatic domain registration.
+              </span>
+            )}
+          </div>
+        )}
+
+        <div className="mt-3 flex flex-wrap items-end gap-3">
+          <label className="admin-field">
+            <span>Record current balance (₦)</span>
+            <input type="number" min={0} value={balanceInput} onChange={(event) => setBalanceInput(event.target.value)} placeholder="e.g. 150000" />
+          </label>
+          <label className="admin-field">
+            <span>Low-balance threshold (₦)</span>
+            <input
+              type="number"
+              min={0}
+              value={settings.low_balance_threshold_kobo / 100}
+              onChange={(event) => setSettings({ ...settings, low_balance_threshold_kobo: Math.round(Number(event.target.value) * 100) })}
+            />
+          </label>
+          <button
+            type="button"
+            className="btn-outline justify-center !text-[11px]"
+            disabled={isSavingBalance || balanceInput.trim() === ""}
+            onClick={() => void saveBalance()}
+          >
+            {isSavingBalance ? "Saving..." : "Save Balance"}
+          </button>
+        </div>
+      </div>
+
+      {showLogs && (
+        <div className="mt-4 overflow-x-auto rounded-lg border border-white/10">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Started</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Found</th>
+                <th>Created</th>
+                <th>Updated</th>
+                <th>Failed</th>
+                <th>Error</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logs.length === 0 ? (
+                <tr>
+                  <td colSpan={8}>No sync runs yet.</td>
+                </tr>
+              ) : (
+                logs.map((log) => (
+                  <tr key={log.id}>
+                    <td>{log.started_at ? formatDateTime(log.started_at) : "—"}</td>
+                    <td>{log.sync_type}</td>
+                    <td>{log.status}</td>
+                    <td>{log.total_tlds_found}</td>
+                    <td>{log.total_tlds_created}</td>
+                    <td>{log.total_tlds_updated}</td>
+                    <td>{log.total_tlds_failed}</td>
+                    <td>{log.error_message || "—"}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Admin CRUD for domain TLD pricing (spec §10). Deactivate ("Deactivate")
+ * soft-deletes by flipping status to inactive server-side rather than
+ * physically deleting the row, matching DomainPricingController::destroy().
+ */
+function AdminDomainPricingPage({ adminToken }: { adminToken: string }) {
+  const [rows, setRows] = useState<DomainPricingRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [savingIndex, setSavingIndex] = useState<number | null>(null);
+  const [savedNotice, setSavedNotice] = useState<{ index: number; text: string; isError: boolean } | null>(null);
+  const [tldFilter, setTldFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | DomainPricingRow["status"]>("all");
+  const [syncStatusFilter, setSyncStatusFilter] = useState<"all" | "success" | "failed" | "never">("all");
+
+  const load = React.useCallback(() => {
+    setIsLoading(true);
+    laravelApi<{ data: Array<Record<string, unknown>> }>("/api/v1/admin/domain-pricing", adminToken)
+      .then((response) => {
+        setRows(
+          (response.data || []).map((row) => ({
+            id: Number(row.id),
+            tld: String(row.tld || ""),
+            provider: String(row.provider || ""),
+            currency: String(row.currency || "NGN"),
+            provider_currency: (row.provider_currency as string) ?? null,
+            provider_registration_price: (row.provider_registration_price as string) ?? null,
+            provider_renewal_price: (row.provider_renewal_price as string) ?? null,
+            provider_transfer_price: (row.provider_transfer_price as string) ?? null,
+            exchange_rate_to_ngn: row.exchange_rate_to_ngn === null || row.exchange_rate_to_ngn === undefined ? null : Number(row.exchange_rate_to_ngn),
+            safety_buffer_percent: Number(row.safety_buffer_percent || 0),
+            registration_price_kobo: Number(row.registration_price_kobo || 0),
+            renewal_price_kobo: Number(row.renewal_price_kobo || 0),
+            transfer_price_kobo: Number(row.transfer_price_kobo || 0),
+            markup_type: (row.markup_type as DomainPricingRow["markup_type"]) || "cost_plus_markup",
+            markup_value_kobo: row.markup_value_kobo === null || row.markup_value_kobo === undefined ? null : Number(row.markup_value_kobo),
+            markup_percent: row.markup_percent === null || row.markup_percent === undefined ? null : Number(row.markup_percent),
+            fixed_customer_price_kobo:
+              row.fixed_customer_price_kobo === null || row.fixed_customer_price_kobo === undefined ? null : Number(row.fixed_customer_price_kobo),
+            is_ready: Boolean(row.is_ready),
+            customer_registration_price: (row.customer_registration_price as string) ?? null,
+            customer_renewal_price: (row.customer_renewal_price as string) ?? null,
+            customer_transfer_price: (row.customer_transfer_price as string) ?? null,
+            status: (row.status as DomainPricingRow["status"]) || "needs_review",
+            last_synced_at: (row.last_synced_at as string) ?? null,
+            last_sync_status: (row.last_sync_status as string) ?? null,
+            last_sync_error: (row.last_sync_error as string) ?? null,
+          })),
+        );
+      })
+      .catch(() => undefined)
+      .finally(() => setIsLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminToken]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const update = (index: number, patch: Partial<DomainPricingRow>) => {
+    setRows((current) => current.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  };
+
+  const flashSavedNotice = (index: number, text: string, isError = false) => {
+    setSavedNotice({ index, text, isError });
+    window.setTimeout(() => {
+      setSavedNotice((current) => (current?.index === index ? null : current));
+    }, 4000);
+  };
+
+  const save = async (index: number) => {
+    const row = rows[index];
+    const wasNew = !row.id;
+    setSavingIndex(index);
+    setSavedNotice(null);
+
+    try {
+      const payload = {
+        tld: row.tld,
+        provider: row.provider,
+        currency: row.currency,
+        registration_price_kobo: row.registration_price_kobo,
+        renewal_price_kobo: row.renewal_price_kobo,
+        transfer_price_kobo: row.transfer_price_kobo,
+        markup_type: row.markup_type,
+        markup_value_kobo: row.markup_value_kobo,
+        markup_percent: row.markup_percent,
+        fixed_customer_price_kobo: row.fixed_customer_price_kobo,
+        status: row.status,
+      };
+
+      const saved = row.id
+        ? await laravelApi<Record<string, unknown>>(`/api/v1/admin/domain-pricing/${row.id}`, adminToken, {
+            method: "PUT",
+            body: JSON.stringify(payload),
+          })
+        : await laravelApi<Record<string, unknown>>("/api/v1/admin/domain-pricing", adminToken, {
+            method: "POST",
+            body: JSON.stringify(payload),
+          });
+
+      update(index, { id: Number(saved.id) });
+      flashSavedNotice(index, wasNew ? `${row.tld || "TLD"} pricing created.` : `${row.tld || "TLD"} pricing updated.`);
+      load();
+    } catch (error) {
+      flashSavedNotice(index, error instanceof Error ? error.message : "Saving this TLD's pricing failed.", true);
+    } finally {
+      setSavingIndex(null);
+    }
+  };
+
+  const deactivate = async (index: number) => {
+    const row = rows[index];
+
+    if (!row.id) {
+      setRows((current) => current.filter((_, i) => i !== index));
+
+      return;
+    }
+
+    setSavingIndex(index);
+    setSavedNotice(null);
+
+    try {
+      await laravelApi(`/api/v1/admin/domain-pricing/${row.id}`, adminToken, { method: "DELETE" });
+      update(index, { status: "inactive" });
+      flashSavedNotice(index, `${row.tld || "TLD"} pricing deactivated.`);
+    } catch (error) {
+      flashSavedNotice(index, error instanceof Error ? error.message : "Deactivating this TLD failed.", true);
+    } finally {
+      setSavingIndex(null);
+    }
+  };
+
+  const filteredRows = rows.filter((row, index) => {
+    if (tldFilter.trim() && !row.tld.toLowerCase().includes(tldFilter.trim().toLowerCase())) return false;
+    if (statusFilter !== "all" && row.status !== statusFilter) return false;
+    if (syncStatusFilter === "never" && row.last_sync_status) return false;
+    if (syncStatusFilter === "success" && row.last_sync_status !== "success") return false;
+    if (syncStatusFilter === "failed" && row.last_sync_status !== "failed") return false;
+    return true;
+  }).map((row) => ({ row, index: rows.indexOf(row) }));
+
+  return (
+    <div className="grid gap-5">
+      <AdminDomainPricingSettingsPanel adminToken={adminToken} onSynced={load} />
+
+      <section className="admin-panel">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-2xl font-black">Domain Pricing by TLD</h2>
+            <p className="mt-1 text-sm text-white/55">
+              Provider cost and FX-converted cost are filled in automatically by the sync above — markup is what you
+              normally edit here.
+            </p>
+          </div>
+          <button type="button" className="btn-outline justify-center" onClick={() => setRows((current) => [...current, emptyDomainPricingRow()])}>
+            <Plus className="h-4 w-4" />
+            Add TLD
+          </button>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <input value={tldFilter} onChange={(event) => setTldFilter(event.target.value)} placeholder="Filter by TLD (e.g. .com)" />
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}>
+            <option value="all">All statuses</option>
+            <option value="needs_review">Needs review</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+          <select value={syncStatusFilter} onChange={(event) => setSyncStatusFilter(event.target.value as typeof syncStatusFilter)}>
+            <option value="all">Any sync status</option>
+            <option value="success">Last sync succeeded</option>
+            <option value="failed">Last sync failed</option>
+            <option value="never">Never synced</option>
+          </select>
+        </div>
+
+        {isLoading && !rows.length ? (
+          <div className="mt-6 rounded-lg border border-white/10 bg-black/20 p-6 text-sm font-bold text-white/60">Loading domain pricing...</div>
+        ) : (
+          <div className="mt-6 grid gap-5">
+            {filteredRows.map(({ row, index }) => (
+              <article key={row.id ?? `new-${index}`} className="admin-card">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-black text-primary">{row.tld || "New TLD"}</span>
+                    {!row.is_ready && (
+                      <span className="rounded-full bg-yellow-500/15 px-2 py-0.5 text-[10px] font-black uppercase text-yellow-400">
+                        Not ready — needs FX rate
+                      </span>
+                    )}
+                    {row.last_sync_status === "failed" && (
+                      <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-black uppercase text-red-400">Sync failed</span>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-white/40">
+                    {row.last_synced_at ? `Last synced ${formatDateTime(row.last_synced_at)}` : "Never synced from Spaceship"}
+                  </span>
+                </div>
+                {row.last_sync_error && <p className="mt-1 text-xs font-semibold text-red-400">{row.last_sync_error}</p>}
+
+                <div className="mt-4 grid gap-4 lg:grid-cols-4">
+                  <label className="admin-field">
+                    <span>TLD</span>
+                    <input value={row.tld} onChange={(event) => update(index, { tld: event.target.value })} placeholder=".com" />
+                  </label>
+                  <label className="admin-field">
+                    <span>Provider</span>
+                    <input value={row.provider} onChange={(event) => update(index, { provider: event.target.value })} />
+                  </label>
+                  <label className="admin-field">
+                    <span>Currency</span>
+                    <input value={row.currency} onChange={(event) => update(index, { currency: event.target.value })} />
+                  </label>
+                  <label className="admin-field">
+                    <span>Status</span>
+                    <select value={row.status} onChange={(event) => update(index, { status: event.target.value as DomainPricingRow["status"] })}>
+                      <option value="needs_review">Needs review</option>
+                      <option value="active">Active (sold publicly)</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div className="mt-4 rounded-lg border border-white/10 bg-black/20 p-3">
+                  <p className="text-[10px] font-black uppercase tracking-wide text-white/40">Spaceship cost → NGN conversion (read-only, from sync)</p>
+                  <div className="mt-2 grid gap-2 text-xs text-white/60 sm:grid-cols-4">
+                    <span>Reg. cost: {row.provider_registration_price || "—"}</span>
+                    <span>Renewal cost: {row.provider_renewal_price || "—"}</span>
+                    <span>Transfer cost: {row.provider_transfer_price || "—"}</span>
+                    <span>FX rate: {row.exchange_rate_to_ngn ? `₦${row.exchange_rate_to_ngn}` : "—"}</span>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-4 lg:grid-cols-3">
+                  <label className="admin-field">
+                    <span>Converted registration cost (₦)</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={row.registration_price_kobo / 100}
+                      onChange={(event) => update(index, { registration_price_kobo: Math.round(Number(event.target.value) * 100) })}
+                    />
+                  </label>
+                  <label className="admin-field">
+                    <span>Converted renewal cost (₦)</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={row.renewal_price_kobo / 100}
+                      onChange={(event) => update(index, { renewal_price_kobo: Math.round(Number(event.target.value) * 100) })}
+                    />
+                  </label>
+                  <label className="admin-field">
+                    <span>Converted transfer cost (₦)</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={row.transfer_price_kobo / 100}
+                      onChange={(event) => update(index, { transfer_price_kobo: Math.round(Number(event.target.value) * 100) })}
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-4 grid gap-4 lg:grid-cols-3">
+                  <label className="admin-field">
+                    <span>Markup type</span>
+                    <select
+                      value={row.markup_type}
+                      onChange={(event) => update(index, { markup_type: event.target.value as DomainPricingRow["markup_type"] })}
+                    >
+                      <option value="cost_plus_markup">Fixed amount</option>
+                      <option value="percentage_markup">Percentage</option>
+                      <option value="fixed_customer_price">Fixed customer price</option>
+                      <option value="manual_price">Manual price</option>
+                    </select>
+                  </label>
+                  {row.markup_type === "percentage_markup" ? (
+                    <label className="admin-field">
+                      <span>Markup (%)</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.1"
+                        value={row.markup_percent ?? ""}
+                        onChange={(event) => update(index, { markup_percent: event.target.value === "" ? null : Number(event.target.value) })}
+                      />
+                    </label>
+                  ) : (row.markup_type === "fixed_customer_price" || row.markup_type === "manual_price") ? (
+                    <label className="admin-field">
+                      <span>Fixed customer price (₦)</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={(row.fixed_customer_price_kobo || 0) / 100}
+                        onChange={(event) => update(index, { fixed_customer_price_kobo: Math.round(Number(event.target.value) * 100) })}
+                      />
+                    </label>
+                  ) : (
+                    <label className="admin-field">
+                      <span>Markup (₦)</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={(row.markup_value_kobo || 0) / 100}
+                        onChange={(event) => update(index, { markup_value_kobo: Math.round(Number(event.target.value) * 100) })}
+                      />
+                    </label>
+                  )}
+                </div>
+
+                <div className="mt-4 rounded-lg border border-primary/20 bg-primary/5 p-3">
+                  <p className="text-[10px] font-black uppercase tracking-wide text-primary/80">Final customer price (before VAT)</p>
+                  <div className="mt-2 grid gap-2 text-sm font-bold text-white sm:grid-cols-3">
+                    <span>Registration: {row.customer_registration_price || "Not ready"}</span>
+                    <span>Renewal: {row.customer_renewal_price || "Not ready"}</span>
+                    <span>Transfer: {row.customer_transfer_price || "Not ready"}</span>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    className="btn-primary justify-center !text-[11px]"
+                    disabled={savingIndex === index}
+                    onClick={() => void save(index)}
+                  >
+                    {savingIndex === index ? "Saving..." : "Save"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-outline justify-center !text-[11px]"
+                    disabled={savingIndex === index}
+                    onClick={() => void deactivate(index)}
+                  >
+                    {row.id ? "Deactivate" : "Remove"}
+                  </button>
+                  {savedNotice && savedNotice.index === index && (
+                    <span
+                      className={`rounded-full px-3 py-1.5 text-[11px] font-bold ${
+                        savedNotice.isError ? "bg-red-500/15 text-red-400" : "bg-primary/15 text-primary"
+                      }`}
+                    >
+                      {savedNotice.text}
+                    </span>
+                  )}
+                </div>
+              </article>
+            ))}
+
+            {filteredRows.length === 0 && !isLoading && (
+              <div className="rounded-lg border border-white/10 bg-black/20 p-6 text-sm font-bold text-white/60">
+                No TLDs match these filters.
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+type AdminSectionDefinition = { id: AdminSectionId; label: string; icon: typeof BarChart3 };
+
+const adminSectionGroups: Array<{ label: string; sections: AdminSectionDefinition[] }> = [
+  {
+    label: "Overview",
+    sections: [{ id: "dashboard", label: "Dashboard", icon: BarChart3 }],
+  },
+  {
+    label: "Site Content",
+    sections: [
+      { id: "logo", label: "Logo", icon: ImageIcon },
+      { id: "clientLogos", label: "Client Logos", icon: Users },
+      { id: "portfolio", label: "Portfolio", icon: Eye },
+      { id: "testimonials", label: "Reviews", icon: MessageCircle },
+      { id: "pricing", label: "Pricing", icon: PackageCheck },
+    ],
+  },
+  {
+    label: "Clients & Commerce",
+    sections: [
+      { id: "clients", label: "Clients", icon: Users },
+      { id: "products", label: "Products", icon: PackageCheck },
+      { id: "orders", label: "Orders", icon: MoreVertical },
+      { id: "services", label: "Services", icon: Server },
+      { id: "invoices", label: "Invoices", icon: FileText },
+      { id: "payments", label: "Payments", icon: CreditCard },
+      { id: "paymentVerification", label: "Payment Verification", icon: CreditCard },
+    ],
+  },
+  {
+    label: "Domains",
+    sections: [
+      { id: "domains", label: "Domains", icon: Globe2 },
+      { id: "domainOrders", label: "Domain Orders", icon: Globe2 },
+      { id: "domainTransfers", label: "Domain Transfers", icon: Globe2 },
+      { id: "domainPricing", label: "Domain Pricing", icon: Globe2 },
+    ],
+  },
+  {
+    label: "Support & Operations",
+    sections: [
+      { id: "support", label: "Support", icon: MessageCircle },
+      { id: "provisioning", label: "Provisioning", icon: Settings },
+      { id: "ispconfigMappings", label: "ISPConfig", icon: Server },
+      { id: "ispconfigImport", label: "ISPConfig Import", icon: Upload },
+      { id: "auditLogs", label: "Audit Logs", icon: ShieldCheck },
+    ],
+  },
 ];
+
+const adminSections: AdminSectionDefinition[] = adminSectionGroups.flatMap((group) => group.sections);
 
 const adminSectionLabels: Record<AdminSectionId, string> = Object.fromEntries(
   adminSections.map((section) => [section.id, section.label]),
 ) as Record<AdminSectionId, string>;
+
+const adminSectionDescriptions: Partial<Record<AdminSectionId, string>> = {
+  logo: "Manage your platform logo",
+  clientLogos: "Showcase client brands",
+  portfolio: "Manage case studies",
+  testimonials: "Client testimonials",
+  pricing: "Pricing & plans",
+  clients: "Manage your clients",
+  products: "Manage products",
+  orders: "View all orders",
+  services: "Manage services",
+  invoices: "All invoices & billing",
+  payments: "Track payments",
+  paymentVerification: "Verify payments",
+  domains: "Manage domains",
+  domainOrders: "View domain orders",
+  domainTransfers: "Manage transfers",
+  domainPricing: "Pricing & markup",
+  support: "Support tickets",
+  provisioning: "Manage provisioning",
+  ispconfigMappings: "Manage servers",
+  ispconfigImport: "Import accounts",
+  auditLogs: "System activity logs",
+};
+
+const adminRecordFilterDefs: Partial<Record<AdminRecordsSectionId, AdminRecordFilterDef[]>> = {
+  products: [
+    { key: "is_active", label: "Status", type: "select", options: [{ value: "1", label: "Active" }, { value: "0", label: "Inactive" }] },
+  ],
+  orders: [
+    {
+      key: "status",
+      label: "Status",
+      type: "select",
+      options: [{ value: "pending_payment", label: "Pending payment" }, { value: "completed", label: "Completed" }],
+    },
+    {
+      key: "billing_cycle",
+      label: "Billing cycle",
+      type: "select",
+      options: [{ value: "monthly", label: "Monthly" }, { value: "annual", label: "Annual" }],
+    },
+  ],
+  invoices: [
+    {
+      key: "status",
+      label: "Status",
+      type: "select",
+      options: [
+        { value: "unpaid", label: "Unpaid" },
+        { value: "paid", label: "Paid" },
+        { value: "partially_paid", label: "Partially paid" },
+        { value: "overdue", label: "Overdue" },
+      ],
+    },
+  ],
+  payments: [
+    {
+      key: "status",
+      label: "Status",
+      type: "select",
+      options: [
+        { value: "pending", label: "Pending" },
+        { value: "paid", label: "Paid" },
+        { value: "failed", label: "Failed" },
+        { value: "pending_review", label: "Pending review" },
+        { value: "awaiting_bank_transfer", label: "Awaiting bank transfer" },
+      ],
+    },
+    {
+      key: "gateway",
+      label: "Gateway",
+      type: "select",
+      options: [
+        { value: "paystack", label: "Paystack" },
+        { value: "flutterwave", label: "Flutterwave" },
+        { value: "wallet", label: "Wallet" },
+        { value: "bank_transfer", label: "Bank transfer" },
+      ],
+    },
+  ],
+  support: [
+    {
+      key: "status",
+      label: "Status",
+      type: "select",
+      options: [{ value: "open", label: "Open" }, { value: "pending", label: "Pending" }, { value: "closed", label: "Closed" }],
+    },
+    {
+      key: "priority",
+      label: "Priority",
+      type: "select",
+      options: [
+        { value: "low", label: "Low" },
+        { value: "normal", label: "Normal" },
+        { value: "high", label: "High" },
+        { value: "urgent", label: "Urgent" },
+      ],
+    },
+  ],
+  provisioning: [
+    {
+      key: "status",
+      label: "Status",
+      type: "select",
+      options: [
+        { value: "pending", label: "Pending" },
+        { value: "running", label: "Running" },
+        { value: "success", label: "Success" },
+        { value: "failed", label: "Failed" },
+      ],
+    },
+  ],
+  ispconfigMappings: [
+    {
+      key: "sync_status",
+      label: "Sync status",
+      type: "select",
+      options: [
+        { value: "not_provisioned", label: "Not provisioned" },
+        { value: "awaiting_provisioning", label: "Awaiting provisioning" },
+        { value: "provisioned", label: "Provisioned" },
+        { value: "failed", label: "Failed" },
+      ],
+    },
+  ],
+  auditLogs: [{ key: "action", label: "Action", type: "text", placeholder: "e.g. domain_pricing_updated" }],
+  domains: [
+    {
+      key: "status",
+      label: "Status",
+      type: "select",
+      options: [{ value: "pending", label: "Pending" }, { value: "active", label: "Active" }],
+    },
+    {
+      key: "source",
+      label: "Source",
+      type: "select",
+      options: [
+        { value: "spaceship_registered", label: "Registered" },
+        { value: "spaceship_transferred", label: "Transferred" },
+        { value: "external", label: "External" },
+        { value: "manual", label: "Manual" },
+      ],
+    },
+    { key: "tld", label: "TLD", type: "text", placeholder: "e.g. .com" },
+  ],
+  domainOrders: [
+    {
+      key: "status",
+      label: "Status",
+      type: "select",
+      options: [
+        { value: "pending_payment", label: "Pending payment" },
+        { value: "payment_confirmed", label: "Payment confirmed" },
+        { value: "processing", label: "Processing" },
+        { value: "completed", label: "Completed" },
+        { value: "failed", label: "Failed" },
+      ],
+    },
+    {
+      key: "order_type",
+      label: "Type",
+      type: "select",
+      options: [
+        { value: "registration", label: "Registration" },
+        { value: "transfer", label: "Transfer" },
+        { value: "renewal", label: "Renewal" },
+      ],
+    },
+  ],
+  domainTransfers: [
+    {
+      key: "transfer_status",
+      label: "Transfer status",
+      type: "select",
+      options: [
+        { value: "transfer_pending_payment", label: "Pending payment" },
+        { value: "transfer_initiated", label: "Initiated" },
+        { value: "transfer_completed", label: "Completed" },
+        { value: "transfer_failed", label: "Failed" },
+      ],
+    },
+  ],
+};
 
 function AdminApp() {
   const { section: activeSection, clientId: routeClientId, serviceId: routeServiceId, isServicesActiveRoute, navigate: navigateAdminRoute, navigateToSection } = useAdminRoute();
@@ -6255,9 +8422,12 @@ function AdminApp() {
   const [isDashboardLoading, setIsDashboardLoading] = useState(false);
   const [adminRecords, setAdminRecords] = useState<Partial<Record<AdminRecordsSectionId, LaravelPage>>>({});
   const [loadingRecords, setLoadingRecords] = useState<Partial<Record<AdminRecordsSectionId, boolean>>>({});
+  const [recordFilters, setRecordFilters] = useState<Partial<Record<AdminRecordsSectionId, Record<string, string>>>>({});
+  const [recordPage, setRecordPage] = useState<Partial<Record<AdminRecordsSectionId, number>>>({});
   const [pricingPackages, setPricingPackages] = useState<PricingPackage[]>([]);
   const [isPricingLoading, setIsPricingLoading] = useState(false);
   const [retryingServiceId, setRetryingServiceId] = useState<number | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const adminRequest = async <T,>(url: string, options: RequestInit = {}): Promise<T> => {
     const headers = new Headers(options.headers);
@@ -6326,6 +8496,9 @@ function AdminApp() {
     provisioning: "/api/v1/admin/provisioning-logs",
     ispconfigMappings: "/api/v1/admin/ispconfig-client-mappings",
     auditLogs: "/api/v1/admin/audit-logs",
+    domains: "/api/v1/admin/domains",
+    domainOrders: "/api/v1/admin/domain-orders",
+    domainTransfers: "/api/v1/admin/domain-transfers",
   };
 
   const adminRecordLabels: Record<AdminRecordsSectionId, { title: string; description: string }> = {
@@ -6337,23 +8510,45 @@ function AdminApp() {
     provisioning: { title: "Provisioning Logs", description: "ISPConfig provisioning queue and execution history." },
     ispconfigMappings: { title: "ISPConfig Mappings", description: "Stored Laravel-to-ISPConfig client mappings and sync status." },
     auditLogs: { title: "Audit Logs", description: "Staff lifecycle actions, state changes and internal reasons." },
+    domains: { title: "Domains", description: "All domains registered, transferred, or connected across every client." },
+    domainOrders: { title: "Domain Orders", description: "Domain registration, transfer, and renewal orders and their payment/registration status." },
+    domainTransfers: { title: "Domain Transfers", description: "Incoming domain transfers and their Spaceship transfer status." },
   };
 
   const isRecordSection = (section: AdminSectionId): section is AdminRecordsSectionId =>
     Object.prototype.hasOwnProperty.call(adminRecordEndpoints, section);
 
-  const loadAdminRecords = async (section: AdminRecordsSectionId, token = adminToken, force = false) => {
-    if (!token || (adminRecords[section] && !force)) return;
+  const loadAdminRecords = async (section: AdminRecordsSectionId, token = adminToken) => {
+    if (!token) return;
     setLoadingRecords((current) => ({ ...current, [section]: true }));
 
+    const params = new URLSearchParams();
+    const activeFilters: Record<string, string> = recordFilters[section] || {};
+    Object.entries(activeFilters).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+    });
+    const page = recordPage[section] || 1;
+    if (page > 1) params.set("page", String(page));
+    const query = params.toString();
+
     try {
-      const data = await laravelApi<LaravelPage>(adminRecordEndpoints[section], token);
+      const data = await laravelApi<LaravelPage>(`${adminRecordEndpoints[section]}${query ? `?${query}` : ""}`, token);
       setAdminRecords((current) => ({ ...current, [section]: data }));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : `${adminRecordLabels[section].title} could not be loaded`);
     } finally {
       setLoadingRecords((current) => ({ ...current, [section]: false }));
     }
+  };
+
+  const updateRecordFilter = (section: AdminRecordsSectionId, key: string, value: string) => {
+    setRecordFilters((current) => ({ ...current, [section]: { ...(current[section] || {}), [key]: value } }));
+    setRecordPage((current) => ({ ...current, [section]: 1 }));
+  };
+
+  const clearRecordFilters = (section: AdminRecordsSectionId) => {
+    setRecordFilters((current) => ({ ...current, [section]: {} }));
+    setRecordPage((current) => ({ ...current, [section]: 1 }));
   };
 
   const retryServiceProvisioning = async (serviceId: number) => {
@@ -6378,7 +8573,7 @@ function AdminApp() {
 
     try {
       await laravelApi(`/api/v1/admin/invoices/${invoiceNumber}/mark-paid`, adminToken, { method: "POST" });
-      await loadAdminRecords("payments", adminToken, true);
+      await loadAdminRecords("payments", adminToken);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Approving payment failed");
     } finally {
@@ -6397,11 +8592,126 @@ function AdminApp() {
         method: "POST",
         body: JSON.stringify({ reason }),
       });
-      await loadAdminRecords("payments", adminToken, true);
+      await loadAdminRecords("payments", adminToken);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Rejecting payment failed");
     } finally {
       setApprovingPaymentId(null);
+    }
+  };
+
+  const [domainActionBusyId, setDomainActionBusyId] = useState<number | null>(null);
+
+  const retryDomainRegistration = async (domainOrderId: number) => {
+    setDomainActionBusyId(domainOrderId);
+
+    try {
+      await laravelApi(`/api/v1/admin/domain-orders/${domainOrderId}/retry-registration`, adminToken, { method: "POST" });
+      await loadAdminRecords("domainOrders", adminToken);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Retrying domain registration failed");
+    } finally {
+      setDomainActionBusyId(null);
+    }
+  };
+
+  const retryDomainTransferSync = async (transferId: number) => {
+    setDomainActionBusyId(transferId);
+
+    try {
+      await laravelApi(`/api/v1/admin/domain-transfers/${transferId}/retry-sync`, adminToken, { method: "POST" });
+      await loadAdminRecords("domainTransfers", adminToken);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Retrying transfer sync failed");
+    } finally {
+      setDomainActionBusyId(null);
+    }
+  };
+
+  const disableDomainAutoRenew = async (domainId: number) => {
+    setDomainActionBusyId(domainId);
+
+    try {
+      await laravelApi(`/api/v1/admin/domains/${domainId}/disable-auto-renew`, adminToken, { method: "POST" });
+      await loadAdminRecords("domains", adminToken);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Disabling auto-renew failed");
+    } finally {
+      setDomainActionBusyId(null);
+    }
+  };
+
+  const renewDomainAdmin = async (domainId: number) => {
+    setDomainActionBusyId(domainId);
+
+    try {
+      const data = await laravelApi<{ invoice_number: string | null }>(`/api/v1/admin/domains/${domainId}/renew`, adminToken, { method: "POST" });
+      setMessage(data.invoice_number ? `Renewal invoice ${data.invoice_number} created for this domain.` : "A renewal invoice already exists for this domain.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Starting domain renewal failed");
+    } finally {
+      setDomainActionBusyId(null);
+    }
+  };
+
+  const sendDomainDnsInstructions = async (domainId: number) => {
+    setDomainActionBusyId(domainId);
+
+    try {
+      await laravelApi(`/api/v1/admin/domains/${domainId}/send-dns-instructions`, adminToken, { method: "POST" });
+      setMessage("DNS instructions email sent to the client.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Sending DNS instructions failed");
+    } finally {
+      setDomainActionBusyId(null);
+    }
+  };
+
+  const linkDomainHosting = async (domainId: number) => {
+    const hostingServiceId = window.prompt("Hosting service ID to link this domain to:");
+    if (!hostingServiceId) return;
+
+    setDomainActionBusyId(domainId);
+
+    try {
+      await laravelApi(`/api/v1/admin/domains/${domainId}/link-hosting`, adminToken, {
+        method: "POST",
+        body: JSON.stringify({ hosting_service_id: Number(hostingServiceId) }),
+      });
+      await loadAdminRecords("domains", adminToken);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Linking hosting to this domain failed");
+    } finally {
+      setDomainActionBusyId(null);
+    }
+  };
+
+  const unlinkDomainHosting = async (domainId: number) => {
+    setDomainActionBusyId(domainId);
+
+    try {
+      await laravelApi(`/api/v1/admin/domains/${domainId}/unlink-hosting`, adminToken, { method: "POST" });
+      await loadAdminRecords("domains", adminToken);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unlinking hosting from this domain failed");
+    } finally {
+      setDomainActionBusyId(null);
+    }
+  };
+
+  const markDomainSource = async (domainId: number, source: "external" | "manual") => {
+    setDomainActionBusyId(domainId);
+
+    try {
+      await laravelApi(`/api/v1/admin/domains/${domainId}/mark-source`, adminToken, {
+        method: "POST",
+        body: JSON.stringify({ source }),
+      });
+      await loadAdminRecords("domains", adminToken);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Marking domain source failed");
+    } finally {
+      setDomainActionBusyId(null);
     }
   };
 
@@ -6484,7 +8794,16 @@ function AdminApp() {
     if (isAuthenticated && activeSection === "pricing") {
       void loadPricingPackages();
     }
-  }, [activeSection, isAuthenticated, adminToken]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSection, isAuthenticated, adminToken, recordFilters, recordPage]);
+
+  // Without this, switching from a long scrolled-down page (e.g. Dashboard)
+  // to a short one (e.g. Logo, Orders while loading) leaves the viewport
+  // scrolled past the new page's content, which looks like a rendering bug —
+  // a wall of empty space above content that actually rendered correctly.
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [activeSection, routeClientId, routeServiceId]);
 
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -6714,31 +9033,86 @@ function AdminApp() {
     );
   }
 
+  const closeSidebarAndNavigate = (sectionId: AdminSectionId) => {
+    navigateToSection(sectionId);
+    setIsSidebarOpen(false);
+  };
+
   return (
-    <div className="min-h-screen bg-background text-white">
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-[#030505]/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
-          <div className="flex items-center gap-4">
-            <Logo logo={content.brand.logo} />
-            <div>
-              <h1 className="text-xl font-black">Backend Manager</h1>
-              <p className="text-xs font-bold uppercase text-white/45">Grouped content management</p>
+    <div className="admin-shell">
+      {isSidebarOpen && <div className="admin-sidebar-backdrop" onClick={() => setIsSidebarOpen(false)} />}
+
+      <aside className={isSidebarOpen ? "admin-sidebar open" : "admin-sidebar"}>
+        <div className="admin-sidebar-brand">
+          <Logo logo={content.brand.logo} />
+          <button type="button" className="admin-topbar-icon-button !h-9 !w-9 lg:hidden" onClick={() => setIsSidebarOpen(false)}>
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <nav className="admin-sidebar-nav">
+          {adminSectionGroups.map((group) => (
+            <div key={group.label} className="admin-sidebar-group">
+              <p className="admin-sidebar-group-label">{group.label === "Overview" ? "Main Menu" : group.label}</p>
+              {group.sections.map((section) => {
+                const Icon = section.icon;
+                return (
+                  <button
+                    key={section.id}
+                    type="button"
+                    className={activeSection === section.id ? "admin-sidebar-link group active" : "admin-sidebar-link group"}
+                    onClick={() => closeSidebarAndNavigate(section.id)}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span>{section.label}</span>
+                    {section.id === "payments" && Boolean(dashboardData?.pending_payment_reviews) && (
+                      <span className="admin-sidebar-badge">{dashboardData?.pending_payment_reviews}</span>
+                    )}
+                    <ChevronRight className="admin-sidebar-chevron h-4 w-4" />
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </nav>
+      </aside>
+
+      <div className="admin-main">
+        <header className="admin-topbar">
+          <div className="flex flex-1 items-center gap-3">
+            <button type="button" className="admin-topbar-icon-button !h-10 !w-10 lg:hidden" onClick={() => setIsSidebarOpen(true)}>
+              <Menu className="h-4 w-4" />
+            </button>
+            <div className="admin-topbar-search">
+              <Search className="h-4 w-4 shrink-0" />
+              <span className="truncate">Search anything...</span>
+              <kbd>⌘K</kbd>
             </div>
           </div>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <button type="button" className="btn-primary justify-center" onClick={saveContent} disabled={isSaving}>
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <button type="button" className="btn-primary justify-center !min-h-9 !px-3 !text-[11px]" onClick={saveContent} disabled={isSaving}>
               <Save className="h-4 w-4" />
-              {isSaving ? "Saving..." : "Save changes"}
+              <span className="hidden sm:inline">{isSaving ? "Saving..." : "Save changes"}</span>
             </button>
-            <button type="button" className="btn-outline justify-center" onClick={handleLogout}>
-              <LogOut className="h-4 w-4" />
-              Logout
+            <button type="button" className="admin-topbar-icon-button">
+              <Bell className="h-4 w-4" />
+              {Boolean(dashboardData?.pending_payment_reviews) && (
+                <span className="admin-topbar-badge">{dashboardData?.pending_payment_reviews}</span>
+              )}
+            </button>
+            <button type="button" className="admin-topbar-avatar" onClick={handleLogout} title="Logout">
+              <span className="admin-avatar-circle">
+                <User className="h-4 w-4" />
+              </span>
+              <span className="hidden text-left sm:block">
+                <p>Admin</p>
+                <small>Administrator</small>
+              </span>
+              <LogOut className="h-3.5 w-3.5 shrink-0 text-white/40" />
             </button>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <main className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:px-8">
+      <main className="admin-content">
         {message && <p className={message.includes("saved") || message.includes("uploaded") ? "form-message success" : "form-message error"}>{message}</p>}
 
         {activeSection !== "dashboard" && !routeClientId && !routeServiceId && (
@@ -6749,28 +9123,6 @@ function AdminApp() {
             ]}
           />
         )}
-
-        <nav className="admin-section-nav" aria-label="Backend sections">
-          {adminSections.map((section) => {
-            const Icon = section.icon;
-            return (
-              <button
-                key={section.id}
-                type="button"
-                className={activeSection === section.id ? "admin-section-tab active" : "admin-section-tab"}
-                onClick={() => navigateToSection(section.id)}
-              >
-                <Icon className="h-4 w-4" />
-                {section.label}
-                {section.id === "payments" && Boolean(dashboardData?.pending_payment_reviews) && (
-                  <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-black text-black">
-                    {dashboardData?.pending_payment_reviews}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </nav>
 
         {routeClientId && (
           <ClientDetailPage
@@ -6827,6 +9179,12 @@ function AdminApp() {
                 </div>
               );
             }}
+            filters={adminRecordFilterDefs.payments}
+            filterValues={recordFilters.payments}
+            onFilterChange={(key, value) => updateRecordFilter("payments", key, value)}
+            onClearFilters={() => clearRecordFilters("payments")}
+            page={recordPage.payments || 1}
+            onPageChange={(page) => setRecordPage((current) => ({ ...current, payments: page }))}
           />
         )}
 
@@ -6885,10 +9243,126 @@ function AdminApp() {
                       </div>
                     );
                   }
-                : undefined
+                : activeSection === "domainOrders"
+                  ? (row) => {
+                      const domainOrderId = Number(row.id);
+                      const isBusy = domainActionBusyId === domainOrderId;
+
+                      if (row.status !== "failed") return null;
+
+                      return (
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                            disabled={isBusy}
+                            onClick={() => void retryDomainRegistration(domainOrderId)}
+                          >
+                            {isBusy ? "Retrying..." : "Retry Registration"}
+                          </button>
+                        </div>
+                      );
+                    }
+                  : activeSection === "domainTransfers"
+                    ? (row) => {
+                        const transferId = Number(row.id);
+                        const isBusy = domainActionBusyId === transferId;
+
+                        return (
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                              disabled={isBusy}
+                              onClick={() => void retryDomainTransferSync(transferId)}
+                            >
+                              {isBusy ? "Syncing..." : "Retry Sync"}
+                            </button>
+                          </div>
+                        );
+                      }
+                    : activeSection === "domains"
+                      ? (row) => {
+                          const domainId = Number(row.id);
+                          const isBusy = domainActionBusyId === domainId;
+                          const linkedHostingService = row.linked_hosting_service as { id: number } | null;
+                          const isExternal = row.source === "external";
+                          const isAutoRenewOn = Boolean(row.auto_renew);
+
+                          return (
+                            <div className="flex flex-wrap items-center justify-end gap-2">
+                              {linkedHostingService ? (
+                                <button
+                                  type="button"
+                                  className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                                  disabled={isBusy}
+                                  onClick={() => void unlinkDomainHosting(domainId)}
+                                >
+                                  Unlink Hosting
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                                  disabled={isBusy}
+                                  onClick={() => void linkDomainHosting(domainId)}
+                                >
+                                  Link Hosting
+                                </button>
+                              )}
+                              {isExternal && linkedHostingService && (
+                                <button
+                                  type="button"
+                                  className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                                  disabled={isBusy}
+                                  onClick={() => void sendDomainDnsInstructions(domainId)}
+                                >
+                                  Send DNS
+                                </button>
+                              )}
+                              {isAutoRenewOn && (
+                                <button
+                                  type="button"
+                                  className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                                  disabled={isBusy}
+                                  onClick={() => void disableDomainAutoRenew(domainId)}
+                                >
+                                  Disable Auto-Renew
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                                disabled={isBusy}
+                                onClick={() => void renewDomainAdmin(domainId)}
+                              >
+                                Renew
+                              </button>
+                              {!isExternal && (
+                                <button
+                                  type="button"
+                                  className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                                  disabled={isBusy}
+                                  onClick={() => void markDomainSource(domainId, "external")}
+                                >
+                                  Mark External
+                                </button>
+                              )}
+                            </div>
+                          );
+                        }
+                      : undefined
             }
+            filters={adminRecordFilterDefs[activeSection]}
+            filterValues={recordFilters[activeSection]}
+            onFilterChange={(key, value) => updateRecordFilter(activeSection, key, value)}
+            onClearFilters={() => clearRecordFilters(activeSection)}
+            page={recordPage[activeSection] || 1}
+            onPageChange={(page) => setRecordPage((current) => ({ ...current, [activeSection]: page }))}
           />
         )}
+
+        {activeSection === "domainPricing" && !routeClientId && !routeServiceId && <AdminDomainPricingPage adminToken={adminToken} />}
 
         {activeSection === "pricing" && (
           <section className="admin-panel">
@@ -7424,6 +9898,448 @@ function AdminApp() {
         </section>
         )}
       </main>
+      </div>
+    </div>
+  );
+}
+
+type PublicDomainSuggestion = {
+  domain: string;
+  tld: string;
+  registration_price_kobo: number;
+  renewal_price_kobo: number;
+  currency: string;
+};
+
+type PublicDomainSearchResult = {
+  domain: string;
+  tld: string;
+  available: boolean;
+  tld_supported: boolean;
+  premium: boolean;
+  registration_price_kobo: number | null;
+  renewal_price_kobo: number | null;
+  transfer_price_kobo: number | null;
+  currency: string | null;
+  suggestions: PublicDomainSuggestion[];
+};
+
+type PublicTldPricingRow = {
+  tld: string;
+  registration_price_kobo: number | null;
+  registration_price: string | null;
+};
+
+const DOMAIN_TLD_ORDER = [".com", ".ng", ".com.ng", ".org", ".net"];
+
+const DOMAIN_TLD_BADGES: Record<string, string> = {
+  ".com": "Most Popular",
+  ".ng": "Popular in Nigeria",
+  ".com.ng": "Great for Businesses",
+  ".org": "For Organizations",
+  ".net": "For Networks",
+};
+
+type DomainFeature = { icon: LucideIcon; title: string; description: string };
+
+const DOMAIN_FEATURES: DomainFeature[] = [
+  { icon: Globe2, title: "Domain Registration", description: "Get the perfect domain for your business." },
+  { icon: ArrowRightLeft, title: "Domain Transfer", description: "Move your domain to NAI TALK easily." },
+  { icon: RefreshCw, title: "Renewals", description: "Never lose your domain with auto-renewal." },
+  { icon: Settings, title: "Easy Management", description: "Manage all your domains in one simple dashboard." },
+];
+
+function goToDomainCheckout(domain: string) {
+  window.location.href = `/client/domains/search?domain=${encodeURIComponent(domain)}`;
+}
+
+/** Top-right promo pill: "Welcome to NAI TALK! Get 10% off ...". */
+function DomainPromoBadge() {
+  return (
+    <div className="domain-promo-badge">
+      <span className="domain-promo-icon">
+        <Gift className="h-5 w-5" />
+      </span>
+      <p>
+        <strong>Welcome to NAI TALK!</strong>
+        <br />
+        <span>
+          Get <b>10% off</b> your first domain search.
+        </span>
+      </p>
+    </div>
+  );
+}
+
+/** A single popular-TLD price card ("From ₦7,500 /yr", badge pill). */
+const TldPriceCard: React.FC<{ row: PublicTldPricingRow }> = ({ row }) => {
+  return (
+    <div className="domain-tld-card">
+      <p>{row.tld}</p>
+      <span>
+        From <strong className="text-black">{row.registration_price} /yr</strong>
+      </span>
+      <small>
+        {DOMAIN_TLD_BADGES[row.tld] || "Great value"}
+      </small>
+    </div>
+  );
+};
+
+/** One item in the "Domain Registration / Transfer / Renewals / Easy Management" row. */
+const DomainFeatureItem: React.FC<{ feature: DomainFeature }> = ({ feature }) => {
+  return (
+    <div className="domain-feature-item">
+      <span>
+        <feature.icon className="h-5 w-5" strokeWidth={3} aria-hidden="true" />
+      </span>
+      <div>
+        <p>{feature.title}</p>
+        <small>{feature.description}</small>
+      </div>
+    </div>
+  );
+};
+
+/** The domain search input + CTA button, with inline results/suggestions. */
+function DomainSearchBar({ initialDomain }: { initialDomain?: string } = {}) {
+  const [domainInput, setDomainInput] = useState(initialDomain || "");
+  const [isSearching, setIsSearching] = useState(false);
+  const [result, setResult] = useState<PublicDomainSearchResult | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [searchError, setSearchError] = useState("");
+
+  const search = async (domainOverride?: string) => {
+    const domain = (domainOverride ?? domainInput).trim().toLowerCase();
+    if (!domain) return;
+
+    setIsSearching(true);
+    setSearchError("");
+    setResult(null);
+
+    try {
+      const data = await laravelApi<PublicDomainSearchResult>(`/api/v1/public/domains/search?domain=${encodeURIComponent(domain)}`);
+      setResult(data);
+      setHasSearched(true);
+    } catch (error) {
+      setSearchError(error instanceof Error ? error.message : "Domain search is temporarily unavailable. Please try again shortly.");
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  useEffect(() => {
+    if (initialDomain) {
+      void search(initialDomain);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <>
+      <form
+        className="domain-search-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void search();
+        }}
+      >
+        <label htmlFor="homepage-domain-search" className="sr-only">
+          Search for a domain name
+        </label>
+        <div className="domain-search-input-wrap">
+          <Search className="h-7 w-7 shrink-0" aria-hidden="true" />
+          <input
+            id="homepage-domain-search"
+            value={domainInput}
+            onChange={(event) => setDomainInput(event.target.value)}
+            placeholder="Search your domain e.g. mybusiness.com"
+            className="w-full bg-transparent text-sm text-black placeholder:text-black/38 focus:outline-none sm:text-base"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={isSearching}
+          className="domain-search-button"
+        >
+          {isSearching ? "Searching..." : "Search Domain"}
+          <ArrowRight className="h-5 w-5" aria-hidden="true" />
+        </button>
+      </form>
+
+      {searchError && <p className="mt-3 text-sm font-bold text-red-600">{searchError}</p>}
+
+      {hasSearched && result && (
+        <div className="domain-search-result">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-lg font-black text-[#0b1210]">{result.domain}</p>
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-black uppercase ${
+                result.available ? "bg-primary/15 text-primary" : "bg-red-100 text-red-600"
+              }`}
+            >
+              {result.available ? "Available" : result.tld_supported ? "Not Available" : "Not Supported"}
+            </span>
+          </div>
+
+          {result.available && result.registration_price_kobo !== null && (
+            <>
+              <p className="mt-3 text-sm text-black/55">
+                Registration (1 year): <strong className="text-black">{formatNaira(result.registration_price_kobo / 100)}</strong>
+              </p>
+              <button
+                type="button"
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-black text-on-primary transition hover:brightness-95"
+                onClick={() => goToDomainCheckout(result.domain)}
+              >
+                Buy This Domain
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </>
+          )}
+
+          {result.available && result.registration_price_kobo === null && (
+            <p className="mt-3 text-sm text-black/55">Pricing for this extension is being finalized — contact us to register it.</p>
+          )}
+
+          {!result.available && !result.tld_supported && (
+            <p className="mt-3 text-sm text-black/55">
+              This domain extension isn't currently supported for registration. Please try .com, .org, .net, or a different name.
+            </p>
+          )}
+
+          {!result.available && result.tld_supported && (
+            <>
+              <p className="mt-3 text-sm text-black/55">That domain is already taken. Here are some available alternatives:</p>
+              {result.suggestions.length > 0 ? (
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  {result.suggestions.map((suggestion) => (
+                    <button
+                      key={suggestion.domain}
+                      type="button"
+                      onClick={() => goToDomainCheckout(suggestion.domain)}
+                      className="flex items-center justify-between gap-2 rounded-xl border border-black/8 bg-[#f7fbf6] px-4 py-3 text-left transition hover:border-primary/40 hover:bg-primary/5"
+                    >
+                      <span className="text-sm font-bold text-black">{suggestion.domain}</span>
+                      <span className="text-xs font-black text-primary">{formatNaira(suggestion.registration_price_kobo / 100)}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-black/40">No alternatives found right now — try a different name.</p>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+/**
+ * Homepage-ready Domain Search & Management section — used both directly on
+ * the public homepage and as the body of the standalone /domains page, so
+ * the two never drift out of sync. TLD prices come from the real
+ * admin-configured pricing endpoint, never hardcoded numbers.
+ */
+function DomainSearchSection({ initialDomain }: { initialDomain?: string } = {}) {
+  const [tldPricing, setTldPricing] = useState<PublicTldPricingRow[] | null>(null);
+
+  useEffect(() => {
+    laravelApi<{ data: PublicTldPricingRow[] }>("/api/v1/public/domains/pricing")
+      .then((response) => setTldPricing(response.data || []))
+      .catch(() => setTldPricing([]));
+  }, []);
+
+  // Always the real, admin-configured prices — never a hardcoded stand-in,
+  // so a TLD only ever appears here once it's actually priced and active.
+  const orderedPricing = (tldPricing ?? []).length
+    ? DOMAIN_TLD_ORDER.map((tld) => tldPricing?.find((row) => row.tld === tld)).filter(
+        (row): row is PublicTldPricingRow => Boolean(row),
+      )
+    : [];
+
+  return (
+    <section
+      id="domains"
+      className="domain-landing-section"
+    >
+      <div aria-hidden="true" className="domain-dot-field" />
+      <div aria-hidden="true" className="domain-soft-glow domain-soft-glow-left" />
+      <div aria-hidden="true" className="domain-soft-glow domain-soft-glow-right" />
+
+      <div className="domain-landing-shell">
+        <div className="domain-landing-topbar">
+          <Logo className="domain-landing-logo" />
+          <DomainPromoBadge />
+        </div>
+
+        <div className="domain-hero-grid">
+          <div className="domain-copy-panel">
+            <h2>
+              Find the perfect domain
+              <br />
+              for <span className="text-primary">your business</span>
+            </h2>
+            <p>
+              Start your online journey with the right domain name. Search, register, transfer, and manage your
+              domain with ease.
+            </p>
+
+            <div className="domain-search-wrap">
+              <DomainSearchBar initialDomain={initialDomain} />
+            </div>
+          </div>
+
+          <DomainGlobeIllustration />
+
+          <div className="domain-feature-row">
+            {DOMAIN_FEATURES.map((feature) => (
+              <DomainFeatureItem key={feature.title} feature={feature} />
+            ))}
+          </div>
+        </div>
+
+        <div className="domain-bottom-grid">
+          {tldPricing === null && (
+            <p className="col-span-full text-sm font-semibold text-black/45">Loading domain pricing…</p>
+          )}
+
+          {tldPricing !== null && orderedPricing.length === 0 && (
+            <p className="col-span-full text-sm font-semibold text-black/45">
+              Domain pricing is being finalized — check back shortly.
+            </p>
+          )}
+
+          {orderedPricing.map((row) => (
+            <TldPriceCard key={row.tld} row={row} />
+          ))}
+
+          <div className="domain-launch-panel">
+            <span>
+              <Rocket className="h-6 w-6" aria-hidden="true" />
+            </span>
+            <div>
+              <p>Launch your brand online</p>
+              <small>Your domain is the first step to building trust and growing your business.</small>
+              <a href="#homepage-domain-search">
+                Start your journey today
+                <ArrowRight className="h-5 w-5" aria-hidden="true" />
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div className="domain-trust-row">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-primary" aria-hidden="true" />
+            Trusted by thousands of businesses
+          </div>
+          <div className="flex items-center gap-2 font-bold text-black/70">
+            <span className="flex -space-x-2">
+              {["A", "B", "C"].map((letter) => (
+                <span
+                  key={letter}
+                  className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-primary/20 text-[10px] font-black text-primary"
+                >
+                  {letter}
+                </span>
+              ))}
+            </span>
+            2K+ and counting
+          </div>
+          <div className="flex items-center gap-2">
+            <LockKeyhole className="h-4 w-4 text-primary" aria-hidden="true" />
+            Secure
+          </div>
+          <div className="flex items-center gap-2">
+            <Headphones className="h-4 w-4 text-primary" aria-hidden="true" />
+            24/7 Support
+          </div>
+          <div className="flex items-center gap-2">
+            <BadgeCheck className="h-4 w-4 text-primary" aria-hidden="true" />
+            Trusted Domain Partner
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Standalone /domains page — same section as the homepage, wrapped in the
+ * site's normal nav/footer for direct navigation and deep links.
+ */
+function DomainsLandingPage() {
+  const initialDomain = new URLSearchParams(window.location.search).get("domain") || undefined;
+
+  return (
+    <div className="min-h-screen overflow-x-hidden bg-background text-white">
+      <Navbar logo={fallbackSiteContent.brand.logo} />
+      <main className="pt-20">
+        <DomainSearchSection initialDomain={initialDomain} />
+      </main>
+      <Footer logo={fallbackSiteContent.brand.logo} />
+      <FloatingWhatsApp />
+    </div>
+  );
+}
+
+/**
+ * Decorative approximation of the mockup's globe illustration — a dotted
+ * sphere with floating UI cards. Purely visual, hidden on small screens.
+ */
+function DomainGlobeIllustration() {
+  return (
+    <div className="domain-visual" aria-hidden="true">
+      <div className="domain-orbit domain-orbit-one" />
+      <div className="domain-orbit domain-orbit-two" />
+      <div className="domain-orbit domain-orbit-three" />
+      <div className="domain-globe">
+        <div className="domain-globe-map domain-globe-map-left" />
+        <div className="domain-globe-map domain-globe-map-right" />
+        <div className="domain-globe-map domain-globe-map-top" />
+      </div>
+
+      <div className="domain-url-card">
+        <div>
+          <LockKeyhole className="h-4 w-4" />
+          <span>
+            https://www.your<strong>business</strong>.com
+          </span>
+        </div>
+      </div>
+      <MousePointer2 className="domain-cursor" />
+
+      <div className="domain-floating-card domain-brand-card">
+        <div className="flex items-center gap-2">
+          <span>
+            <Globe2 className="h-7 w-7" />
+          </span>
+          <div>
+            <p>Your Brand</p>
+            <small>
+              .yourbusiness.com
+              <CheckCircle2 className="h-3 w-3 text-primary" />
+            </small>
+          </div>
+        </div>
+      </div>
+
+      <div className="domain-floating-card domain-secure-card">
+        <div className="flex items-center gap-2">
+          <span>
+            <ShieldCheck className="h-7 w-7" />
+          </span>
+          <div>
+            <p>Secure & Reliable</p>
+            <small>
+              Your domain is always protected
+              <CheckCircle2 className="h-3 w-3 text-primary" />
+            </small>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -7538,5 +10454,6 @@ function PublicSite() {
 export default function App() {
   if (window.location.pathname.startsWith("/admin")) return <AdminApp />;
   if (window.location.pathname.startsWith("/client")) return <ClientPortal />;
+  if (window.location.pathname.startsWith("/domains")) return <DomainsLandingPage />;
   return <PublicSite />;
 }

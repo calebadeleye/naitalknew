@@ -243,6 +243,7 @@ class DatabaseSeeder extends Seeder
         );
 
         $this->call(ServiceOfferingSeeder::class);
+        $this->call(DomainPricingSeeder::class);
 
         $admin->tokens()->delete();
         $clientUser->tokens()->delete();

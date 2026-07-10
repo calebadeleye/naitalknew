@@ -6,14 +6,19 @@ use App\Jobs\DetectMissingIspConfigResourcesJob;
 use App\Jobs\DetectOrphanedIspConfigClientsJob;
 use App\Jobs\GenerateRenewalInvoiceJob;
 use App\Jobs\ProcessAutoRenewalPaymentJob;
+use App\Jobs\RenewDomainJob;
+use App\Jobs\SendDomainExpiryReminderJob;
 use App\Jobs\SendHostingExpiryReminderJob;
 use App\Jobs\SuspendExpiredHostingJob;
 use App\Jobs\SyncDatabasesJob;
+use App\Jobs\SyncDomainStatusJob;
 use App\Jobs\SyncFtpAccountsJob;
 use App\Jobs\SyncHostingUsageSnapshotJob;
 use App\Jobs\SyncIspConfigClientMappingsJob;
 use App\Jobs\SyncIspConfigHostingServicesJob;
 use App\Jobs\SyncMailboxesJob;
+use App\Jobs\SyncSpaceshipTldPricesJob;
+use App\Models\DomainPricingSettings;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -43,3 +48,27 @@ Schedule::job(new CheckExpiredHostingServicesJob)->dailyAt('03:00');
 Schedule::job(new SendHostingExpiryReminderJob)->dailyAt('03:15');
 Schedule::job(new SuspendExpiredHostingJob)->dailyAt('03:30');
 Schedule::job(new DeleteExpiredIspconfigWebsiteJob)->dailyAt('03:45');
+
+// Domain lifecycle: transfer/expiry status sync, auto-renewal billing, expiry reminders.
+Schedule::job(new SyncDomainStatusJob)->everySixHours();
+Schedule::job(new RenewDomainJob)->dailyAt('02:35');
+Schedule::job(new SendDomainExpiryReminderJob)->dailyAt('03:50');
+
+// TLD price sync — checked daily but only actually dispatches on the day
+// matching the admin's configured cadence, so switching between weekly and
+// monthly needs no code change and never syncs more often than requested.
+Schedule::job(new SyncSpaceshipTldPricesJob('scheduled'))
+    ->dailyAt('04:10')
+    ->when(function (): bool {
+        $settings = DomainPricingSettings::forProvider('spaceship');
+
+        if (! $settings->auto_sync_enabled) {
+            return false;
+        }
+
+        return match ($settings->sync_frequency) {
+            'weekly' => now()->isSunday(),
+            'monthly' => now()->day === 1,
+            default => false,
+        };
+    });

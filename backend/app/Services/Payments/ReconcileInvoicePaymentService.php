@@ -11,8 +11,8 @@ use App\Notifications\NaiTalkPaymentReceived;
 use App\Notifications\NaiTalkUnderpaymentReceived;
 use App\Notifications\NaiTalkWalletPaymentConfirmation;
 use App\Services\Billing\VatCalculator;
+use App\Services\Domains\DomainOrderDispatcher;
 use App\Services\Notifications\ClientNotifier;
-use App\Services\Provisioning\IspConfigProvisioningService;
 use App\Services\Wallet\WalletService;
 use Illuminate\Support\Facades\DB;
 
@@ -28,7 +28,7 @@ class ReconcileInvoicePaymentService
     public function __construct(
         private readonly VatCalculator $vatCalculator,
         private readonly WalletService $wallet,
-        private readonly IspConfigProvisioningService $provisioning,
+        private readonly DomainOrderDispatcher $domainOrders,
         private readonly ClientNotifier $notifier,
     ) {
     }
@@ -179,9 +179,7 @@ class ReconcileInvoicePaymentService
         /** @var Invoice $invoice */
         $invoice = $outcome['invoice'];
 
-        foreach ($outcome['services'] ?? [] as $service) {
-            $this->provisioning->queueProvisioning($service);
-        }
+        $this->domainOrders->dispatchForPaidInvoice($invoice, $outcome['services'] ?? collect());
 
         if (! ($context['skip_notification'] ?? false)) {
             $this->notify($invoice, $outcome['outcome'], $method, $amountKobo);

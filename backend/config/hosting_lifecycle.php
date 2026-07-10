@@ -23,4 +23,11 @@ return [
     // Consecutive auto-renewal payment failures for the same service before
     // admins get escalated (beyond the per-attempt failure email/log).
     'auto_renewal_failure_escalation_threshold' => (int) env('HOSTING_AUTO_RENEWAL_FAILURE_ESCALATION_THRESHOLD', 3),
+
+    // Days before a domain's expires_at that its renewal invoice is
+    // generated and auto-renewal payment attempted.
+    'domain_renewal_lead_days' => (int) env('DOMAIN_RENEWAL_LEAD_DAYS', 14),
+
+    // Domain expiry reminders sent before (and on) the expiry date.
+    'domain_expiry_reminder_days' => [30, 14, 7, 1, 0],
 ];

@@ -69,4 +69,14 @@ class Invoice extends Model
     {
         return $this->hasMany(WalletTransaction::class);
     }
+
+    public function domainOrders(): HasMany
+    {
+        return $this->hasMany(DomainOrder::class);
+    }
+
+    public function domainTransfers(): HasMany
+    {
+        return $this->hasMany(DomainTransfer::class);
+    }
 }

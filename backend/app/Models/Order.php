@@ -53,4 +53,9 @@ class Order extends Model
     {
         return $this->hasMany(HostingService::class);
     }
+
+    public function domainOrders(): HasMany
+    {
+        return $this->hasMany(DomainOrder::class);
+    }
 }

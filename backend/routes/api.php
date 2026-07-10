@@ -2,6 +2,9 @@
 
 use App\Http\Controllers\Api\Admin\ClientLifecycleController;
 use App\Http\Controllers\Api\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Api\Admin\DomainController as AdminDomainController;
+use App\Http\Controllers\Api\Admin\DomainPricingController;
+use App\Http\Controllers\Api\Admin\DomainPricingSettingsController;
 use App\Http\Controllers\Api\Admin\HostingPlanController;
 use App\Http\Controllers\Api\Admin\HostingServiceLifecycleController;
 use App\Http\Controllers\Api\Admin\InvoicePaymentController as AdminInvoicePaymentController;
@@ -13,6 +16,10 @@ use App\Http\Controllers\Api\Admin\ServicesDashboardController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\Client\CheckoutController;
 use App\Http\Controllers\Api\Client\DashboardController as ClientDashboardController;
+use App\Http\Controllers\Api\Client\DomainContactController;
+use App\Http\Controllers\Api\Client\DomainController;
+use App\Http\Controllers\Api\Client\DomainOrderController;
+use App\Http\Controllers\Api\Client\DomainTransferController;
 use App\Http\Controllers\Api\Client\Hosting\DatabaseController;
 use App\Http\Controllers\Api\Client\Hosting\FtpAccountController;
 use App\Http\Controllers\Api\Client\Hosting\HostingControlPanelController;
@@ -28,6 +35,7 @@ use App\Http\Controllers\Api\Client\WalletController;
 use App\Http\Controllers\Api\Client\WalletFundingController;
 use App\Http\Controllers\Api\Client\WalletPaymentController;
 use App\Http\Controllers\Api\Public\CatalogController;
+use App\Http\Controllers\Api\Public\DomainSearchController;
 use App\Http\Controllers\Api\Public\PaymentGatewayController;
 use Illuminate\Support\Facades\Route;
 
@@ -40,6 +48,8 @@ Route::prefix('v1')->group(function (): void {
     Route::get('/public/hosting-plans', [CatalogController::class, 'hostingPlans']);
     Route::get('/public/hosting-add-ons', [CatalogController::class, 'addOns']);
     Route::get('/public/billing-config', [CatalogController::class, 'billingConfig']);
+    Route::get('/public/domains/search', [DomainSearchController::class, 'search'])->middleware('throttle:60,1');
+    Route::get('/public/domains/pricing', [DomainSearchController::class, 'pricing']);
 
     Route::get('/payments/paystack/callback', [PaymentGatewayController::class, 'paystackCallback']);
     Route::post('/payments/paystack/webhook', [PaymentGatewayController::class, 'paystackWebhook']);
@@ -62,6 +72,11 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/wallet', [WalletController::class, 'show']);
             Route::get('/wallet/transactions', [WalletController::class, 'transactions']);
             Route::get('/payment-methods', [SavedPaymentMethodController::class, 'index']);
+            Route::get('/domains', [DomainController::class, 'index']);
+            Route::get('/domains/{domain}', [DomainController::class, 'show']);
+            Route::get('/domains/transfers/eligibility', [DomainTransferController::class, 'eligibility']);
+            Route::get('/domain-contact', [DomainContactController::class, 'show']);
+            Route::put('/domain-contact', [DomainContactController::class, 'update']);
 
             Route::middleware('verified')->group(function (): void {
                 Route::post('/orders/hosting', [CheckoutController::class, 'store']);
@@ -75,6 +90,12 @@ Route::prefix('v1')->group(function (): void {
                 Route::post('/wallet/fund/flutterwave', [WalletFundingController::class, 'flutterwave']);
                 Route::patch('/payment-methods/{paymentMethod}', [SavedPaymentMethodController::class, 'update']);
                 Route::delete('/payment-methods/{paymentMethod}', [SavedPaymentMethodController::class, 'destroy']);
+
+                Route::post('/domains/orders', [DomainOrderController::class, 'store']);
+                Route::post('/domains/transfers', [DomainTransferController::class, 'store']);
+                Route::patch('/domains/{domain}/auto-renew', [DomainController::class, 'updateAutoRenew']);
+                Route::post('/domains/{domain}/hosting', [DomainController::class, 'addHosting']);
+                Route::post('/domains/{domain}/renew', [DomainController::class, 'renew']);
 
                 Route::prefix('services/{service}')->group(function (): void {
                     Route::get('/manage', [HostingControlPanelController::class, 'show']);
@@ -159,6 +180,29 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/mailbox-records', [ProvisioningController::class, 'mailboxRecords']);
             Route::get('/database-records', [ProvisioningController::class, 'databaseRecords']);
             Route::get('/ftp-account-records', [ProvisioningController::class, 'ftpAccountRecords']);
+
+            Route::get('/domains', [RecordsController::class, 'domains']);
+            Route::get('/domain-orders', [RecordsController::class, 'domainOrders']);
+            Route::get('/domain-transfers', [RecordsController::class, 'domainTransfers']);
+            Route::post('/domain-orders/{domainOrder}/retry-registration', [AdminDomainController::class, 'retryRegistration']);
+            Route::post('/domain-transfers/{transfer}/retry-sync', [AdminDomainController::class, 'retryTransferSync']);
+            Route::post('/domains/{domain}/mark-source', [AdminDomainController::class, 'markSource']);
+            Route::post('/domains/{domain}/link-hosting', [AdminDomainController::class, 'linkHosting']);
+            Route::post('/domains/{domain}/unlink-hosting', [AdminDomainController::class, 'unlinkHosting']);
+            Route::post('/domains/{domain}/send-dns-instructions', [AdminDomainController::class, 'sendDnsInstructions']);
+            Route::post('/domains/{domain}/renew', [AdminDomainController::class, 'renew']);
+            Route::post('/domains/{domain}/disable-auto-renew', [AdminDomainController::class, 'disableAutoRenew']);
+
+            Route::get('/domain-pricing', [DomainPricingController::class, 'index']);
+            Route::post('/domain-pricing', [DomainPricingController::class, 'store']);
+            Route::post('/domain-pricing/sync', [DomainPricingController::class, 'sync']);
+            Route::get('/domain-pricing/sync-logs', [DomainPricingController::class, 'syncLogs']);
+            Route::put('/domain-pricing/{domainPricing}', [DomainPricingController::class, 'update']);
+            Route::delete('/domain-pricing/{domainPricing}', [DomainPricingController::class, 'destroy']);
+
+            Route::get('/domain-pricing-settings', [DomainPricingSettingsController::class, 'show']);
+            Route::put('/domain-pricing-settings', [DomainPricingSettingsController::class, 'update']);
+            Route::put('/domain-pricing-settings/balance', [DomainPricingSettingsController::class, 'updateBalance']);
         });
     });
 });

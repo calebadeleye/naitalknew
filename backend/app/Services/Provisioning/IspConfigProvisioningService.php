@@ -10,6 +10,7 @@ use App\Models\IspConfigClientMapping;
 use App\Models\IspConfigServiceMapping;
 use App\Models\ProvisioningLog;
 use App\Models\User;
+use App\Notifications\ExistingDomainDnsInstructions;
 use App\Notifications\NaiTalkHostingProvisioned;
 use App\Services\Ispconfig\IspConfigClient;
 use Illuminate\Support\Facades\DB;
@@ -198,6 +199,15 @@ class IspConfigProvisioningService
 
         if ($before['status'] !== 'active') {
             $service->client->user?->notify(new NaiTalkHostingProvisioned($service));
+
+            // Flow 3 ("Hosting Only With Existing Domain") — the client's domain
+            // lives elsewhere; tell them how to point it here. Never sent for a
+            // domain NAI TALK itself registered/transferred (source=spaceship_*).
+            $linkedDomain = $service->linkedDomain;
+
+            if ($linkedDomain && $linkedDomain->source === 'external') {
+                $service->client->user?->notify(new ExistingDomainDnsInstructions($service));
+            }
         }
 
         $this->log($service, 'provision_hosting_service', 'completed', 'ISPConfig client and website are provisioned.', $staffUser, $before, $service->only(['status', 'provisioning_status', 'ispconfig_server_id']), [

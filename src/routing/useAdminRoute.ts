@@ -18,7 +18,11 @@ export type AdminSectionId =
   | "ispconfigMappings"
   | "ispconfigImport"
   | "auditLogs"
-  | "paymentVerification";
+  | "paymentVerification"
+  | "domains"
+  | "domainOrders"
+  | "domainTransfers"
+  | "domainPricing";
 
 const SECTION_PATHS: Record<AdminSectionId, string> = {
   dashboard: "",
@@ -39,6 +43,10 @@ const SECTION_PATHS: Record<AdminSectionId, string> = {
   ispconfigImport: "ispconfig-import",
   auditLogs: "audit-logs",
   paymentVerification: "payment-verification",
+  domains: "domains",
+  domainOrders: "domain-orders",
+  domainTransfers: "domain-transfers",
+  domainPricing: "domain-pricing",
 };
 
 const PATH_TO_SECTION: Record<string, AdminSectionId> = Object.fromEntries(
