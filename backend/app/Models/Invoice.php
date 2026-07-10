@@ -17,11 +17,17 @@ class Invoice extends Model
         'hosting_service_id',
         'invoice_number',
         'status',
+        'reconciliation_status',
         'subtotal_kobo',
         'discount_kobo',
         'tax_kobo',
+        'vat_rate',
         'total_kobo',
         'amount_paid_kobo',
+        'wallet_amount_applied_kobo',
+        'overpayment_amount_kobo',
+        'underpayment_amount_kobo',
+        'outstanding_amount_kobo',
         'issued_at',
         'due_at',
         'paid_at',
@@ -35,6 +41,7 @@ class Invoice extends Model
             'due_at' => 'date',
             'paid_at' => 'date',
             'line_items' => 'array',
+            'vat_rate' => 'float',
         ];
     }
 
@@ -56,5 +63,10 @@ class Invoice extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function walletTransactions(): HasMany
+    {
+        return $this->hasMany(WalletTransaction::class);
     }
 }

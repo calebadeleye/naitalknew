@@ -2760,6 +2760,8 @@ const portalNavLinks = [
   { icon: Home, label: "Dashboard", route: "dashboard" as ClientRouteName, path: "/client/dashboard" },
   { icon: PackageCheck, label: "Services Catalog", route: "services-catalog" as ClientRouteName, path: "/client/services/catalog" },
   { icon: FileText, label: "My Orders", route: "orders" as ClientRouteName, path: "/client/orders" },
+  { icon: Wallet, label: "Wallet", route: "wallet" as ClientRouteName, path: "/client/wallet" },
+  { icon: CreditCard, label: "Saved Payment Methods", route: "payment-methods" as ClientRouteName, path: "/client/payment-methods" },
   { icon: User, label: "My Profile", route: null, path: null },
   { icon: MessageCircle, label: "Support Tickets", route: null, path: null },
   { icon: LogOut, label: "Logout", route: null, path: null },
@@ -3506,16 +3508,224 @@ type ClientInvoiceDetail = {
     tax_id: string | null;
   };
   line_items: Array<{ description: string; quantity: number; unit_price: string; total: string }>;
+  reconciliation_status: string;
   subtotal: string;
   discount: string;
+  vat_rate: number;
+  vat_label: string;
   tax: string;
   total: string;
   amount_paid: string;
+  wallet_amount_applied: string;
+  wallet_amount_applied_kobo: number;
+  overpayment_amount: string;
+  overpayment_amount_kobo: number;
+  underpayment_amount: string;
+  underpayment_amount_kobo: number;
+  outstanding_amount: string;
+  outstanding_amount_kobo: number;
   balance_due: string;
   bank_transfer: { bank_name: string; account_name: string; account_number: string };
   bank_transfer_status: string | null;
   bank_transfer_rejection_reason: string | null;
 };
+
+type WalletSummary = {
+  balance_kobo: number;
+  balance: string;
+  currency: string;
+  status: string;
+};
+
+type WalletTransactionRow = {
+  id: number;
+  type: string;
+  direction: "credit" | "debit";
+  amount: string;
+  amount_kobo: number;
+  balance_before: string;
+  balance_after: string;
+  invoice_number: string | null;
+  order_number: string | null;
+  payment_reference: string | null;
+  description: string | null;
+  status: string;
+  created_at: string;
+};
+
+type SavedPaymentMethodRow = {
+  id: number;
+  payment_provider: string;
+  provider_customer_id: string | null;
+  provider_authorization_code: string;
+  card_brand: string | null;
+  last4: string | null;
+  exp_month: number | null;
+  exp_year: number | null;
+  is_active: boolean;
+  is_default: boolean;
+  use_for_auto_renewal: boolean;
+  created_at: string;
+};
+
+/**
+ * Shared payment-method chooser used both right after checkout and on the
+ * unpaid-invoice page, so a client sees the exact same set of options (wallet,
+ * saved cards, gateways, bank transfer) in both places.
+ *
+ * walletMode "split" allows applying a partial wallet balance and shows the
+ * remaining amount to pay elsewhere (used on the invoice page). walletMode
+ * "full-only" simply blocks the wallet option with an explanatory message
+ * when the balance can't cover the full outstanding amount (used right after
+ * checkout, before any partial payment has ever landed on the invoice).
+ */
+function PaymentOptionsPanel({
+  token,
+  invoiceNumber,
+  outstandingKobo,
+  walletMode,
+  isInitiatingPayment,
+  onPayWithGateway,
+  onPayByBankTransfer,
+  toast,
+  onPaid,
+}: {
+  token: string;
+  invoiceNumber: string;
+  outstandingKobo: number;
+  walletMode: "split" | "full-only";
+  isInitiatingPayment: boolean;
+  onPayWithGateway: (invoiceNumber: string, gateway: "paystack" | "flutterwave") => Promise<void>;
+  onPayByBankTransfer: (invoiceNumber: string) => Promise<void>;
+  toast: ReturnType<typeof useToast>;
+  onPaid: () => void;
+}) {
+  const [wallet, setWallet] = useState<WalletSummary | null>(null);
+  const [methods, setMethods] = useState<SavedPaymentMethodRow[]>([]);
+  const [isPayingWithWallet, setIsPayingWithWallet] = useState(false);
+  const [payingCardId, setPayingCardId] = useState<number | null>(null);
+
+  const loadWallet = React.useCallback(() => {
+    return laravelApi<WalletSummary>("/api/v1/client/wallet", token)
+      .then(setWallet)
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  useEffect(() => {
+    void loadWallet();
+    laravelApi<{ data: SavedPaymentMethodRow[] }>("/api/v1/client/payment-methods", token)
+      .then((response) => setMethods(response.data || []))
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  const payWithWallet = async () => {
+    if (isPayingWithWallet) return;
+    setIsPayingWithWallet(true);
+
+    try {
+      const result = await laravelApi<{ message: string }>(`/api/v1/client/invoices/${invoiceNumber}/pay/wallet`, token, { method: "POST" });
+      toast.push({ type: "success", message: result.message });
+      onPaid();
+      await loadWallet();
+    } catch (error) {
+      toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not complete the wallet payment." });
+    } finally {
+      setIsPayingWithWallet(false);
+    }
+  };
+
+  const payWithCard = async (methodId: number) => {
+    setPayingCardId(methodId);
+
+    try {
+      const result = await laravelApi<{ message: string }>(`/api/v1/client/invoices/${invoiceNumber}/pay/saved-card/${methodId}`, token, { method: "POST" });
+      toast.push({ type: "success", message: result.message });
+      onPaid();
+    } catch (error) {
+      toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not complete the card payment." });
+    } finally {
+      setPayingCardId(null);
+    }
+  };
+
+  const activeMethods = methods.filter((method) => method.is_active);
+  const walletCoversFull = Boolean(wallet && wallet.balance_kobo >= outstandingKobo);
+  const walletInsufficient = Boolean(wallet && wallet.balance_kobo > 0 && wallet.balance_kobo < outstandingKobo);
+
+  return (
+    <div className="grid gap-2">
+      {wallet && wallet.balance_kobo > 0 && walletMode === "split" && (
+        <div className="rounded-md border border-primary/20 bg-primary/5 p-2.5 text-[11px] text-white/70">
+          {walletCoversFull ? (
+            <>Your wallet balance is <strong className="text-white">{wallet.balance}</strong> — enough to pay this invoice in full.</>
+          ) : (
+            <>Your wallet balance is <strong className="text-white">{wallet.balance}</strong>. You can apply it to this invoice and pay the remaining{" "}
+              <strong className="text-white">₦{((outstandingKobo - wallet.balance_kobo) / 100).toLocaleString()}</strong> using another payment method.</>
+          )}
+        </div>
+      )}
+
+      {walletInsufficient && walletMode === "full-only" && (
+        <div className="rounded-md border border-yellow-400/20 bg-yellow-400/5 p-2.5 text-[11px] text-white/70">
+          Your wallet balance is <strong className="text-white">{wallet?.balance}</strong>, which isn't enough to cover this invoice. Please fund
+          your wallet or choose another payment method below.
+        </div>
+      )}
+
+      {wallet && wallet.balance_kobo > 0 && (walletMode === "split" || walletCoversFull) && (
+        <button
+          type="button"
+          className="btn-primary justify-center !min-h-9 !px-3 !py-1.5 !text-[11px]"
+          disabled={isPayingWithWallet}
+          onClick={() => void payWithWallet()}
+        >
+          {isPayingWithWallet ? "Processing..." : "Pay with Wallet"}
+        </button>
+      )}
+
+      {activeMethods.map((method) => (
+        <button
+          key={method.id}
+          type="button"
+          className="btn-outline justify-center !min-h-9 !px-3 !py-1.5 !text-[11px]"
+          disabled={payingCardId !== null}
+          onClick={() => void payWithCard(method.id)}
+        >
+          {payingCardId === method.id
+            ? "Processing..."
+            : `Pay with ${(method.card_brand || method.payment_provider).toUpperCase()} •••• ${method.last4 || "----"}`}
+        </button>
+      ))}
+
+      <button
+        type="button"
+        className="btn-primary justify-center !min-h-9 !px-3 !py-1.5 !text-[11px]"
+        disabled={isInitiatingPayment}
+        onClick={() => void onPayWithGateway(invoiceNumber, "paystack")}
+      >
+        Pay with Paystack
+      </button>
+      <button
+        type="button"
+        className="btn-primary justify-center !min-h-9 !px-3 !py-1.5 !text-[11px]"
+        disabled={isInitiatingPayment}
+        onClick={() => void onPayWithGateway(invoiceNumber, "flutterwave")}
+      >
+        Pay with Flutterwave
+      </button>
+      <button
+        type="button"
+        className="btn-outline justify-center !min-h-9 !px-3 !py-1.5 !text-[11px]"
+        disabled={isInitiatingPayment}
+        onClick={() => void onPayByBankTransfer(invoiceNumber)}
+      >
+        Pay by Bank Transfer / Upload Proof
+      </button>
+    </div>
+  );
+}
 
 function ClientInvoicePage({
   orderNumber,
@@ -3677,34 +3887,21 @@ function ClientInvoicePage({
             {hasDismissedBankTransfer || (!bankTransferInfo && !invoice.bank_transfer_status) ? (
               <div className="sm:max-w-sm">
                 <p className="text-xs font-black uppercase text-white/50">Choose how to pay</p>
-                <div className="mt-3 grid gap-2">
-                  <button
-                    type="button"
-                    className="btn-primary justify-center !min-h-9 !px-3 !py-1.5 !text-[11px]"
-                    disabled={isInitiatingPayment}
-                    onClick={() => void onPayWithGateway(invoice.invoice_number, "paystack")}
-                  >
-                    Pay with Paystack
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-primary justify-center !min-h-9 !px-3 !py-1.5 !text-[11px]"
-                    disabled={isInitiatingPayment}
-                    onClick={() => void onPayWithGateway(invoice.invoice_number, "flutterwave")}
-                  >
-                    Pay with Flutterwave
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-outline justify-center !min-h-9 !px-3 !py-1.5 !text-[11px]"
-                    disabled={isInitiatingPayment}
-                    onClick={() => {
+                <div className="mt-3">
+                  <PaymentOptionsPanel
+                    token={token}
+                    invoiceNumber={invoice.invoice_number}
+                    outstandingKobo={invoice.outstanding_amount_kobo || 0}
+                    walletMode="split"
+                    isInitiatingPayment={isInitiatingPayment}
+                    onPayWithGateway={onPayWithGateway}
+                    onPayByBankTransfer={(invoiceNumber) => {
                       setHasDismissedBankTransfer(false);
-                      void onPayByBankTransfer(invoice.invoice_number);
+                      return onPayByBankTransfer(invoiceNumber);
                     }}
-                  >
-                    Pay by Bank Transfer / Upload Proof
-                  </button>
+                    toast={toast}
+                    onPaid={() => void loadInvoice()}
+                  />
                 </div>
               </div>
             ) : invoice.bank_transfer_status === "pending_review" ? (
@@ -3862,10 +4059,19 @@ function ClientInvoicePage({
           <div className="rounded-lg border border-white/10 bg-black/30 p-4 text-sm">
             <div className="flex items-center justify-between"><span className="text-white/60">Subtotal</span><strong className="text-white">{invoice.subtotal}</strong></div>
             <div className="mt-2 flex items-center justify-between"><span className="text-white/60">Discount</span><strong className="text-white">{invoice.discount}</strong></div>
-            <div className="mt-2 flex items-center justify-between"><span className="text-white/60">VAT (7.5%)</span><strong className="text-white">{invoice.tax}</strong></div>
-            <div className="mt-3 flex items-center justify-between border-t border-primary/25 pt-3"><span className="font-black text-white">Total</span><strong className="text-lg text-primary">{invoice.total}</strong></div>
+            <div className="mt-2 flex items-center justify-between"><span className="text-white/60">{invoice.vat_label}</span><strong className="text-white">{invoice.tax}</strong></div>
+            <div className="mt-3 flex items-center justify-between border-t border-primary/25 pt-3"><span className="font-black text-white">Total Payable</span><strong className="text-lg text-primary">{invoice.total}</strong></div>
             <div className="mt-2 flex items-center justify-between"><span className="text-white/60">Amount Paid</span><strong className="text-white">{invoice.amount_paid}</strong></div>
-            <div className="mt-2 flex items-center justify-between"><span className="font-black text-white">Balance Due</span><strong className="text-white">{invoice.balance_due}</strong></div>
+            {invoice.wallet_amount_applied_kobo > 0 && (
+              <div className="mt-2 flex items-center justify-between"><span className="text-white/60">Wallet Credit Applied</span><strong className="text-white">{invoice.wallet_amount_applied}</strong></div>
+            )}
+            {invoice.overpayment_amount_kobo > 0 && (
+              <div className="mt-2 flex items-center justify-between"><span className="text-white/60">Overpayment (saved to wallet)</span><strong className="text-white">{invoice.overpayment_amount}</strong></div>
+            )}
+            {invoice.underpayment_amount_kobo > 0 && (
+              <div className="mt-2 flex items-center justify-between"><span className="text-white/60">Underpayment</span><strong className="text-white">{invoice.underpayment_amount}</strong></div>
+            )}
+            <div className="mt-2 flex items-center justify-between"><span className="font-black text-white">Outstanding Balance</span><strong className="text-white">{invoice.outstanding_amount || invoice.balance_due}</strong></div>
           </div>
         </div>
 
@@ -3875,6 +4081,264 @@ function ClientInvoicePage({
         </div>
       </div>
     </div>
+  );
+}
+
+function ClientWalletPage({ token, toast }: { token: string; toast: ReturnType<typeof useToast> }) {
+  const [wallet, setWallet] = useState<WalletSummary | null>(null);
+  const [transactions, setTransactions] = useState<WalletTransactionRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isFunding, setIsFunding] = useState<"paystack" | "flutterwave" | null>(null);
+  const [fundAmount, setFundAmount] = useState("5000");
+
+  const loadWallet = React.useCallback(() => {
+    setIsLoading(true);
+    return Promise.all([
+      laravelApi<WalletSummary>("/api/v1/client/wallet", token),
+      laravelApi<{ data: WalletTransactionRow[] }>("/api/v1/client/wallet/transactions", token),
+    ])
+      .then(([summary, history]) => {
+        setWallet(summary);
+        setTransactions(history.data || []);
+      })
+      .catch((error) => toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not load your wallet." }))
+      .finally(() => setIsLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  useEffect(() => {
+    void loadWallet();
+  }, [loadWallet]);
+
+  const fundWallet = async (gateway: "paystack" | "flutterwave") => {
+    const amountNaira = Number(fundAmount);
+    if (!amountNaira || amountNaira <= 0) {
+      toast.push({ type: "error", message: "Enter a valid amount to fund." });
+      return;
+    }
+
+    setIsFunding(gateway);
+
+    try {
+      const data = await laravelApi<{ authorization_url?: string; link?: string }>(`/api/v1/client/wallet/fund/${gateway}`, token, {
+        method: "POST",
+        body: JSON.stringify({ amount_kobo: Math.round(amountNaira * 100) }),
+      });
+      const redirectUrl = data.authorization_url || data.link;
+      if (!redirectUrl) throw new Error("Could not start wallet funding.");
+      window.location.href = redirectUrl;
+    } catch (error) {
+      toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not start wallet funding." });
+      setIsFunding(null);
+    }
+  };
+
+  return (
+    <section>
+      <h2 className="text-2xl font-black text-white">Wallet</h2>
+      <p className="mt-1 text-sm text-white/55">Fund your wallet, apply it to invoices, and review your transaction history.</p>
+
+      <div className="mt-5 grid gap-5 lg:grid-cols-[280px_1fr]">
+        <div className="portal-card">
+          <p className="text-[10px] font-black uppercase text-white/40">Current Balance</p>
+          <h3 className="mt-2 text-3xl font-black text-white">{isLoading ? "…" : wallet?.balance || "₦0"}</h3>
+          <div className="mt-5 border-t border-white/10 pt-4">
+            <label className="admin-field">
+              <span>Amount to fund (₦)</span>
+              <input
+                type="number"
+                min={100}
+                value={fundAmount}
+                onChange={(event) => setFundAmount(event.target.value)}
+              />
+            </label>
+            <div className="mt-3 grid gap-2">
+              <button
+                type="button"
+                className="btn-primary justify-center !min-h-9 !px-3 !py-1.5 !text-[11px]"
+                disabled={isFunding !== null}
+                onClick={() => void fundWallet("paystack")}
+              >
+                {isFunding === "paystack" ? "Redirecting..." : "Fund with Paystack"}
+              </button>
+              <button
+                type="button"
+                className="btn-outline justify-center !min-h-9 !px-3 !py-1.5 !text-[11px]"
+                disabled={isFunding !== null}
+                onClick={() => void fundWallet("flutterwave")}
+              >
+                {isFunding === "flutterwave" ? "Redirecting..." : "Fund with Flutterwave"}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="portal-card overflow-x-auto">
+          <p className="text-[10px] font-black uppercase text-white/40">Transaction History</p>
+          {isLoading ? (
+            <p className="mt-4 text-sm text-white/55">Loading transactions...</p>
+          ) : transactions.length === 0 ? (
+            <p className="mt-4 text-sm text-white/55">No wallet transactions yet.</p>
+          ) : (
+            <table className="admin-table mt-4 w-full min-w-[560px]">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Type</th>
+                  <th>Reference</th>
+                  <th>Amount</th>
+                  <th>Balance After</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {transactions.map((txn) => (
+                  <tr key={txn.id}>
+                    <td>{new Date(txn.created_at).toLocaleString()}</td>
+                    <td>
+                      {txn.type.replaceAll("_", " ")}
+                      {(txn.invoice_number || txn.order_number) && (
+                        <small className="block text-white/40">
+                          {txn.invoice_number ? `Invoice ${txn.invoice_number}` : `Order ${txn.order_number}`}
+                        </small>
+                      )}
+                    </td>
+                    <td>{txn.payment_reference || "—"}</td>
+                    <td className={txn.direction === "credit" ? "text-primary" : "text-white/70"}>
+                      {txn.direction === "credit" ? "+" : "-"}{txn.amount}
+                    </td>
+                    <td>{txn.balance_after}</td>
+                    <td><span className="status-pill paid">{txn.status}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ClientPaymentMethodsPage({ token, toast }: { token: string; toast: ReturnType<typeof useToast> }) {
+  const [methods, setMethods] = useState<SavedPaymentMethodRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [busyId, setBusyId] = useState<number | null>(null);
+
+  const loadMethods = React.useCallback(() => {
+    setIsLoading(true);
+    return laravelApi<{ data: SavedPaymentMethodRow[] }>("/api/v1/client/payment-methods", token)
+      .then((response) => setMethods(response.data || []))
+      .catch((error) => toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not load saved payment methods." }))
+      .finally(() => setIsLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  useEffect(() => {
+    void loadMethods();
+  }, [loadMethods]);
+
+  const updateMethod = async (id: number, payload: Partial<Pick<SavedPaymentMethodRow, "is_active" | "use_for_auto_renewal" | "is_default">>) => {
+    setBusyId(id);
+
+    try {
+      await laravelApi(`/api/v1/client/payment-methods/${id}`, token, { method: "PATCH", body: JSON.stringify(payload) });
+      await loadMethods();
+    } catch (error) {
+      toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not update this payment method." });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const deleteMethod = async (id: number) => {
+    setBusyId(id);
+
+    try {
+      await laravelApi(`/api/v1/client/payment-methods/${id}`, token, { method: "DELETE" });
+      toast.push({ type: "success", message: "Payment method removed." });
+      await loadMethods();
+    } catch (error) {
+      toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not remove this payment method." });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <section>
+      <h2 className="text-2xl font-black text-white">Saved Payment Methods</h2>
+      <p className="mt-1 text-sm text-white/55">
+        Cards are saved automatically after a successful Paystack or Flutterwave payment — only a safe provider token is stored, never your
+        full card number or CVV.
+      </p>
+
+      <div className="mt-5 grid gap-3">
+        {isLoading ? (
+          <p className="text-sm text-white/55">Loading saved payment methods...</p>
+        ) : methods.length === 0 ? (
+          <div className="portal-card text-sm text-white/55">No saved payment methods yet. Pay an invoice online to save a card here.</div>
+        ) : (
+          methods.map((method) => (
+            <div key={method.id} className="portal-card">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="row-icon"><CreditCard className="h-4 w-4" /></div>
+                  <div>
+                    <p className="font-black text-white">
+                      {(method.card_brand || method.payment_provider).toUpperCase()} •••• {method.last4 || "----"}
+                      {method.is_default && <span className="ml-2 status-pill paid">Default</span>}
+                    </p>
+                    <small className="text-white/45">
+                      {method.exp_month && method.exp_year ? `Expires ${method.exp_month}/${method.exp_year} — ` : ""}
+                      Added {new Date(method.created_at).toLocaleDateString()} via {method.payment_provider}
+                    </small>
+                  </div>
+                </div>
+                <span className={method.is_active ? "status-pill paid" : "status-pill failed"}>{method.is_active ? "Active" : "Disabled"}</span>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-white/10 pt-4">
+                <button
+                  type="button"
+                  className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[11px]"
+                  disabled={busyId === method.id}
+                  onClick={() => void updateMethod(method.id, { is_active: !method.is_active })}
+                >
+                  {method.is_active ? "Disable card" : "Enable card"}
+                </button>
+                <button
+                  type="button"
+                  className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[11px]"
+                  disabled={busyId === method.id}
+                  onClick={() => void updateMethod(method.id, { use_for_auto_renewal: !method.use_for_auto_renewal })}
+                >
+                  {method.use_for_auto_renewal ? "Disable auto-renewal use" : "Enable for auto-renewal"}
+                </button>
+                {!method.is_default && (
+                  <button
+                    type="button"
+                    className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[11px]"
+                    disabled={busyId === method.id}
+                    onClick={() => void updateMethod(method.id, { is_default: true })}
+                  >
+                    Set as default
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[11px] !text-red-300"
+                  disabled={busyId === method.id}
+                  onClick={() => void deleteMethod(method.id)}
+                >
+                  <Trash2 className="h-3 w-3" /> Remove
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -4123,6 +4587,9 @@ function ClientPortal() {
   const [hostingPlans, setHostingPlans] = useState<HostingPlanCard[]>([]);
   const [isLoadingHostingPlans, setIsLoadingHostingPlans] = useState(false);
   const [addOns, setAddOns] = useState<Array<{ name: string; slug: string; monthly_price: string; annual_price: string }>>([]);
+  // Fetched from the backend (never hardcoded) so the pre-checkout Order Summary/Review
+  // preview always matches whatever VAT rate CheckoutService will actually apply.
+  const [vatRate, setVatRate] = useState(0.075);
   const [orderDraft, setOrderDraft] = useState(INITIAL_ORDER_DRAFT);
   const [checkoutResult, setCheckoutResult] = useState<{
     order: { order_number: string };
@@ -4215,6 +4682,10 @@ function ClientPortal() {
     }
 
     setIsLoadingHostingPlans(true);
+
+    laravelApi<{ vat_rate: number }>("/api/v1/public/billing-config")
+      .then((config) => setVatRate(config.vat_rate))
+      .catch(() => undefined);
 
     Promise.all([
       laravelApi<Array<Record<string, unknown>>>("/api/v1/public/hosting-plans"),
@@ -4906,7 +5377,12 @@ function ClientPortal() {
       (sum, addOn) => sum + parseNairaAmount(orderDraft.billing_cycle === "monthly" ? addOn.monthly_price : addOn.annual_price),
       0,
     );
-    const orderTotal = planAmount + addOnsAmount;
+    // Preview only — the invoice returned by POST /orders/hosting is always the
+    // authoritative, backend-calculated total actually charged.
+    const orderSubtotal = planAmount + addOnsAmount;
+    const vatAmount = Math.round(orderSubtotal * vatRate);
+    const orderTotal = orderSubtotal + vatAmount;
+    const vatPercentLabel = `${(vatRate * 100).toFixed(vatRate * 100 % 1 === 0 ? 0 : 1)}%`;
 
     if (route === "order-hosting") {
       return (
@@ -5026,8 +5502,12 @@ function ClientPortal() {
                   ))}
                 </div>
               )}
+              <div className="mt-4 grid gap-2 border-t border-white/10 pt-4 text-sm text-white/68">
+                <div className="flex items-center justify-between"><span>Subtotal</span><span>{formatNaira(orderSubtotal)}</span></div>
+                <div className="flex items-center justify-between"><span>VAT {vatPercentLabel}</span><span>{formatNaira(vatAmount)}</span></div>
+              </div>
               <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-4">
-                <span className="text-sm font-bold text-white/68">Total</span>
+                <span className="text-sm font-bold text-white/68">Total Payable</span>
                 <h3 className="text-2xl font-black text-white">{formatNaira(orderTotal)}</h3>
               </div>
               <button
@@ -5067,7 +5547,9 @@ function ClientPortal() {
                   {selectedAddOns.length ? selectedAddOns.map((addOn) => addOn.name).join(", ") : "None"}
                 </p>
                 <p><strong className="text-white">Auto-renew:</strong> Enabled by default — you can turn this off anytime from your service's Manage Hosting page.</p>
-                <p><strong className="text-white">Total:</strong> {formatNaira(orderTotal)}</p>
+                <p><strong className="text-white">Subtotal:</strong> {formatNaira(orderSubtotal)}</p>
+                <p><strong className="text-white">VAT {vatPercentLabel}:</strong> {formatNaira(vatAmount)}</p>
+                <p><strong className="text-white">Total Payable:</strong> {formatNaira(orderTotal)}</p>
               </div>
               <div className="mt-5 border-t border-white/10 pt-5 text-sm text-white/72">
                 <p className="font-black text-white">Billing details</p>
@@ -5119,35 +5601,22 @@ function ClientPortal() {
                 <strong className="text-white">{checkoutResult.invoice.total || formatNaira(checkoutResult.invoice.total_kobo / 100)}</strong> has been emailed to you.
               </p>
               <p className="mt-2 text-sm text-white/60">Choose how you'd like to pay:</p>
-              <div className="mt-5 grid gap-2 sm:grid-cols-2">
-                <button
-                  type="button"
-                  className="btn-primary justify-center !min-h-9 !py-1.5 !text-[11px]"
-                  disabled={isInitiatingPayment}
-                  onClick={() => void handlePayWithGateway(checkoutResult.invoice.invoice_number, "paystack")}
-                >
-                  Pay with Paystack
-                </button>
-                <button
-                  type="button"
-                  className="btn-primary justify-center !min-h-9 !py-1.5 !text-[11px]"
-                  disabled={isInitiatingPayment}
-                  onClick={() => void handlePayWithGateway(checkoutResult.invoice.invoice_number, "flutterwave")}
-                >
-                  Pay with Flutterwave
-                </button>
-                <button
-                  type="button"
-                  className="btn-outline justify-center !min-h-9 !py-1.5 !text-[11px]"
-                  disabled={isInitiatingPayment}
-                  onClick={() => void handlePayByBankTransfer(checkoutResult.invoice.invoice_number)}
-                >
-                  Pay by Bank Transfer
-                </button>
-                <button type="button" className="btn-outline justify-center !min-h-9 !py-1.5 !text-[11px]" onClick={() => navigate("/client/orders")}>
-                  Pay Later
-                </button>
+              <div className="mt-5">
+                <PaymentOptionsPanel
+                  token={clientToken}
+                  invoiceNumber={checkoutResult.invoice.invoice_number}
+                  outstandingKobo={checkoutResult.invoice.total_kobo}
+                  walletMode="full-only"
+                  isInitiatingPayment={isInitiatingPayment}
+                  onPayWithGateway={handlePayWithGateway}
+                  onPayByBankTransfer={handlePayByBankTransfer}
+                  toast={toast}
+                  onPaid={() => navigate(`/client/orders/${checkoutResult.order.order_number}`)}
+                />
               </div>
+              <button type="button" className="btn-outline mt-2 w-full justify-center !min-h-9 !py-1.5 !text-[11px]" onClick={() => navigate("/client/orders")}>
+                Pay Later
+              </button>
             </>
           )}
 
@@ -5201,6 +5670,36 @@ function ClientPortal() {
         hideWelcomeHeader
       >
         <HostingManagePanel serviceId={hostingServiceId} token={clientToken} navigate={navigate} toast={toast} />
+      </ClientPortalShell>
+    );
+  }
+
+  if (route === "wallet") {
+    return (
+      <ClientPortalShell
+        dashboard={dashboard}
+        route={route}
+        isVerified={isVerified}
+        navigate={navigate}
+        onLogout={() => void handleClientLogout()}
+        onProfileClick={() => toast.push({ type: "info", message: "Account settings are coming soon." })}
+      >
+        <ClientWalletPage token={clientToken} toast={toast} />
+      </ClientPortalShell>
+    );
+  }
+
+  if (route === "payment-methods") {
+    return (
+      <ClientPortalShell
+        dashboard={dashboard}
+        route={route}
+        isVerified={isVerified}
+        navigate={navigate}
+        onLogout={() => void handleClientLogout()}
+        onProfileClick={() => toast.push({ type: "info", message: "Account settings are coming soon." })}
+      >
+        <ClientPaymentMethodsPage token={clientToken} toast={toast} />
       </ClientPortalShell>
     );
   }

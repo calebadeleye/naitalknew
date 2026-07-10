@@ -4,9 +4,14 @@ namespace App\Services\Dashboard;
 
 use App\Models\Client;
 use App\Services\Billing\Money;
+use App\Services\Wallet\WalletService;
 
 class ClientDashboardService
 {
+    public function __construct(private readonly WalletService $walletService = new WalletService)
+    {
+    }
+
     public function snapshot(Client $client): array
     {
         $client->load(['user', 'hostingServices.hostingPlan', 'invoices', 'payments', 'supportTickets']);
@@ -15,6 +20,7 @@ class ClientDashboardService
             ->whereIn('status', ['unpaid', 'overdue', 'partially_paid'])
             ->sum(fn ($invoice) => $invoice->total_kobo - $invoice->amount_paid_kobo);
         $hasHosting = $client->hostingServices->isNotEmpty();
+        $wallet = $this->walletService->walletFor($client);
 
         return [
             'client' => [
@@ -37,6 +43,7 @@ class ClientDashboardService
                 ['label' => 'Outstanding Balance', 'value' => Money::naira($outstanding), 'raw' => $outstanding],
                 ['label' => 'Next Renewal', 'value' => optional($client->hostingServices->whereNotNull('renews_at')->sortBy('renews_at')->first()?->renews_at)->toDateString()],
                 ['label' => 'Total Paid', 'value' => Money::naira($client->payments->where('status', 'paid')->sum('amount_kobo'))],
+                ['label' => 'Wallet Balance', 'value' => Money::naira($wallet->balance_kobo), 'raw' => $wallet->balance_kobo],
             ],
             'services' => $client->hostingServices->map(fn ($service) => [
                 'id' => $service->id,

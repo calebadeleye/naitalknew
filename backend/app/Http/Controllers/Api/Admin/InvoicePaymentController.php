@@ -5,15 +5,21 @@ namespace App\Http\Controllers\Api\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use App\Models\Payment;
-use App\Services\Payments\PaymentFulfillmentService;
+use App\Services\Payments\ReconcileInvoicePaymentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class InvoicePaymentController extends Controller
 {
-    public function markPaid(Request $request, Invoice $invoice, PaymentFulfillmentService $fulfillment)
+    public function markPaid(Request $request, Invoice $invoice, ReconcileInvoicePaymentService $reconciler)
     {
         abort_if($invoice->status === 'paid', 422, 'This invoice has already been paid.');
+
+        $payload = $request->validate([
+            'amount_kobo' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $amountKobo = $payload['amount_kobo'] ?? $invoice->total_kobo;
 
         $payment = Payment::query()->firstOrNew(
             ['invoice_id' => $invoice->id, 'gateway' => 'bank_transfer'],
@@ -24,12 +30,15 @@ class InvoicePaymentController extends Controller
             ]
         );
         $payment->status = 'pending';
-        $payment->amount_kobo = $invoice->total_kobo;
+        $payment->amount_kobo = $amountKobo;
         $payment->save();
 
-        $fulfillment->markInvoicePaid($invoice, $payment, $invoice->total_kobo, [
-            'confirmed_by' => $request->user()->email,
-            'method' => 'manual_admin_confirmation',
+        $reconciler->reconcile($invoice, $payment, $amountKobo, 'bank_transfer', [
+            'actor' => $request->user(),
+            'gateway_payload' => [
+                'confirmed_by' => $request->user()->email,
+                'method' => 'manual_admin_confirmation',
+            ],
         ]);
 
         return response()->json(['message' => 'Invoice marked as paid.', 'invoice' => $invoice->fresh()]);

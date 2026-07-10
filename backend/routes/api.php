@@ -20,8 +20,13 @@ use App\Http\Controllers\Api\Client\Hosting\MailboxController;
 use App\Http\Controllers\Api\Client\InvoiceController;
 use App\Http\Controllers\Api\Client\InvoicePaymentController;
 use App\Http\Controllers\Api\Client\OrderController;
+use App\Http\Controllers\Api\Client\SavedCardPaymentController;
+use App\Http\Controllers\Api\Client\SavedPaymentMethodController;
 use App\Http\Controllers\Api\Client\ServiceCatalogController;
 use App\Http\Controllers\Api\Client\ServicesController;
+use App\Http\Controllers\Api\Client\WalletController;
+use App\Http\Controllers\Api\Client\WalletFundingController;
+use App\Http\Controllers\Api\Client\WalletPaymentController;
 use App\Http\Controllers\Api\Public\CatalogController;
 use App\Http\Controllers\Api\Public\PaymentGatewayController;
 use Illuminate\Support\Facades\Route;
@@ -34,6 +39,7 @@ Route::prefix('v1')->group(function (): void {
 
     Route::get('/public/hosting-plans', [CatalogController::class, 'hostingPlans']);
     Route::get('/public/hosting-add-ons', [CatalogController::class, 'addOns']);
+    Route::get('/public/billing-config', [CatalogController::class, 'billingConfig']);
 
     Route::get('/payments/paystack/callback', [PaymentGatewayController::class, 'paystackCallback']);
     Route::post('/payments/paystack/webhook', [PaymentGatewayController::class, 'paystackWebhook']);
@@ -53,6 +59,9 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/orders/{order:order_number}/invoice', [InvoiceController::class, 'show']);
             Route::get('/orders/{order:order_number}/invoice/download', [InvoiceController::class, 'downloadPdf']);
             Route::get('/services', [ServicesController::class, 'index']);
+            Route::get('/wallet', [WalletController::class, 'show']);
+            Route::get('/wallet/transactions', [WalletController::class, 'transactions']);
+            Route::get('/payment-methods', [SavedPaymentMethodController::class, 'index']);
 
             Route::middleware('verified')->group(function (): void {
                 Route::post('/orders/hosting', [CheckoutController::class, 'store']);
@@ -60,6 +69,12 @@ Route::prefix('v1')->group(function (): void {
                 Route::post('/invoices/{invoice:invoice_number}/pay/flutterwave', [InvoicePaymentController::class, 'flutterwave']);
                 Route::post('/invoices/{invoice:invoice_number}/pay/bank-transfer', [InvoicePaymentController::class, 'bankTransfer']);
                 Route::post('/invoices/{invoice:invoice_number}/pay/bank-transfer/proof', [InvoicePaymentController::class, 'uploadBankTransferProof'])->middleware('throttle:hosting-resource-create');
+                Route::post('/invoices/{invoice:invoice_number}/pay/wallet', [WalletPaymentController::class, 'pay']);
+                Route::post('/invoices/{invoice:invoice_number}/pay/saved-card/{paymentMethod}', [SavedCardPaymentController::class, 'pay']);
+                Route::post('/wallet/fund/paystack', [WalletFundingController::class, 'paystack']);
+                Route::post('/wallet/fund/flutterwave', [WalletFundingController::class, 'flutterwave']);
+                Route::patch('/payment-methods/{paymentMethod}', [SavedPaymentMethodController::class, 'update']);
+                Route::delete('/payment-methods/{paymentMethod}', [SavedPaymentMethodController::class, 'destroy']);
 
                 Route::prefix('services/{service}')->group(function (): void {
                     Route::get('/manage', [HostingControlPanelController::class, 'show']);

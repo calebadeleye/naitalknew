@@ -14,11 +14,13 @@ class Payment extends Model
         'client_id',
         'invoice_id',
         'gateway',
+        'purpose',
         'reference',
         'status',
         'amount_kobo',
         'currency',
         'paid_at',
+        'reconciled_at',
         'gateway_payload',
         'receipt_path',
     ];
@@ -27,6 +29,7 @@ class Payment extends Model
     {
         return [
             'paid_at' => 'datetime',
+            'reconciled_at' => 'datetime',
             'gateway_payload' => 'array',
         ];
     }

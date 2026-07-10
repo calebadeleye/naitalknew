@@ -234,7 +234,7 @@ class IspConfigLegacyImportTest extends TestCase
         $this->assertSame('2027-01-01', $service->next_invoice_date->toDateString());
     }
 
-    public function test_legacy_invoice_line_items_total_forty_thousand_naira(): void
+    public function test_legacy_invoice_line_items_subtotal_forty_thousand_naira_plus_vat(): void
     {
         (new HostingPlanSeeder())->run();
         $fake = $this->fakeIspConfig();
@@ -245,7 +245,11 @@ class IspConfigLegacyImportTest extends TestCase
 
         $invoice = (new LegacyRenewalInvoiceService())->generate($service);
 
-        $this->assertSame(4_000_000, $invoice->total_kobo);
+        // Legacy renewal invoices now apply VAT the same as every other
+        // invoice (previously hardcoded to tax_kobo = 0 — see VatCalculator).
+        $this->assertSame(4_000_000, $invoice->subtotal_kobo);
+        $this->assertSame(300_000, $invoice->tax_kobo);
+        $this->assertSame(4_300_000, $invoice->total_kobo);
         $this->assertNull($invoice->order_id);
         $this->assertCount(2, $invoice->line_items);
         $this->assertSame('Hosting Renewal', $invoice->line_items[0]['description']);
@@ -254,7 +258,7 @@ class IspConfigLegacyImportTest extends TestCase
         $this->assertSame(1_500_000, $invoice->line_items[1]['total_kobo']);
         $this->assertSame(
             $invoice->line_items[0]['total_kobo'] + $invoice->line_items[1]['total_kobo'],
-            $invoice->total_kobo
+            $invoice->subtotal_kobo
         );
     }
 

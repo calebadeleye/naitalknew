@@ -53,6 +53,38 @@ class PaystackGateway
         ];
     }
 
+    /**
+     * Charges a previously-saved, reusable authorization code — used for
+     * auto-renewal and any other "charge the card on file" flow. Never
+     * touches raw card data, only the token Paystack already returned us.
+     */
+    public function chargeAuthorization(string $authorizationCode, string $email, int $amountKobo, string $reference): array
+    {
+        $response = Http::withToken((string) config('services.paystack.secret_key'))
+            ->baseUrl('https://api.paystack.co')
+            ->post('/transaction/charge_authorization', [
+                'authorization_code' => $authorizationCode,
+                'email' => $email,
+                'amount' => $amountKobo,
+                'currency' => 'NGN',
+                'reference' => $reference,
+            ]);
+
+        if ($response->failed()) {
+            throw new PaymentGatewayException($response->json('message') ?? 'Paystack could not charge this saved card.');
+        }
+
+        $data = $response->json('data') ?? [];
+
+        return [
+            'successful' => ($data['status'] ?? null) === 'success',
+            'amount_kobo' => (int) ($data['amount'] ?? $amountKobo),
+            'currency' => $data['currency'] ?? 'NGN',
+            'reference' => $data['reference'] ?? $reference,
+            'raw' => $data,
+        ];
+    }
+
     public function verifyWebhookSignature(string $rawPayload, ?string $signature): bool
     {
         if (! $signature) {

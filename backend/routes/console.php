@@ -4,6 +4,8 @@ use App\Jobs\CheckExpiredHostingServicesJob;
 use App\Jobs\DeleteExpiredIspconfigWebsiteJob;
 use App\Jobs\DetectMissingIspConfigResourcesJob;
 use App\Jobs\DetectOrphanedIspConfigClientsJob;
+use App\Jobs\GenerateRenewalInvoiceJob;
+use App\Jobs\ProcessAutoRenewalPaymentJob;
 use App\Jobs\SendHostingExpiryReminderJob;
 use App\Jobs\SuspendExpiredHostingJob;
 use App\Jobs\SyncDatabasesJob;
@@ -29,6 +31,12 @@ Schedule::job(new SyncHostingUsageSnapshotJob)->hourly();
 Schedule::job(new SyncMailboxesJob)->everySixHours();
 Schedule::job(new SyncDatabasesJob)->everySixHours();
 Schedule::job(new SyncFtpAccountsJob)->everySixHours();
+
+// Auto-renewal billing pipeline — runs before the expiry pipeline so a
+// successful renewal payment lands before CheckExpiredHostingServicesJob
+// would otherwise flag the service as expired.
+Schedule::job(new GenerateRenewalInvoiceJob)->dailyAt('02:40');
+Schedule::job(new ProcessAutoRenewalPaymentJob)->dailyAt('02:45');
 
 // Hosting expiry / grace-period / deletion pipeline (in run order).
 Schedule::job(new CheckExpiredHostingServicesJob)->dailyAt('03:00');

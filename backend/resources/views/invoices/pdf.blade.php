@@ -103,10 +103,19 @@
     <div class="totals">
         <div><span>Subtotal</span><span>{{ $invoice['subtotal'] }}</span></div>
         <div><span>Discount</span><span>{{ $invoice['discount'] }}</span></div>
-        <div><span>VAT (7.5%)</span><span>{{ $invoice['tax'] }}</span></div>
-        <div class="grand"><span>Total</span><span>{{ $invoice['total'] }}</span></div>
+        <div><span>{{ $invoice['vat_label'] }}</span><span>{{ $invoice['tax'] }}</span></div>
+        <div class="grand"><span>Total Payable</span><span>{{ $invoice['total'] }}</span></div>
         <div><span>Amount Paid</span><span>{{ $invoice['amount_paid'] }}</span></div>
-        <div><span>Balance Due</span><span>{{ $invoice['balance_due'] }}</span></div>
+        @if (($invoice['wallet_amount_applied_kobo'] ?? 0) > 0)
+            <div><span>Wallet Credit Applied</span><span>{{ $invoice['wallet_amount_applied'] }}</span></div>
+        @endif
+        @if (($invoice['overpayment_amount_kobo'] ?? 0) > 0)
+            <div><span>Overpayment (saved to wallet)</span><span>{{ $invoice['overpayment_amount'] }}</span></div>
+        @endif
+        @if (($invoice['underpayment_amount_kobo'] ?? 0) > 0)
+            <div><span>Underpayment</span><span>{{ $invoice['underpayment_amount'] }}</span></div>
+        @endif
+        <div><span>Outstanding Balance</span><span>{{ $invoice['outstanding_amount'] ?? $invoice['balance_due'] }}</span></div>
     </div>
 
     <div class="footer">

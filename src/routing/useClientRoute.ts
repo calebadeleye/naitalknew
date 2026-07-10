@@ -13,7 +13,9 @@ export type ClientRouteName =
   | "checkout"
   | "orders"
   | "hosting-manage"
-  | "invoice-detail";
+  | "invoice-detail"
+  | "wallet"
+  | "payment-methods";
 
 const ROUTE_SEGMENTS: Record<string, ClientRouteName> = {
   login: "login",
@@ -27,6 +29,8 @@ const ROUTE_SEGMENTS: Record<string, ClientRouteName> = {
   "order/review": "order-review",
   checkout: "checkout",
   orders: "orders",
+  wallet: "wallet",
+  "payment-methods": "payment-methods",
 };
 
 const HOSTING_MANAGE_PATTERN = /^services\/(\d+)\/manage$/;

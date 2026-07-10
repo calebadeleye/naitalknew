@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\Invoice;
+use App\Services\Billing\InvoiceBreakdown;
 use App\Services\Billing\Money;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -26,6 +27,7 @@ class NaiTalkInvoiceCreated extends Notification implements ShouldQueue
     {
         $invoice = $this->invoice->loadMissing('order.items');
         $payUrl = rtrim(config('app.frontend_url'), '/').'/client/orders/'.$invoice->order->order_number;
+        $breakdown = (new InvoiceBreakdown)->build($invoice);
 
         $message = (new MailMessage)
             ->subject("Your NAI TALK invoice {$invoice->invoice_number}")
@@ -39,7 +41,9 @@ class NaiTalkInvoiceCreated extends Notification implements ShouldQueue
         }
 
         return $message
-            ->line('**Total due:** '.Money::naira($invoice->total_kobo))
+            ->line('**Subtotal:** '.$breakdown['subtotal'])
+            ->line('**'.$breakdown['vat_label'].':** '.$breakdown['vat_amount'])
+            ->line('**Total Payable:** '.$breakdown['total'])
             ->line('**Due date:** '.$invoice->due_at?->toFormattedDateString())
             ->action('Pay Invoice', $payUrl)
             ->line('You can pay online with Paystack, Flutterwave, or by bank transfer, or pay later from your dashboard — your order is already saved and this invoice will be waiting for you.')

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\AdminInvoiceResource;
+use App\Http\Resources\AdminPaymentResource;
 use App\Models\AuditLog;
 use App\Models\Client;
 use App\Models\HostingPlan;
@@ -65,6 +67,9 @@ class RecordsController extends Controller
                 'payments' => fn ($query) => $query->latest()->limit(20),
                 'auditLogs' => fn ($query) => $query->latest()->limit(30),
                 'notificationLogs' => fn ($query) => $query->latest()->limit(30),
+                'wallet',
+                'wallet.transactions' => fn ($query) => $query->latest()->limit(20),
+                'savedPaymentMethods',
             ])
             ->withSum(['invoices as total_revenue_kobo' => fn ($query) => $query], 'amount_paid_kobo')
             ->findOrFail($client);
@@ -124,12 +129,16 @@ class RecordsController extends Controller
 
     public function invoices()
     {
-        return Invoice::query()->with('client.user')->latest()->paginate(20);
+        return AdminInvoiceResource::collection(
+            Invoice::query()->with('client.user')->latest()->paginate(20)
+        );
     }
 
     public function payments()
     {
-        return Payment::query()->with(['client.user', 'invoice'])->latest()->paginate(20);
+        return AdminPaymentResource::collection(
+            Payment::query()->with(['client.user', 'invoice'])->latest()->paginate(20)
+        );
     }
 
     public function tickets()

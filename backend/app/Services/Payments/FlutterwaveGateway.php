@@ -55,6 +55,38 @@ class FlutterwaveGateway
         ];
     }
 
+    /**
+     * Charges a previously-saved, reusable card token via Flutterwave's
+     * tokenized-charge endpoint — used for auto-renewal and other
+     * charge-card-on-file flows. Never touches raw card data.
+     */
+    public function chargeToken(string $token, int $amountKobo, string $reference, string $email): array
+    {
+        $response = Http::withToken((string) config('services.flutterwave.secret_key'))
+            ->baseUrl('https://api.flutterwave.com/v3')
+            ->post('/tokenized-charges', [
+                'token' => $token,
+                'currency' => 'NGN',
+                'amount' => round($amountKobo / 100, 2),
+                'email' => $email,
+                'tx_ref' => $reference,
+            ]);
+
+        if ($response->failed()) {
+            throw new PaymentGatewayException($response->json('message') ?? 'Flutterwave could not charge this saved card.');
+        }
+
+        $data = $response->json('data') ?? [];
+
+        return [
+            'successful' => ($data['status'] ?? null) === 'successful',
+            'amount_kobo' => isset($data['amount']) ? (int) round(((float) $data['amount']) * 100) : $amountKobo,
+            'currency' => $data['currency'] ?? 'NGN',
+            'reference' => $data['tx_ref'] ?? $reference,
+            'raw' => $data,
+        ];
+    }
+
     public function verifyWebhookSignature(?string $signature): bool
     {
         $expected = config('services.flutterwave.webhook_hash');

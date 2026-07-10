@@ -62,4 +62,17 @@ class CatalogController extends Controller
                 'annual_price' => Money::naira($addOn->annual_price_kobo),
             ]);
     }
+
+    /**
+     * Lets the pre-checkout Order Summary/Review pages compute a subtotal +
+     * VAT + estimated-total preview without hardcoding the VAT percentage —
+     * the authoritative figure is still whatever CheckoutService returns on
+     * the invoice once the order is actually created.
+     */
+    public function billingConfig()
+    {
+        return response()->json([
+            'vat_rate' => (float) config('billing.vat_rate'),
+        ]);
+    }
 }

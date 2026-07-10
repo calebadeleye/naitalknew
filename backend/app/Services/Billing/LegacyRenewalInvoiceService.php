@@ -15,6 +15,10 @@ use RuntimeException;
  */
 class LegacyRenewalInvoiceService
 {
+    public function __construct(private readonly VatCalculator $vatCalculator = new VatCalculator)
+    {
+    }
+
     public function generate(HostingService $service): Invoice
     {
         $plan = $service->hostingPlan;
@@ -25,21 +29,25 @@ class LegacyRenewalInvoiceService
 
         $hostingAmountKobo = (int) ($plan->hosting_amount_kobo ?? 2_500_000);
         $sslAmountKobo = (int) ($plan->ssl_amount_kobo ?? 1_500_000);
-        $totalKobo = $hostingAmountKobo + $sslAmountKobo;
+        $subtotalKobo = $hostingAmountKobo + $sslAmountKobo;
+        $vat = $this->vatCalculator->calculate($subtotalKobo);
 
         $dueAt = $service->next_invoice_date ?? now()->addDays(7);
 
-        return DB::transaction(function () use ($service, $hostingAmountKobo, $sslAmountKobo, $totalKobo, $dueAt) {
+        return DB::transaction(function () use ($service, $hostingAmountKobo, $sslAmountKobo, $subtotalKobo, $vat, $dueAt) {
             return Invoice::query()->create([
                 'client_id' => $service->client_id,
                 'order_id' => null,
                 'hosting_service_id' => $service->id,
                 'invoice_number' => 'INV-LEGACY-'.now()->format('Ymd').'-'.Str::upper(Str::random(6)),
                 'status' => 'unpaid',
-                'subtotal_kobo' => $totalKobo,
+                'reconciliation_status' => 'pending',
+                'subtotal_kobo' => $subtotalKobo,
                 'discount_kobo' => 0,
-                'tax_kobo' => 0,
-                'total_kobo' => $totalKobo,
+                'tax_kobo' => $vat['vat_amount_kobo'],
+                'vat_rate' => $vat['vat_rate'],
+                'total_kobo' => $vat['total_kobo'],
+                'outstanding_amount_kobo' => $vat['total_kobo'],
                 'issued_at' => now()->toDateString(),
                 'due_at' => $dueAt->toDateString(),
                 'line_items' => [

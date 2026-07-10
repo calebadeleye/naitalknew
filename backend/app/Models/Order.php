@@ -19,6 +19,7 @@ class Order extends Model
         'subtotal_kobo',
         'discount_kobo',
         'tax_kobo',
+        'vat_rate',
         'total_kobo',
         'accepted_terms_at',
         'metadata',
@@ -29,6 +30,7 @@ class Order extends Model
         return [
             'accepted_terms_at' => 'datetime',
             'metadata' => 'array',
+            'vat_rate' => 'float',
         ];
     }
 

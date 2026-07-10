@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Client;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Payment;
+use App\Services\Billing\InvoiceBreakdown;
 use App\Services\Billing\Money;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -37,11 +38,13 @@ class InvoiceController extends Controller
         abort_if(! $invoice, 404, 'No invoice found for this order.');
 
         $bankTransferPayment = Payment::query()->where('invoice_id', $invoice->id)->where('gateway', 'bank_transfer')->first();
+        $breakdown = (new InvoiceBreakdown)->build($invoice);
 
         return [
             'invoice_number' => $invoice->invoice_number,
             'order_number' => $order->order_number,
             'status' => $invoice->status,
+            'reconciliation_status' => $invoice->reconciliation_status,
             'issued_at' => $invoice->issued_at?->toDateString(),
             'due_at' => $invoice->due_at?->toDateString(),
             'paid_at' => $invoice->paid_at?->toDateString(),
@@ -67,12 +70,22 @@ class InvoiceController extends Controller
                 'unit_price' => Money::naira($item['unit_price_kobo'] ?? (int) round($item['total_kobo'] / max((int) $item['quantity'], 1))),
                 'total' => Money::naira($item['total_kobo']),
             ])->all(),
-            'subtotal' => Money::naira($invoice->subtotal_kobo),
+            'subtotal' => $breakdown['subtotal'],
             'discount' => Money::naira($invoice->discount_kobo),
-            'tax' => Money::naira($invoice->tax_kobo),
-            'total' => Money::naira($invoice->total_kobo),
-            'amount_paid' => Money::naira($invoice->amount_paid_kobo),
-            'balance_due' => Money::naira($invoice->total_kobo - $invoice->amount_paid_kobo),
+            'vat_rate' => $breakdown['vat_rate'],
+            'vat_label' => $breakdown['vat_label'],
+            'tax' => $breakdown['vat_amount'],
+            'total' => $breakdown['total'],
+            'amount_paid' => $breakdown['amount_paid'],
+            'wallet_amount_applied' => $breakdown['wallet_amount_applied'],
+            'wallet_amount_applied_kobo' => $breakdown['wallet_amount_applied_kobo'],
+            'overpayment_amount' => $breakdown['overpayment_amount'],
+            'overpayment_amount_kobo' => $breakdown['overpayment_amount_kobo'],
+            'underpayment_amount' => $breakdown['underpayment_amount'],
+            'underpayment_amount_kobo' => $breakdown['underpayment_amount_kobo'],
+            'outstanding_amount' => $breakdown['outstanding_amount'],
+            'outstanding_amount_kobo' => $breakdown['outstanding_amount_kobo'],
+            'balance_due' => $breakdown['balance_due'],
             'bank_transfer' => config('services.bank_transfer'),
             'bank_transfer_status' => $bankTransferPayment?->status,
             'bank_transfer_rejection_reason' => $bankTransferPayment?->gateway_payload['rejection_reason'] ?? null,

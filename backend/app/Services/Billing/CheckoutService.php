@@ -14,6 +14,10 @@ use Illuminate\Support\Str;
 
 class CheckoutService
 {
+    public function __construct(private readonly VatCalculator $vatCalculator = new VatCalculator)
+    {
+    }
+
     public function createHostingOrder(array $payload, Client $client): array
     {
         $result = DB::transaction(function () use ($payload, $client) {
@@ -36,9 +40,9 @@ class CheckoutService
                 : $addOn->annual_price_kobo);
 
             $discountKobo = (int) round($subtotal * ((float) ($payload['discount_percent'] ?? 0)) / 100);
-            $taxableKobo = $subtotal - $discountKobo;
-            $taxKobo = (int) round($taxableKobo * (float) config('billing.vat_rate'));
-            $totalKobo = $taxableKobo + $taxKobo;
+            $vat = $this->vatCalculator->calculate($subtotal, $discountKobo);
+            $taxKobo = $vat['vat_amount_kobo'];
+            $totalKobo = $vat['total_kobo'];
 
             $order = Order::query()->create([
                 'client_id' => $client->id,
@@ -48,6 +52,7 @@ class CheckoutService
                 'subtotal_kobo' => $subtotal,
                 'discount_kobo' => $discountKobo,
                 'tax_kobo' => $taxKobo,
+                'vat_rate' => $vat['vat_rate'],
                 'total_kobo' => $totalKobo,
                 'accepted_terms_at' => now(),
                 'metadata' => [
@@ -83,10 +88,13 @@ class CheckoutService
                 'order_id' => $order->id,
                 'invoice_number' => $this->number('INV'),
                 'status' => 'unpaid',
+                'reconciliation_status' => 'pending',
                 'subtotal_kobo' => $subtotal,
                 'discount_kobo' => $discountKobo,
                 'tax_kobo' => $taxKobo,
+                'vat_rate' => $vat['vat_rate'],
                 'total_kobo' => $totalKobo,
+                'outstanding_amount_kobo' => $totalKobo,
                 'issued_at' => now()->toDateString(),
                 'due_at' => now()->addDays(7)->toDateString(),
                 'line_items' => $order->items()->get(['description', 'quantity', 'unit_price_kobo', 'total_kobo'])->toArray(),
