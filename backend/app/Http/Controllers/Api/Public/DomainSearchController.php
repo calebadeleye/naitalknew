@@ -50,4 +50,42 @@ class DomainSearchController extends Controller
             })->values(),
         ]);
     }
+
+    /**
+     * Full pricing table (registration/renewal/transfer) for the /domain-pricing
+     * page — same customer-price rule as everywhere else, never the raw
+     * Spaceship cost.
+     */
+    public function pricingTable(DomainPricingService $pricing)
+    {
+        $bestFor = [
+            '.com' => 'Global businesses',
+            '.com.ng' => 'Nigerian businesses',
+            '.ng' => 'Premium Nigerian identity',
+            '.org' => 'Organizations and NGOs',
+            '.net' => 'Networks and technology brands',
+        ];
+
+        $rows = DomainPricing::query()->where('status', 'active')->orderBy('tld')->get();
+        $priced = $rows->map(function (DomainPricing $row) use ($pricing, $bestFor) {
+            $price = $pricing->priceFor($row->tld);
+
+            if (! $price) {
+                return null;
+            }
+
+            return [
+                'tld' => $row->tld,
+                'registration_price_kobo' => $price['registration_kobo'],
+                'renewal_price_kobo' => $price['renewal_kobo'],
+                'transfer_price_kobo' => $price['transfer_kobo'],
+                'registration_price' => Money::naira($price['registration_kobo']),
+                'renewal_price' => Money::naira($price['renewal_kobo']),
+                'transfer_price' => Money::naira($price['transfer_kobo']),
+                'best_for' => $bestFor[$row->tld] ?? 'Nigerian and global businesses',
+            ];
+        })->filter()->values();
+
+        return response()->json(['data' => $priced, 'available' => $priced->isNotEmpty()]);
+    }
 }

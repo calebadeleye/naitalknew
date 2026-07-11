@@ -18,6 +18,11 @@ return [
         'key' => env('POSTMARK_API_KEY'),
     ],
 
+    'pexels' => [
+        'api_key' => env('PEXELS_API_KEY'),
+        'cache_ttl' => (int) env('PEXELS_CACHE_TTL', 86400),
+    ],
+
     'resend' => [
         'key' => env('RESEND_API_KEY'),
     ],

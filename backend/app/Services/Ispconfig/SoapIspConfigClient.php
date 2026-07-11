@@ -308,6 +308,28 @@ class SoapIspConfigClient implements IspConfigClient
         return is_array($result) ? $result : null;
     }
 
+    public function shellUserAdd(string $sessionId, int $clientId, array $params): int
+    {
+        return (int) $this->call('sites_shell_user_add', [$sessionId, $clientId, $params]);
+    }
+
+    public function shellUserUpdate(string $sessionId, int $clientId, int $shellUserId, array $params): int
+    {
+        return (int) $this->call('sites_shell_user_update', [$sessionId, $clientId, $shellUserId, $params]);
+    }
+
+    public function shellUserDelete(string $sessionId, int $shellUserId): int
+    {
+        return (int) $this->call('sites_shell_user_delete', [$sessionId, $shellUserId]);
+    }
+
+    public function shellUserGet(string $sessionId, int $shellUserId): ?array
+    {
+        $result = $this->call('sites_shell_user_get', [$sessionId, $shellUserId]);
+
+        return is_array($result) ? $result : null;
+    }
+
     public function clientGetTrafficUsage(string $sessionId, int $clientId): array
     {
         $result = $this->call('client_get_traffic_usage', [$sessionId, $clientId]);

@@ -31,6 +31,10 @@ class User extends Authenticatable implements MustVerifyEmail
         'phone',
         'account_status',
         'last_login_at',
+        'last_login_ip',
+        'last_login_user_agent',
+        'two_factor_enabled',
+        'login_alerts_enabled',
         'email_verified_at',
     ];
 
@@ -57,6 +61,8 @@ class User extends Authenticatable implements MustVerifyEmail
             'verification_code_expires_at' => 'datetime',
             'last_login_at' => 'datetime',
             'password' => 'hashed',
+            'two_factor_enabled' => 'boolean',
+            'login_alerts_enabled' => 'boolean',
         ];
     }
 

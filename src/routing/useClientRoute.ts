@@ -21,7 +21,8 @@ export type ClientRouteName =
   | "domain-transfer"
   | "domains"
   | "domain-detail"
-  | "domain-contact";
+  | "domain-contact"
+  | "profile";
 
 const ROUTE_SEGMENTS: Record<string, ClientRouteName> = {
   login: "login",
@@ -42,6 +43,7 @@ const ROUTE_SEGMENTS: Record<string, ClientRouteName> = {
   "domains/transfer": "domain-transfer",
   domains: "domains",
   "domain-contact": "domain-contact",
+  profile: "profile",
 };
 
 const HOSTING_MANAGE_PATTERN = /^services\/(\d+)\/manage$/;

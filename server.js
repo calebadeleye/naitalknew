@@ -6,8 +6,35 @@ import crypto from "crypto";
 import nodemailer from "nodemailer";
 import axios from "axios";
 import dotenv from "dotenv";
+import { getPageSeo } from "./src/seo/pageSeoConfig.mjs";
 
 dotenv.config();
+
+/**
+ * Real crawlers and social-preview scrapers (Google, Facebook, Twitter,
+ * LinkedIn, WhatsApp) read the raw HTML response — they don't run this app's
+ * client-side JS. Since this is a client-rendered SPA, that HTML would
+ * otherwise be identical for every route. This swaps in the right
+ * title/description/canonical/OG tags for the requested path before the
+ * response is sent, so each page still gets correct SEO metadata without a
+ * full server-rendering rewrite.
+ */
+function injectSeoTags(html, pathname) {
+  const seo = getPageSeo(pathname);
+  const escape = (value) => String(value).replace(/"/g, "&quot;");
+
+  return html
+    .replace(/<title>.*?<\/title>/s, `<title>${escape(seo.title)}</title>`)
+    .replace(/(<meta\s+name="description"\s+content=")[^"]*(")/s, `$1${escape(seo.description)}$2`)
+    .replace(/(<link\s+rel="canonical"\s+href=")[^"]*(")/s, `$1${escape(seo.canonical)}$2`)
+    .replace(/(<meta\s+property="og:url"\s+content=")[^"]*(")/s, `$1${escape(seo.canonical)}$2`)
+    .replace(/(<meta\s+property="og:title"\s+content=")[^"]*(")/s, `$1${escape(seo.title)}$2`)
+    .replace(/(<meta\s+property="og:description"\s+content=")[^"]*(")/s, `$1${escape(seo.description)}$2`)
+    .replace(/(<meta\s+property="og:image"\s+content=")[^"]*(")/s, `$1${escape(seo.ogImage)}$2`)
+    .replace(/(<meta\s+name="twitter:title"\s+content=")[^"]*(")/s, `$1${escape(seo.title)}$2`)
+    .replace(/(<meta\s+name="twitter:description"\s+content=")[^"]*(")/s, `$1${escape(seo.description)}$2`)
+    .replace(/(<meta\s+name="twitter:image"\s+content=")[^"]*(")/s, `$1${escape(seo.ogImage)}$2`);
+}
 
 const dataDir = path.join(process.cwd(), "storage");
 const uploadsDir = path.join(process.cwd(), "public", "uploads", "admin");
@@ -473,6 +500,7 @@ async function startServer() {
           "utf-8"
         );
         template = await vite.transformIndexHtml(url, template);
+        template = injectSeoTags(template, req.path);
         res.status(200).set({ "Content-Type": "text/html" }).end(template);
       } catch (e) {
         vite.ssrFixStacktrace(e);
@@ -482,7 +510,8 @@ async function startServer() {
   } else {
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+      const template = fs.readFileSync(path.join(distPath, "index.html"), "utf-8");
+      res.status(200).set({ "Content-Type": "text/html" }).end(injectSeoTags(template, req.path));
     });
   }
 

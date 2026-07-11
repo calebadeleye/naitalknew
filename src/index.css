@@ -107,6 +107,29 @@
     @apply inline-flex min-h-12 items-center gap-3 rounded-full border border-white/25 bg-black/20 px-7 py-3 text-xs font-black uppercase text-white transition hover:border-accent-cyan/60 hover:bg-accent-cyan/10;
   }
 
+  /* Same shape as .btn-outline, for use on light marketing-page sections */
+  .btn-outline-light {
+    @apply inline-flex min-h-12 items-center gap-3 rounded-full border border-black/15 bg-white px-7 py-3 text-xs font-black uppercase text-[#07111f] transition hover:border-primary/50 hover:bg-primary/5;
+  }
+
+  /* Light marketing pages (domains-style) reuse these instead of the
+     dark-theme defaults above */
+  .pub-section {
+    @apply bg-white text-[#0b1210];
+  }
+
+  .pub-section-tint {
+    @apply bg-[#f7fbf6] text-[#0b1210];
+  }
+
+  .pub-eyebrow {
+    @apply inline-flex rounded-full border border-primary/35 bg-primary/10 px-4 py-2 text-[10px] font-black uppercase text-[#2f6d10];
+  }
+
+  .pub-card {
+    @apply rounded-2xl border border-black/8 bg-white p-6 shadow-[0_15px_45px_rgba(16,24,16,0.06)];
+  }
+
   .service-card {
     @apply flex min-h-[250px] flex-col rounded-lg border border-primary/20 bg-white/[0.035] p-5 transition hover:-translate-y-1 hover:border-primary/50 hover:bg-primary/[0.055] sm:p-6;
     background:
@@ -684,6 +707,28 @@
 
   .admin-check input {
     @apply h-4 w-4 accent-primary;
+  }
+
+  /* Pill-style boolean switch, e.g. for profile preference toggles */
+  .toggle-switch {
+    @apply relative inline-flex h-6 w-11 shrink-0 cursor-pointer appearance-none rounded-full border border-white/15 bg-white/10 transition-colors;
+  }
+
+  .toggle-switch:checked {
+    @apply border-primary/60 bg-primary/70;
+  }
+
+  .toggle-switch::before {
+    content: "";
+    @apply absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform;
+  }
+
+  .toggle-switch:checked::before {
+    transform: translateX(1.25rem);
+  }
+
+  .toggle-switch:disabled {
+    @apply cursor-not-allowed opacity-50;
   }
 
   .admin-section-nav {
@@ -1445,7 +1490,7 @@
   }
 
   .project-marquee-track {
-    @apply flex w-max gap-5;
+    @apply flex w-max gap-6;
     animation: project-marquee-scroll 36s linear infinite;
   }
 
@@ -1463,7 +1508,7 @@
   }
 
   .project-slide {
-    @apply relative h-64 w-72 flex-shrink-0 overflow-hidden rounded-lg border border-white/10 bg-[#071014] transition hover:-translate-y-1 hover:border-accent-cyan/40 sm:h-72 sm:w-80;
+    @apply relative h-72 w-80 flex-shrink-0 overflow-hidden rounded-lg border border-white/10 bg-[#071014] transition hover:-translate-y-1 hover:border-accent-cyan/40 sm:h-80 sm:w-96 lg:h-96 lg:w-[28rem];
   }
 
   .project-slide:focus-visible {

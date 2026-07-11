@@ -62,32 +62,54 @@ class FtpAccountProvisioningActionJob implements ShouldQueue
 
     private function create(IspConfigClient $client, string $sessionId, FtpAccountRecord $ftpAccount, int $ispConfigClientId, int $websiteId): void
     {
-        // FTP accounts in ISPConfig are attached to the website's own Linux
-        // user/group and confined to its document root — these aren't
+        // FTP/SSH accounts in ISPConfig are attached to the website's own
+        // Linux user/group and confined to its document root — these aren't
         // package-level settings, they're read from the website record.
         $website = $client->sitesWebDomainGet($sessionId, $websiteId);
 
         if (! $website) {
-            throw new IspConfigApiException('Website record not found while creating FTP account.');
+            throw new IspConfigApiException('Website record not found while creating the account.');
         }
 
-        $remoteId = $client->ftpUserAdd($sessionId, $ispConfigClientId, [
-            'username' => $ftpAccount->username,
-            'password' => $this->payload['password'] ?? null,
-            'parent_domain_id' => $websiteId,
-            // Unlike mail users (which inherit their server from the mail
-            // domain), ISPConfig's FTP user API requires server_id directly —
-            // without it the account is never attached to a real server and
-            // login fails.
-            'server_id' => $website['server_id'],
-            // ISPConfig validates these against the website's actual system
-            // user/group names, not the numeric sys_userid/sys_groupid.
-            'uid' => $website['system_user'],
-            'gid' => $website['system_group'],
-            'dir' => $website['document_root'],
-            'quota_size' => -1,
-            'active' => 'y',
-        ]);
+        if ($ftpAccount->access_type === 'ftp') {
+            // Legacy path — PureFTPd is not reliably working on this server,
+            // so only pre-existing 'ftp' records still use it. All new
+            // accounts are created as SSH/SFTP shell users below.
+            $remoteId = $client->ftpUserAdd($sessionId, $ispConfigClientId, [
+                'username' => $ftpAccount->username,
+                'password' => $this->payload['password'] ?? null,
+                'parent_domain_id' => $websiteId,
+                // Unlike mail users (which inherit their server from the mail
+                // domain), ISPConfig's FTP user API requires server_id
+                // directly — without it the account is never attached to a
+                // real server and login fails.
+                'server_id' => $website['server_id'],
+                // ISPConfig validates these against the website's actual
+                // system user/group names, not the numeric sys_userid/sys_groupid.
+                'uid' => $website['system_user'],
+                'gid' => $website['system_group'],
+                'dir' => $website['document_root'],
+                'quota_size' => -1,
+                'active' => 'y',
+            ]);
+        } else {
+            // ISPConfig "shell user" — a real system account with SSH login
+            // and SFTP, chrooted to the website's own document root via
+            // jailkit so it can't see outside its site, same as FTP would be.
+            $remoteId = $client->shellUserAdd($sessionId, $ispConfigClientId, [
+                'username' => $ftpAccount->username,
+                'password' => $this->payload['password'] ?? null,
+                'parent_domain_id' => $websiteId,
+                'server_id' => $website['server_id'],
+                'puser' => $website['system_user'],
+                'pgroup' => $website['system_group'],
+                'dir' => $website['document_root'],
+                'quota_size' => -1,
+                'active' => 'y',
+                'shell' => config('ispconfig.ssh_shell', '/bin/bash'),
+                'chroot' => config('ispconfig.ssh_chroot', 'jailkit'),
+            ]);
+        }
 
         $ftpAccount->forceFill([
             'ispconfig_ftp_user_id' => (string) $remoteId,
@@ -95,39 +117,45 @@ class FtpAccountProvisioningActionJob implements ShouldQueue
             'last_synced_at' => now(),
         ])->save();
 
-        $this->log($ftpAccount, 'create_ftp_account', 'completed', 'FTP account created in ISPConfig.');
+        $this->log($ftpAccount, 'create_'.$ftpAccount->access_type.'_account', 'completed', 'Account created in ISPConfig.');
 
         SyncHostingUsageSnapshotJob::dispatch($ftpAccount->hosting_service_id, 'resource_change');
     }
 
     private function resetPassword(IspConfigClient $client, string $sessionId, FtpAccountRecord $ftpAccount, int $ispConfigClientId): void
     {
-        $client->ftpUserUpdate($sessionId, $ispConfigClientId, (int) $ftpAccount->ispconfig_ftp_user_id, [
-            'password' => $this->payload['password'] ?? null,
-        ]);
+        $params = ['password' => $this->payload['password'] ?? null];
+
+        $ftpAccount->access_type === 'ftp'
+            ? $client->ftpUserUpdate($sessionId, $ispConfigClientId, (int) $ftpAccount->ispconfig_ftp_user_id, $params)
+            : $client->shellUserUpdate($sessionId, $ispConfigClientId, (int) $ftpAccount->ispconfig_ftp_user_id, $params);
 
         $ftpAccount->forceFill(['last_synced_at' => now()])->save();
 
-        $this->log($ftpAccount, 'reset_ftp_password', 'completed', 'FTP account password reset in ISPConfig.');
+        $this->log($ftpAccount, 'reset_'.$ftpAccount->access_type.'_password', 'completed', 'Account password reset in ISPConfig.');
     }
 
     private function disable(IspConfigClient $client, string $sessionId, FtpAccountRecord $ftpAccount, int $ispConfigClientId): void
     {
-        $client->ftpUserUpdate($sessionId, $ispConfigClientId, (int) $ftpAccount->ispconfig_ftp_user_id, ['active' => 'n']);
+        $ftpAccount->access_type === 'ftp'
+            ? $client->ftpUserUpdate($sessionId, $ispConfigClientId, (int) $ftpAccount->ispconfig_ftp_user_id, ['active' => 'n'])
+            : $client->shellUserUpdate($sessionId, $ispConfigClientId, (int) $ftpAccount->ispconfig_ftp_user_id, ['active' => 'n']);
 
         $ftpAccount->forceFill(['status' => 'disabled', 'last_synced_at' => now()])->save();
 
-        $this->log($ftpAccount, 'disable_ftp_account', 'completed', 'FTP account disabled in ISPConfig.');
+        $this->log($ftpAccount, 'disable_'.$ftpAccount->access_type.'_account', 'completed', 'Account disabled in ISPConfig.');
     }
 
     private function delete(IspConfigClient $client, string $sessionId, FtpAccountRecord $ftpAccount): void
     {
-        $client->ftpUserDelete($sessionId, (int) $ftpAccount->ispconfig_ftp_user_id);
+        $ftpAccount->access_type === 'ftp'
+            ? $client->ftpUserDelete($sessionId, (int) $ftpAccount->ispconfig_ftp_user_id)
+            : $client->shellUserDelete($sessionId, (int) $ftpAccount->ispconfig_ftp_user_id);
 
         $ftpAccount->forceFill(['status' => 'deleted', 'last_synced_at' => now()])->save();
         $ftpAccount->delete();
 
-        $this->log($ftpAccount, 'delete_ftp_account', 'completed', 'FTP account deleted from ISPConfig.');
+        $this->log($ftpAccount, 'delete_'.$ftpAccount->access_type.'_account', 'completed', 'Account deleted from ISPConfig.');
 
         SyncHostingUsageSnapshotJob::dispatch($ftpAccount->hosting_service_id, 'resource_change');
     }
@@ -140,7 +168,7 @@ class FtpAccountProvisioningActionJob implements ShouldQueue
             'client_id' => $ftpAccount->hostingService?->client_id,
             'hosting_service_id' => $ftpAccount->hosting_service_id,
             'provider' => 'ispconfig',
-            'action' => $this->action.'_ftp_account',
+            'action' => $this->action.'_'.$ftpAccount->access_type.'_account',
             'status' => 'failed',
             'message' => $message,
             'response_payload' => $context ?: null,

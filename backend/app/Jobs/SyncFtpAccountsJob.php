@@ -35,7 +35,9 @@ class SyncFtpAccountsJob implements ShouldQueue
             $query->chunkById(100, function ($accounts) use ($client, $sessionId): void {
                 foreach ($accounts as $account) {
                     try {
-                        $remote = $client->ftpUserGet($sessionId, (int) $account->ispconfig_ftp_user_id);
+                        $remote = $account->access_type === 'ftp'
+                            ? $client->ftpUserGet($sessionId, (int) $account->ispconfig_ftp_user_id)
+                            : $client->shellUserGet($sessionId, (int) $account->ispconfig_ftp_user_id);
 
                         if ($remote === null) {
                             $account->forceFill(['status' => 'missing_remote', 'last_synced_at' => now()])->save();
@@ -43,9 +45,9 @@ class SyncFtpAccountsJob implements ShouldQueue
                             ProvisioningLog::query()->create([
                                 'hosting_service_id' => $account->hosting_service_id,
                                 'provider' => 'ispconfig',
-                                'action' => 'sync_ftp_account',
+                                'action' => 'sync_'.$account->access_type.'_account',
                                 'status' => 'review_required',
-                                'message' => "FTP account {$account->username} no longer exists in ISPConfig.",
+                                'message' => "Account {$account->username} no longer exists in ISPConfig.",
                                 'finished_at' => now(),
                             ]);
 
@@ -60,7 +62,7 @@ class SyncFtpAccountsJob implements ShouldQueue
                         ProvisioningLog::query()->create([
                             'hosting_service_id' => $account->hosting_service_id,
                             'provider' => 'ispconfig',
-                            'action' => 'sync_ftp_account',
+                            'action' => 'sync_'.$account->access_type.'_account',
                             'status' => 'sync_failed',
                             'message' => $exception->safeMessage(),
                             'finished_at' => now(),

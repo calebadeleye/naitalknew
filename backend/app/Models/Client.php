@@ -17,6 +17,10 @@ class Client extends Model
         'user_id',
         'client_code',
         'company_name',
+        'website',
+        'industry',
+        'support_email',
+        'company_size',
         'account_type',
         'client_status',
         'status',
@@ -26,12 +30,20 @@ class Client extends Model
         'tax_id',
         'address',
         'city',
+        'state',
         'country',
         'internal_notes',
         'last_activity_at',
         'suspended_at',
         'deactivated_at',
         'metadata',
+        'communication_preferences',
+    ];
+
+    private const DEFAULT_COMMUNICATION_PREFERENCES = [
+        'invoice_alerts' => true,
+        'renewal_reminders' => true,
+        'product_updates' => true,
     ];
 
     protected function casts(): array
@@ -41,7 +53,18 @@ class Client extends Model
             'last_activity_at' => 'datetime',
             'suspended_at' => 'datetime',
             'deactivated_at' => 'datetime',
+            'communication_preferences' => 'array',
         ];
+    }
+
+    /**
+     * A null column means "use the defaults" — every existing client row
+     * predates this feature, so this keeps them all reading as fully
+     * opted-in without a backfill migration.
+     */
+    public function communicationPreferences(): array
+    {
+        return array_merge(self::DEFAULT_COMMUNICATION_PREFERENCES, $this->communication_preferences ?? []);
     }
 
     public function user(): BelongsTo
@@ -122,5 +145,10 @@ class Client extends Model
     public function domainContact(): HasOne
     {
         return $this->hasOne(DomainContact::class);
+    }
+
+    public function activityLogs(): HasMany
+    {
+        return $this->hasMany(ClientActivityLog::class);
     }
 }

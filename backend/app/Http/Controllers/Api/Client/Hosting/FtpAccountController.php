@@ -33,13 +33,16 @@ class FtpAccountController extends Controller
         abort_if(
             FtpAccountRecord::query()->where('hosting_service_id', $service->id)->where('username', $payload['username'])->exists(),
             422,
-            'An FTP account with this username already exists.',
+            'An SSH/SFTP account with this username already exists.',
         );
 
         $ftpAccount = FtpAccountRecord::query()->create([
             'hosting_service_id' => $service->id,
             'username' => $payload['username'],
-            'access_type' => 'ftp',
+            // PureFTPd isn't reliably working on this server, so self-service
+            // accounts are provisioned as ISPConfig "shell users" — real SSH
+            // + SFTP accounts, jailkit-chrooted to the website's own root.
+            'access_type' => 'sftp',
             'status' => 'provisioning',
         ]);
 

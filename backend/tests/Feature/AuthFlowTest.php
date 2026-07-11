@@ -88,6 +88,26 @@ class AuthFlowTest extends TestCase
         $this->withToken($token)->getJson('/api/v1/auth/me')->assertUnauthorized();
     }
 
+    public function test_successful_login_records_last_login_details_and_an_activity_log_entry(): void
+    {
+        $this->seed();
+
+        $this->postJson('/api/v1/auth/login', [
+            'email' => 'john@naitalk.test',
+            'password' => 'password',
+        ])->assertOk();
+
+        $user = User::query()->where('email', 'john@naitalk.test')->firstOrFail();
+
+        $this->assertNotNull($user->last_login_at);
+        $this->assertNotNull($user->last_login_ip);
+        $this->assertNotNull($user->last_login_user_agent);
+        $this->assertDatabaseHas('client_activity_logs', [
+            'client_id' => $user->client->id,
+            'type' => 'login',
+        ]);
+    }
+
     public function test_correct_code_marks_user_verified(): void
     {
         [$token, $code] = $this->registerAndCaptureCode('verify-me@example.test');

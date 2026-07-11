@@ -1,20 +1,26 @@
 <?php
 
+use App\Http\Controllers\Api\Admin\BlogPostController;
 use App\Http\Controllers\Api\Admin\ClientLifecycleController;
 use App\Http\Controllers\Api\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Api\Admin\DomainController as AdminDomainController;
 use App\Http\Controllers\Api\Admin\DomainPricingController;
 use App\Http\Controllers\Api\Admin\DomainPricingSettingsController;
+use App\Http\Controllers\Api\Admin\FaqController;
 use App\Http\Controllers\Api\Admin\HostingPlanController;
 use App\Http\Controllers\Api\Admin\HostingServiceLifecycleController;
 use App\Http\Controllers\Api\Admin\InvoicePaymentController as AdminInvoicePaymentController;
 use App\Http\Controllers\Api\Admin\IspConfigLegacyImportController;
+use App\Http\Controllers\Api\Admin\KnowledgeBaseController;
+use App\Http\Controllers\Api\Admin\PageSeoMetadataController;
 use App\Http\Controllers\Api\Admin\ProvisioningController;
 use App\Http\Controllers\Api\Admin\RecordsController;
 use App\Http\Controllers\Api\Admin\ServiceOfferingController as AdminServiceOfferingController;
+use App\Http\Controllers\Api\Admin\ServiceStatusController;
 use App\Http\Controllers\Api\Admin\ServicesDashboardController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\Client\CheckoutController;
+use App\Http\Controllers\Api\Client\ClientProfileController;
 use App\Http\Controllers\Api\Client\DashboardController as ClientDashboardController;
 use App\Http\Controllers\Api\Client\DomainContactController;
 use App\Http\Controllers\Api\Client\DomainController;
@@ -35,6 +41,7 @@ use App\Http\Controllers\Api\Client\WalletController;
 use App\Http\Controllers\Api\Client\WalletFundingController;
 use App\Http\Controllers\Api\Client\WalletPaymentController;
 use App\Http\Controllers\Api\Public\CatalogController;
+use App\Http\Controllers\Api\Public\ContentController;
 use App\Http\Controllers\Api\Public\DomainSearchController;
 use App\Http\Controllers\Api\Public\PaymentGatewayController;
 use Illuminate\Support\Facades\Route;
@@ -50,6 +57,16 @@ Route::prefix('v1')->group(function (): void {
     Route::get('/public/billing-config', [CatalogController::class, 'billingConfig']);
     Route::get('/public/domains/search', [DomainSearchController::class, 'search'])->middleware('throttle:60,1');
     Route::get('/public/domains/pricing', [DomainSearchController::class, 'pricing']);
+    Route::get('/public/domains/pricing-table', [DomainSearchController::class, 'pricingTable']);
+
+    Route::get('/public/blog', [ContentController::class, 'blogIndex']);
+    Route::get('/public/blog/{slug}', [ContentController::class, 'blogShow']);
+    Route::get('/public/knowledge-base', [ContentController::class, 'knowledgeBaseIndex']);
+    Route::get('/public/knowledge-base/{slug}', [ContentController::class, 'knowledgeBaseShow']);
+    Route::get('/public/faqs', [ContentController::class, 'faqs']);
+    Route::get('/public/service-status', [ContentController::class, 'serviceStatus']);
+    Route::get('/public/seo-metadata', [ContentController::class, 'seoMetadata']);
+    Route::get('/public/images/search', [ContentController::class, 'image'])->middleware('throttle:60,1');
 
     Route::get('/payments/paystack/callback', [PaymentGatewayController::class, 'paystackCallback']);
     Route::post('/payments/paystack/webhook', [PaymentGatewayController::class, 'paystackWebhook']);
@@ -72,11 +89,21 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/wallet', [WalletController::class, 'show']);
             Route::get('/wallet/transactions', [WalletController::class, 'transactions']);
             Route::get('/payment-methods', [SavedPaymentMethodController::class, 'index']);
+            Route::get('/profile', [ClientProfileController::class, 'show']);
+            Route::get('/profile/activity', [ClientProfileController::class, 'activity']);
             Route::get('/domains', [DomainController::class, 'index']);
             Route::get('/domains/{domain}', [DomainController::class, 'show']);
             Route::get('/domains/transfers/eligibility', [DomainTransferController::class, 'eligibility']);
             Route::get('/domain-contact', [DomainContactController::class, 'show']);
             Route::put('/domain-contact', [DomainContactController::class, 'update']);
+
+            // Managing your own account (profile fields, security toggles,
+            // password) is never gated behind email verification — only
+            // actions that move money or provision real infrastructure are.
+            Route::put('/profile', [ClientProfileController::class, 'update']);
+            Route::put('/profile/communication-preferences', [ClientProfileController::class, 'updateCommunicationPreferences']);
+            Route::put('/profile/security', [ClientProfileController::class, 'updateSecurity']);
+            Route::post('/profile/change-password', [ClientProfileController::class, 'changePassword'])->middleware('throttle:hosting-password-reset');
 
             Route::middleware('verified')->group(function (): void {
                 Route::post('/orders/hosting', [CheckoutController::class, 'store']);
@@ -150,6 +177,30 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/provisioning-logs', [RecordsController::class, 'provisioningLogs']);
             Route::get('/ispconfig-client-mappings', [RecordsController::class, 'ispConfigClientMappings']);
             Route::get('/audit-logs', [RecordsController::class, 'auditLogs']);
+
+            Route::get('/blog-posts', [BlogPostController::class, 'index']);
+            Route::post('/blog-posts', [BlogPostController::class, 'store']);
+            Route::put('/blog-posts/{blogPost}', [BlogPostController::class, 'update']);
+            Route::delete('/blog-posts/{blogPost}', [BlogPostController::class, 'destroy']);
+
+            Route::get('/knowledge-base/groups', [KnowledgeBaseController::class, 'groups']);
+            Route::post('/knowledge-base/groups', [KnowledgeBaseController::class, 'storeGroup']);
+            Route::get('/knowledge-base/articles', [KnowledgeBaseController::class, 'articles']);
+            Route::post('/knowledge-base/articles', [KnowledgeBaseController::class, 'storeArticle']);
+            Route::put('/knowledge-base/articles/{article}', [KnowledgeBaseController::class, 'updateArticle']);
+            Route::delete('/knowledge-base/articles/{article}', [KnowledgeBaseController::class, 'destroyArticle']);
+
+            Route::get('/faqs', [FaqController::class, 'index']);
+            Route::post('/faqs', [FaqController::class, 'store']);
+            Route::put('/faqs/{faq}', [FaqController::class, 'update']);
+            Route::delete('/faqs/{faq}', [FaqController::class, 'destroy']);
+
+            Route::get('/service-statuses', [ServiceStatusController::class, 'index']);
+            Route::put('/service-statuses/{serviceStatus}', [ServiceStatusController::class, 'update']);
+
+            Route::get('/seo-metadata', [PageSeoMetadataController::class, 'index']);
+            Route::put('/seo-metadata', [PageSeoMetadataController::class, 'upsert']);
+
             Route::post('/clients/{client}/convert-to-billing-client', [ClientLifecycleController::class, 'convertToBillingClient']);
             Route::post('/clients/{client}/sync-technical-record', [ClientLifecycleController::class, 'syncClient']);
             Route::post('/clients/{client}/impersonate', [ClientLifecycleController::class, 'impersonate']);

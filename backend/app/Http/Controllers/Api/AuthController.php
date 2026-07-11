@@ -7,6 +7,7 @@ use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Models\Client;
 use App\Models\User;
+use App\Services\Clients\ClientActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -51,7 +52,7 @@ class AuthController extends Controller
         ], 201);
     }
 
-    public function login(LoginRequest $request)
+    public function login(LoginRequest $request, ClientActivityLogger $activityLogger)
     {
         $credentials = $request->validated();
 
@@ -63,8 +64,16 @@ class AuthController extends Controller
             ]);
         }
 
-        $user->forceFill(['last_login_at' => now()])->save();
+        $user->forceFill([
+            'last_login_at' => now(),
+            'last_login_ip' => $request->ip(),
+            'last_login_user_agent' => $request->userAgent(),
+        ])->save();
         $user->client?->forceFill(['last_activity_at' => now()])->save();
+
+        if ($user->client) {
+            $activityLogger->log($user->client, 'login', 'Successful login', $request);
+        }
 
         return response()->json([
             'token' => $user->createToken($credentials['device_name'] ?? 'react-client')->plainTextToken,

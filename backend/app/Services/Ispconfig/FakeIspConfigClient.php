@@ -31,6 +31,9 @@ class FakeIspConfigClient implements IspConfigClient
     /** @var array<string, array<string, mixed>> */
     private array $ftpUsers = [];
 
+    /** @var array<string, array<string, mixed>> */
+    private array $shellUsers = [];
+
     /** @var array<string, Throwable> */
     private array $failures = [];
 
@@ -338,6 +341,45 @@ class FakeIspConfigClient implements IspConfigClient
         $this->maybeFail('ftpUserGet', ['ftp_user_id' => $ftpUserId]);
 
         return $this->ftpUsers[(string) $ftpUserId] ?? null;
+    }
+
+    public function shellUserAdd(string $sessionId, int $clientId, array $params): int
+    {
+        $this->maybeFail('shellUserAdd', $params);
+
+        $id = $this->nextId++;
+        $this->shellUsers[(string) $id] = array_merge($params, ['shell_user_id' => $id, 'client_id' => $clientId]);
+
+        return $id;
+    }
+
+    public function shellUserUpdate(string $sessionId, int $clientId, int $shellUserId, array $params): int
+    {
+        $this->maybeFail('shellUserUpdate', $params);
+
+        if (! isset($this->shellUsers[(string) $shellUserId])) {
+            throw new IspConfigApiException("shell user {$shellUserId} not found", ['method' => 'shellUserUpdate']);
+        }
+
+        $this->shellUsers[(string) $shellUserId] = array_merge($this->shellUsers[(string) $shellUserId], $params);
+
+        return $shellUserId;
+    }
+
+    public function shellUserDelete(string $sessionId, int $shellUserId): int
+    {
+        $this->maybeFail('shellUserDelete', ['shell_user_id' => $shellUserId]);
+
+        unset($this->shellUsers[(string) $shellUserId]);
+
+        return $shellUserId;
+    }
+
+    public function shellUserGet(string $sessionId, int $shellUserId): ?array
+    {
+        $this->maybeFail('shellUserGet', ['shell_user_id' => $shellUserId]);
+
+        return $this->shellUsers[(string) $shellUserId] ?? null;
     }
 
     public function clientGetTrafficUsage(string $sessionId, int $clientId): array

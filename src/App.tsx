@@ -4,14 +4,20 @@ import type { LucideIcon } from "lucide-react";
 import {
   ArrowRight,
   ArrowRightLeft,
+  ArrowUp,
+  ArrowUpRight,
+  Activity,
   BadgeCheck,
   BarChart3,
   Bell,
   Bot,
+  Briefcase,
+  Building2,
   CalendarClock,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  Clock,
   Code2,
   CreditCard,
   Database,
@@ -26,6 +32,7 @@ import {
   Home,
   Image as ImageIcon,
   KeyRound,
+  LayoutDashboard,
   Linkedin,
   Loader2,
   LockKeyhole,
@@ -46,6 +53,7 @@ import {
   Rocket,
   Save,
   Search,
+  Send,
   Server,
   Settings,
   ShieldCheck,
@@ -59,6 +67,7 @@ import {
   X,
 } from "lucide-react";
 import { useToast } from "./toast/ToastProvider";
+import { useSeo } from "./seo/useSeo";
 import { useClientRoute, navigateClient, type ClientRouteName } from "./routing/useClientRoute";
 import { useAdminRoute, adminPath, adminClientDetailPath, adminServiceDetailPath, type AdminSectionId } from "./routing/useAdminRoute";
 import { consumePendingOrder, hasClientToken, savePendingOrder, startHostingOrder } from "./routing/pendingOrder";
@@ -315,21 +324,56 @@ const navItems = [
 
 const staticNavGroups = [
   {
+    label: "Domains",
+    items: [
+      { label: "Search Domain", href: "/domains" },
+      { label: "Domain Registration", href: "/domain-registration" },
+      { label: "Domain Transfer", href: "/domain-transfer" },
+      { label: "Domain Pricing", href: "/domain-pricing" },
+      { label: "Domain Renewal", href: "/domain-renewal" },
+    ],
+  },
+  {
+    label: "Hosting",
+    items: [
+      { label: "Web Hosting", href: "/web-hosting" },
+      { label: "Website Care Plans", href: "/website-care-plans" },
+      { label: "Business Email Hosting", href: "/business-email-hosting" },
+    ],
+  },
+  {
+    label: "Website",
+    items: [
+      { label: "Website Design", href: "/website-design" },
+      { label: "Portfolio", href: "/portfolio" },
+      { label: "Website Maintenance", href: "/website-care-plans" },
+    ],
+  },
+  {
     label: "Solutions",
     items: [
-      { label: "Services", href: "#services" },
-      { label: "Hosting", href: "#hosting" },
-      { label: "Domains", href: "/domains" },
-      { label: "AI Solutions", href: "#ai" },
+      { label: "For Small Businesses", href: "/website-design" },
+      { label: "For Schools", href: "/website-design" },
+      { label: "For Churches", href: "/website-design" },
+      { label: "For NGOs", href: "/website-design" },
+      { label: "For E-commerce", href: "/website-design" },
     ],
   },
   {
     label: "Company",
     items: [
-      { label: "About", href: "#about" },
-      { label: "Portfolio", href: "#portfolio" },
-      { label: "Process", href: "#process" },
-      { label: "Contact", href: "#contact" },
+      { label: "About", href: "/about" },
+      { label: "Contact", href: "/contact" },
+    ],
+  },
+  {
+    label: "Resources",
+    items: [
+      { label: "Blog", href: "/blog" },
+      { label: "Knowledge Base", href: "/knowledge-base" },
+      { label: "FAQs", href: "/faqs" },
+      { label: "How to Pay", href: "/how-to-pay" },
+      { label: "Service Status", href: "/service-status" },
     ],
   },
 ];
@@ -2932,7 +2976,7 @@ const portalNavLinks = [
   { icon: Globe2, label: "Search Domains", route: "domain-search" as ClientRouteName, path: "/client/domains/search" },
   { icon: Wallet, label: "Wallet", route: "wallet" as ClientRouteName, path: "/client/wallet" },
   { icon: CreditCard, label: "Saved Payment Methods", route: "payment-methods" as ClientRouteName, path: "/client/payment-methods" },
-  { icon: User, label: "My Profile", route: null, path: null },
+  { icon: User, label: "My Profile", route: "profile" as ClientRouteName, path: "/client/profile" },
   { icon: MessageCircle, label: "Support Tickets", route: null, path: null },
   { icon: LogOut, label: "Logout", route: null, path: null },
 ];
@@ -2952,7 +2996,7 @@ function ClientPortalShell({
   isVerified: boolean | null;
   navigate: (path: string) => void;
   onLogout: () => void;
-  onProfileClick: () => void;
+  onProfileClick?: () => void;
   hideWelcomeHeader?: boolean;
   children: React.ReactNode;
 }) {
@@ -2978,15 +3022,13 @@ function ClientPortalShell({
             <button
               key={item.label}
               type="button"
-              className={route === item.route ? "portal-nav active" : item.label === "My Profile" ? "portal-nav disabled" : "portal-nav"}
+              className={route === item.route ? "portal-nav active" : "portal-nav"}
               onClick={() => {
                 setIsMobileNavOpen(false);
                 if (item.label === "Logout") {
                   onLogout();
                 } else if (item.label === "Support Tickets") {
                   window.open(whatsappUrl, "_blank", "noopener,noreferrer");
-                } else if (item.label === "My Profile") {
-                  onProfileClick();
                 } else if (item.path) {
                   navigate(item.path);
                 }
@@ -2994,7 +3036,6 @@ function ClientPortalShell({
             >
               {React.createElement(item.icon, { className: "h-4 w-4" })}
               {item.label}
-              {item.label === "My Profile" && <span className="portal-nav-soon">Soon</span>}
             </button>
           ))}
         </nav>
@@ -3269,7 +3310,7 @@ function HostingManagePanel({
           [Wifi, "Bandwidth Usage", usage?.bandwidth_used_mb ?? 0, usage?.bandwidth_quota_mb ?? 0, "tone-cyan"],
           [Mail, "Email Accounts", usage?.email_accounts_used ?? 0, usage?.email_accounts_limit ?? 0, "tone-violet"],
           [Database, "Databases", usage?.databases_used ?? 0, usage?.databases_limit ?? 0, "tone-gold"],
-          [Users, "FTP Accounts", usage?.ftp_accounts_used ?? 0, usage?.ftp_accounts_limit ?? 0, ""],
+          [KeyRound, "SSH/SFTP Accounts", usage?.ftp_accounts_used ?? 0, usage?.ftp_accounts_limit ?? 0, ""],
         ].map(([Icon, label, used, limit, tone], index) => {
           const usedNum = used as number;
           const limitNum = limit as number;
@@ -3308,7 +3349,7 @@ function HostingManagePanel({
             ["overview", BarChart3, "Overview"],
             ["email", Mail, "Email Accounts"],
             ["databases", Database, "Databases"],
-            ["ftp", Users, "FTP"],
+            ["ftp", KeyRound, "SSH/SFTP"],
             ["access", LockKeyhole, "Access Details"],
           ] as [HostingTabName, React.ComponentType<{ className?: string }>, string][]
         ).map(([id, Icon, label]) => (
@@ -3329,7 +3370,7 @@ function HostingManagePanel({
                 billed {overview.billing_cycle}.
               </p>
               {!capabilities.email_accounts_enabled && !capabilities.databases_enabled && !capabilities.ftp_sftp_enabled && (
-                <p className="mt-3 text-sm text-white/40">This package does not include email, database, or FTP management.</p>
+                <p className="mt-3 text-sm text-white/40">This package does not include email, database, or SSH/SFTP management.</p>
               )}
             </div>
           )}
@@ -3497,14 +3538,13 @@ function HostingManagePanel({
             <div>
               <div className="flex items-center justify-between">
                 <div>
-                  <h2>FTP Accounts</h2>
+                  <h2>SSH/SFTP Accounts</h2>
                   <p className="mt-1 text-sm text-white/48">
-                    Manage file transfer access. Root/server credentials are never exposed here.
+                    Manage secure shell and file transfer access. Root/server credentials are never exposed here.
                     {ftpAccounts?.serverHostname && (
                       <> Connect using host <strong className="text-white">{ftpAccounts.serverHostname}</strong>.</>
                     )}
                   </p>
-                  <p className="mt-1 text-xs text-white/35">Need SSH/SFTP access instead? That's enabled per website — contact support.</p>
                 </div>
                 {capabilities.ftp_sftp_enabled && (
                   <button type="button" className="btn-primary" onClick={() => setModal({ type: "create-ftp" })}>
@@ -3514,7 +3554,7 @@ function HostingManagePanel({
                 )}
               </div>
               {!capabilities.ftp_sftp_enabled ? (
-                <p className="mt-4 text-sm text-white/40">FTP access is not included in this hosting package.</p>
+                <p className="mt-4 text-sm text-white/40">SSH/SFTP access is not included in this hosting package.</p>
               ) : (
                 <div className="hosting-table-wrap mt-4">
                   <table className="hosting-table">
@@ -3562,7 +3602,7 @@ function HostingManagePanel({
                       ))}
                     </tbody>
                   </table>
-                  {ftpAccounts?.items.length === 0 && <p className="mt-4 text-sm text-white/40">No FTP accounts yet.</p>}
+                  {ftpAccounts?.items.length === 0 && <p className="mt-4 text-sm text-white/40">No SSH/SFTP accounts yet.</p>}
                 </div>
               )}
             </div>
@@ -3573,7 +3613,7 @@ function HostingManagePanel({
               <h2>Access Details</h2>
               <p className="mt-3 text-sm text-white/54">
                 For security, server-level and ISPConfig administrative credentials are never shown in the client portal. Use the actions in the
-                Email Accounts, Databases, and FTP tabs above to manage access for this service.
+                Email Accounts, Databases, and SSH/SFTP tabs above to manage access for this service.
               </p>
             </div>
           )}
@@ -3588,7 +3628,7 @@ function HostingManagePanel({
             <div className="hosting-summary-row"><span>Bandwidth</span><strong>{formatMb(usage?.bandwidth_quota_mb ?? 0)} / month</strong></div>
             <div className="hosting-summary-row"><span>Email Accounts</span><strong>{usage?.email_accounts_used ?? 0} / {usage?.email_accounts_limit ?? 0}</strong></div>
             <div className="hosting-summary-row"><span>Databases</span><strong>{usage?.databases_used ?? 0} / {usage?.databases_limit ?? 0}</strong></div>
-            <div className="hosting-summary-row"><span>FTP Accounts</span><strong>{usage?.ftp_accounts_used ?? 0} / {usage?.ftp_accounts_limit ?? 0}</strong></div>
+            <div className="hosting-summary-row"><span>SSH/SFTP Accounts</span><strong>{usage?.ftp_accounts_used ?? 0} / {usage?.ftp_accounts_limit ?? 0}</strong></div>
             <div className="hosting-summary-row"><span>Last Synced</span><strong>{overview.last_synced_at ? formatDateTime(overview.last_synced_at) : "Never"}</strong></div>
           </div>
         </aside>
@@ -3640,7 +3680,7 @@ function HostingManagePanel({
                   )
                 }
                 onCreateDatabase={(payload) => void runAction(`${base}/databases`, { method: "POST", body: JSON.stringify(payload) }, "Database creation requested.")}
-                onCreateFtp={(payload) => void runAction(`${base}/ftp-accounts`, { method: "POST", body: JSON.stringify(payload) }, "FTP account creation requested.")}
+                onCreateFtp={(payload) => void runAction(`${base}/ftp-accounts`, { method: "POST", body: JSON.stringify(payload) }, "SSH/SFTP account creation requested.")}
                 onChangeMailboxPassword={(id, payload) => void runAction(`${base}/mailboxes/${id}/change-password`, { method: "POST", body: JSON.stringify(payload) }, "Password change requested.")}
                 onResetDatabasePassword={(id, payload) => void runAction(`${base}/databases/${id}/reset-password`, { method: "POST", body: JSON.stringify(payload) }, "Password reset requested.")}
                 onResetFtpPassword={(id, payload) => void runAction(`${base}/ftp-accounts/${id}/reset-password`, { method: "POST", body: JSON.stringify(payload) }, "Password reset requested.")}
@@ -5341,6 +5381,514 @@ function DomainContactProfilePage({ token, toast }: { token: string; toast: Retu
   );
 }
 
+type ClientProfileData = {
+  customer_id: string;
+  member_since: string | null;
+  account_status: string;
+  personal: {
+    full_name: string;
+    email: string;
+    phone: string | null;
+    country: string | null;
+    state: string | null;
+    city: string | null;
+    address: string | null;
+  };
+  company: {
+    business_name: string | null;
+    website: string | null;
+    industry: string | null;
+    support_email: string | null;
+    company_size: string | null;
+    tax_id: string | null;
+  };
+  security: {
+    two_factor_enabled: boolean;
+    login_alerts_enabled: boolean;
+    last_login_at: string | null;
+    last_login_ip: string | null;
+  };
+  communication_preferences: {
+    invoice_alerts: boolean;
+    renewal_reminders: boolean;
+    product_updates: boolean;
+  };
+};
+
+type ClientActivityItem = {
+  type: string;
+  description: string;
+  location?: string | null;
+  reference?: string;
+  amount_kobo?: number;
+  occurred_at: string | null;
+};
+
+const ACTIVITY_ICONS: Record<string, LucideIcon> = {
+  login: KeyRound,
+  password_changed: CheckCircle2,
+  two_factor_enabled: ShieldCheck,
+  two_factor_disabled: ShieldCheck,
+  payment: FileText,
+};
+
+function ClientProfilePage({
+  token,
+  dashboard,
+  toast,
+}: {
+  token: string;
+  dashboard: ClientDashboardSnapshot;
+  toast: ReturnType<typeof useToast>;
+}) {
+  const [profile, setProfile] = useState<ClientProfileData | null>(null);
+  const [activity, setActivity] = useState<ClientActivityItem[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<SavedPaymentMethodRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [form, setForm] = useState<{ name: string; phone: string; country: string; state: string; city: string; address: string; business_name: string; website: string; industry: string; support_email: string; company_size: string; tax_id: string }>({
+    name: "",
+    phone: "",
+    country: "",
+    state: "",
+    city: "",
+    address: "",
+    business_name: "",
+    website: "",
+    industry: "",
+    support_email: "",
+    company_size: "",
+    tax_id: "",
+  });
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ current_password: "", password: "", password_confirmation: "" });
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [busyPreference, setBusyPreference] = useState<string | null>(null);
+
+  const syncFormFromProfile = (data: ClientProfileData) => {
+    setForm({
+      name: data.personal.full_name || "",
+      phone: data.personal.phone || "",
+      country: data.personal.country || "",
+      state: data.personal.state || "",
+      city: data.personal.city || "",
+      address: data.personal.address || "",
+      business_name: data.company.business_name || "",
+      website: data.company.website || "",
+      industry: data.company.industry || "",
+      support_email: data.company.support_email || "",
+      company_size: data.company.company_size || "",
+      tax_id: data.company.tax_id || "",
+    });
+  };
+
+  const loadProfile = React.useCallback(() => {
+    return laravelApi<ClientProfileData>("/api/v1/client/profile", token).then((data) => {
+      setProfile(data);
+      syncFormFromProfile(data);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  useEffect(() => {
+    setIsLoading(true);
+    Promise.all([
+      loadProfile(),
+      laravelApi<{ data: ClientActivityItem[] }>("/api/v1/client/profile/activity", token).then((response) => setActivity(response.data || [])),
+      laravelApi<{ data: SavedPaymentMethodRow[] }>("/api/v1/client/payment-methods", token).then((response) => setPaymentMethods(response.data || [])),
+    ])
+      .catch((error) => toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not load your profile." }))
+      .finally(() => setIsLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  const saveProfile = async () => {
+    setIsSaving(true);
+
+    try {
+      const data = await laravelApi<ClientProfileData>("/api/v1/client/profile", token, {
+        method: "PUT",
+        body: JSON.stringify({
+          name: form.name,
+          phone: form.phone,
+          country: form.country,
+          state: form.state,
+          city: form.city,
+          address: form.address,
+          company_name: form.business_name,
+          website: form.website,
+          industry: form.industry,
+          support_email: form.support_email,
+          company_size: form.company_size,
+          tax_id: form.tax_id,
+        }),
+      });
+      setProfile(data);
+      syncFormFromProfile(data);
+      setIsEditing(false);
+      toast.push({ type: "success", message: "Profile updated." });
+    } catch (error) {
+      toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not update your profile." });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const updateSecurity = async (payload: Partial<{ two_factor_enabled: boolean; login_alerts_enabled: boolean }>) => {
+    if (!profile) return;
+    const key = Object.keys(payload)[0];
+    setBusyPreference(key);
+
+    try {
+      await laravelApi("/api/v1/client/profile/security", token, { method: "PUT", body: JSON.stringify(payload) });
+      setProfile((current) => (current ? { ...current, security: { ...current.security, ...payload } } : current));
+    } catch (error) {
+      toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not update this setting." });
+    } finally {
+      setBusyPreference(null);
+    }
+  };
+
+  const updateCommunicationPreference = async (key: keyof ClientProfileData["communication_preferences"], value: boolean) => {
+    if (!profile) return;
+    setBusyPreference(key);
+    const nextPreferences = { ...profile.communication_preferences, [key]: value };
+
+    try {
+      await laravelApi("/api/v1/client/profile/communication-preferences", token, { method: "PUT", body: JSON.stringify(nextPreferences) });
+      setProfile((current) => (current ? { ...current, communication_preferences: nextPreferences } : current));
+    } catch (error) {
+      toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not update this preference." });
+    } finally {
+      setBusyPreference(null);
+    }
+  };
+
+  const changePassword = async () => {
+    setIsSavingPassword(true);
+
+    try {
+      await laravelApi("/api/v1/client/profile/change-password", token, { method: "POST", body: JSON.stringify(passwordForm) });
+      toast.push({ type: "success", message: "Password updated successfully." });
+      setPasswordForm({ current_password: "", password: "", password_confirmation: "" });
+      setIsChangingPassword(false);
+    } catch (error) {
+      toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not change your password." });
+    } finally {
+      setIsSavingPassword(false);
+    }
+  };
+
+  const metric = (label: string) => dashboard.metrics.find((item) => item.label === label)?.value ?? "—";
+
+  if (isLoading || !profile) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center text-white/50">
+        <Loader2 className="h-6 w-6 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <section className="grid gap-5">
+      <div>
+        <h2 className="text-2xl font-black text-white">My Profile</h2>
+        <p className="mt-1 text-sm text-white/55">Manage your account details, security, and company information.</p>
+      </div>
+
+      <div className="portal-card">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="avatar-initial flex h-16 w-16 shrink-0 items-center justify-center rounded-full !text-xl">
+              {profile.personal.full_name.charAt(0).toUpperCase() || "?"}
+            </div>
+            <div>
+              <p className="flex items-center gap-2 text-lg font-black text-white">
+                {profile.personal.full_name}
+                <span className="status-pill paid">Client Account</span>
+              </p>
+              <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-white/45">
+                <span>Customer ID <strong className="text-white/70">{profile.customer_id}</strong></span>
+                <span>Member Since <strong className="text-white/70">{formatDate(profile.member_since)}</strong></span>
+                <span>Account Status <strong className="text-primary">{profile.account_status}</strong></span>
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            {isEditing ? (
+              <>
+                <button type="button" className="btn-outline !min-h-9 !text-[11px]" onClick={() => { setIsEditing(false); syncFormFromProfile(profile); }}>
+                  Cancel
+                </button>
+                <button type="button" className="btn-primary !min-h-9 !text-[11px]" disabled={isSaving} onClick={() => void saveProfile()}>
+                  {isSaving ? "Saving..." : "Save Changes"}
+                </button>
+              </>
+            ) : (
+              <button type="button" className="btn-outline !min-h-9 !text-[11px]" onClick={() => setIsEditing(true)}>
+                <Pencil className="h-3.5 w-3.5" />
+                Edit Profile
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 border-t border-white/10 pt-5 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            [PackageCheck, "Active Services", metric("Active Services")],
+            [Wallet, "Wallet Balance", metric("Wallet Balance")],
+            [CreditCard, "Outstanding Balance", metric("Outstanding Balance")],
+            [CalendarClock, "Next Renewal", metric("Next Renewal") || "None scheduled"],
+          ].map(([Icon, label, value]) => (
+            <div key={label as string} className="data-row">
+              <div className="row-icon">{React.createElement(Icon as LucideIcon, { className: "h-4 w-4" })}</div>
+              <div className="min-w-0 flex-1">
+                <p>{label as string}</p>
+                <small>{value as string}</small>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <div className="portal-card">
+          <h2 className="flex items-center gap-2"><User className="h-4 w-4 text-primary" /> Personal Information</h2>
+          <div className="mt-4 grid gap-3">
+            {isEditing ? (
+              <>
+                <label className="admin-field">
+                  <span>Full Name</span>
+                  <input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} />
+                </label>
+                <label className="admin-field">
+                  <span>Phone Number</span>
+                  <input value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} />
+                </label>
+                <label className="admin-field">
+                  <span>Country</span>
+                  <input value={form.country} onChange={(event) => setForm((current) => ({ ...current, country: event.target.value }))} />
+                </label>
+                <label className="admin-field">
+                  <span>State</span>
+                  <input value={form.state} onChange={(event) => setForm((current) => ({ ...current, state: event.target.value }))} />
+                </label>
+                <label className="admin-field">
+                  <span>Address</span>
+                  <input value={form.address} onChange={(event) => setForm((current) => ({ ...current, address: event.target.value }))} />
+                </label>
+              </>
+            ) : (
+              <>
+                <div className="data-row"><div className="min-w-0 flex-1"><p>Full Name</p></div><strong>{profile.personal.full_name}</strong></div>
+                <div className="data-row"><div className="min-w-0 flex-1"><p>Email Address</p></div><strong>{profile.personal.email}</strong></div>
+                <div className="data-row"><div className="min-w-0 flex-1"><p>Phone Number</p></div><strong>{profile.personal.phone || "—"}</strong></div>
+                <div className="data-row"><div className="min-w-0 flex-1"><p>Country</p></div><strong>{profile.personal.country || "—"}</strong></div>
+                <div className="data-row"><div className="min-w-0 flex-1"><p>State</p></div><strong>{profile.personal.state || "—"}</strong></div>
+                <div className="data-row"><div className="min-w-0 flex-1"><p>Address</p></div><strong>{profile.personal.address || "—"}</strong></div>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="portal-card">
+          <h2 className="flex items-center gap-2"><Building2 className="h-4 w-4 text-primary" /> Company Information</h2>
+          <div className="mt-4 grid gap-3">
+            {isEditing ? (
+              <>
+                <label className="admin-field">
+                  <span>Business Name</span>
+                  <input value={form.business_name} onChange={(event) => setForm((current) => ({ ...current, business_name: event.target.value }))} />
+                </label>
+                <label className="admin-field">
+                  <span>Website</span>
+                  <input value={form.website} onChange={(event) => setForm((current) => ({ ...current, website: event.target.value }))} />
+                </label>
+                <label className="admin-field">
+                  <span>Industry</span>
+                  <input value={form.industry} onChange={(event) => setForm((current) => ({ ...current, industry: event.target.value }))} />
+                </label>
+                <label className="admin-field">
+                  <span>Support Email</span>
+                  <input value={form.support_email} onChange={(event) => setForm((current) => ({ ...current, support_email: event.target.value }))} />
+                </label>
+                <label className="admin-field">
+                  <span>Company Size</span>
+                  <input value={form.company_size} onChange={(event) => setForm((current) => ({ ...current, company_size: event.target.value }))} />
+                </label>
+                <label className="admin-field">
+                  <span>Tax ID (Optional)</span>
+                  <input value={form.tax_id} onChange={(event) => setForm((current) => ({ ...current, tax_id: event.target.value }))} />
+                </label>
+              </>
+            ) : (
+              <>
+                <div className="data-row"><div className="min-w-0 flex-1"><p>Business Name</p></div><strong>{profile.company.business_name || "—"}</strong></div>
+                <div className="data-row"><div className="min-w-0 flex-1"><p>Website</p></div><strong>{profile.company.website || "—"}</strong></div>
+                <div className="data-row"><div className="min-w-0 flex-1"><p>Industry</p></div><strong>{profile.company.industry || "—"}</strong></div>
+                <div className="data-row"><div className="min-w-0 flex-1"><p>Support Email</p></div><strong>{profile.company.support_email || "—"}</strong></div>
+                <div className="data-row"><div className="min-w-0 flex-1"><p>Company Size</p></div><strong>{profile.company.company_size || "—"}</strong></div>
+                <div className="data-row"><div className="min-w-0 flex-1"><p>Tax ID</p></div><strong>{profile.company.tax_id || "—"}</strong></div>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="portal-card">
+          <h2 className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-primary" /> Security & Access</h2>
+          <div className="mt-4 grid gap-3">
+            <div className="data-row">
+              <div className="min-w-0 flex-1"><p>Password</p></div>
+              <button type="button" className="btn-outline !min-h-9 !px-3 !text-[11px]" onClick={() => setIsChangingPassword((current) => !current)}>
+                Change
+              </button>
+            </div>
+            {isChangingPassword && (
+              <div className="grid gap-3 rounded-lg border border-white/10 bg-black/20 p-4">
+                <label className="admin-field">
+                  <span>Current Password</span>
+                  <input type="password" value={passwordForm.current_password} onChange={(event) => setPasswordForm((current) => ({ ...current, current_password: event.target.value }))} />
+                </label>
+                <label className="admin-field">
+                  <span>New Password</span>
+                  <input type="password" minLength={10} value={passwordForm.password} onChange={(event) => setPasswordForm((current) => ({ ...current, password: event.target.value }))} />
+                </label>
+                <label className="admin-field">
+                  <span>Confirm New Password</span>
+                  <input type="password" minLength={10} value={passwordForm.password_confirmation} onChange={(event) => setPasswordForm((current) => ({ ...current, password_confirmation: event.target.value }))} />
+                </label>
+                <button type="button" className="btn-primary justify-center" disabled={isSavingPassword} onClick={() => void changePassword()}>
+                  {isSavingPassword ? "Updating..." : "Update Password"}
+                </button>
+              </div>
+            )}
+            <div className="data-row">
+              <div className="min-w-0 flex-1">
+                <p>Two-Factor Authentication</p>
+                <small>Add an extra layer of security</small>
+              </div>
+              <input
+                type="checkbox"
+                className="toggle-switch"
+                checked={profile.security.two_factor_enabled}
+                disabled={busyPreference === "two_factor_enabled"}
+                onChange={(event) => void updateSecurity({ two_factor_enabled: event.target.checked })}
+              />
+            </div>
+            <div className="data-row">
+              <div className="min-w-0 flex-1">
+                <p>Last Login</p>
+                <small>
+                  {profile.security.last_login_at ? formatDateTime(profile.security.last_login_at) : "No previous login on record"}
+                  {profile.security.last_login_ip ? ` · ${profile.security.last_login_ip}` : ""}
+                </small>
+              </div>
+            </div>
+            <div className="data-row">
+              <div className="min-w-0 flex-1">
+                <p>Login Alerts</p>
+                <small>Get notified of new sign-ins</small>
+              </div>
+              <input
+                type="checkbox"
+                className="toggle-switch"
+                checked={profile.security.login_alerts_enabled}
+                disabled={busyPreference === "login_alerts_enabled"}
+                onChange={(event) => void updateSecurity({ login_alerts_enabled: event.target.checked })}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="portal-card">
+          <h2 className="flex items-center gap-2"><Mail className="h-4 w-4 text-primary" /> Billing & Communication Preferences</h2>
+          <div className="mt-4 grid gap-3">
+            {(
+              [
+                ["invoice_alerts", "Invoice Alerts", "Receive alerts for new invoices"],
+                ["renewal_reminders", "Renewal Reminders", "Get reminders before services renew"],
+                ["product_updates", "Product Updates", "Receive updates about new products"],
+              ] as const
+            ).map(([key, label, description]) => (
+              <div className="data-row" key={key}>
+                <div className="min-w-0 flex-1">
+                  <p>{label}</p>
+                  <small>{description}</small>
+                </div>
+                <input
+                  type="checkbox"
+                  className="toggle-switch"
+                  checked={profile.communication_preferences[key]}
+                  disabled={busyPreference === key}
+                  onChange={(event) => void updateCommunicationPreference(key, event.target.checked)}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="portal-card">
+          <div className="flex items-center justify-between">
+            <h2 className="flex items-center gap-2"><CreditCard className="h-4 w-4 text-primary" /> Payment Methods</h2>
+            <span className="text-xs font-bold text-white/45">{paymentMethods.length} saved</span>
+          </div>
+          <div className="mt-4 grid gap-2">
+            {paymentMethods.length === 0 ? (
+              <p className="text-sm text-white/40">No saved payment methods yet.</p>
+            ) : (
+              paymentMethods.map((method) => (
+                <div className="data-row" key={method.id}>
+                  <div className="row-icon"><CreditCard className="h-4 w-4" /></div>
+                  <div className="min-w-0 flex-1">
+                    <p>{(method.card_brand || method.payment_provider).toUpperCase()} ending in {method.last4 || "----"}</p>
+                    <small>{method.exp_month && method.exp_year ? `Expires ${method.exp_month}/${method.exp_year}` : ""}</small>
+                  </div>
+                  {method.is_default && <span className="status-pill paid">Primary</span>}
+                </div>
+              ))
+            )}
+          </div>
+          <button
+            type="button"
+            className="btn-outline mt-4 w-full justify-center"
+            onClick={() => navigateClient("/client/payment-methods")}
+          >
+            <Settings className="h-4 w-4" />
+            Manage Payment Methods
+          </button>
+        </div>
+
+        <div className="portal-card">
+          <h2 className="flex items-center gap-2"><Activity className="h-4 w-4 text-primary" /> Account Activity</h2>
+          <div className="mt-4 grid gap-2">
+            {activity.length === 0 ? (
+              <p className="text-sm text-white/40">No recent activity yet.</p>
+            ) : (
+              activity.map((item, index) => {
+                const Icon = ACTIVITY_ICONS[item.type] || Activity;
+                return (
+                  <div className="data-row" key={`${item.type}-${item.occurred_at}-${index}`}>
+                    <div className="row-icon"><Icon className="h-4 w-4" /></div>
+                    <div className="min-w-0 flex-1">
+                      <p>{item.description}{item.reference ? ` — ${item.reference}` : ""}</p>
+                      <small>
+                        {item.occurred_at ? formatDateTime(item.occurred_at) : ""}
+                        {item.location ? ` · ${item.location}` : ""}
+                      </small>
+                    </div>
+                    {typeof item.amount_kobo === "number" && <strong className="text-primary">{formatKobo(item.amount_kobo)}</strong>}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function HostingModalContent({
   modal,
   isSubmitting,
@@ -5493,7 +6041,7 @@ function HostingModalContent({
           onCreateFtp({ username: ftpUsername, password });
         }}
       >
-        <h3 className="text-lg font-black text-white">Create FTP Account</h3>
+        <h3 className="text-lg font-black text-white">Create SSH/SFTP Account</h3>
         <label className="admin-field">
           <span>Username</span>
           <input required type="text" value={ftpUsername} onChange={(event) => setFtpUsername(event.target.value)} />
@@ -6873,6 +7421,20 @@ function ClientPortal() {
     );
   }
 
+  if (route === "profile") {
+    return (
+      <ClientPortalShell
+        dashboard={dashboard}
+        route={route}
+        isVerified={isVerified}
+        navigate={navigate}
+        onLogout={() => void handleClientLogout()}
+      >
+        <ClientProfilePage token={clientToken} dashboard={dashboard} toast={toast} />
+      </ClientPortalShell>
+    );
+  }
+
   if (route === "invoice-detail") {
     if (!orderNumber) {
       navigate("/client/orders");
@@ -7249,36 +7811,153 @@ const socialLinks = [
   [Linkedin, "LinkedIn", "https://www.linkedin.com/company/naitalk/"],
 ] as const;
 
+const footerColumns: Array<{ title: string; links: Array<{ label: string; href: string }> }> = [
+  {
+    title: "Company",
+    links: [
+      { label: "About NAI TALK", href: "/about" },
+      { label: "Contact Us", href: "/contact" },
+      { label: "Portfolio", href: "/portfolio" },
+      { label: "Blog", href: "/blog" },
+      { label: "Knowledge Base", href: "/knowledge-base" },
+    ],
+  },
+  {
+    title: "Services",
+    links: [
+      { label: "Website Design", href: "/website-design" },
+      { label: "Website Care Plans", href: "/website-care-plans" },
+      { label: "Web Hosting", href: "/web-hosting" },
+      { label: "Business Email Hosting", href: "/business-email-hosting" },
+      { label: "SEO Services", href: "/seo-services" },
+    ],
+  },
+  {
+    title: "Domains",
+    links: [
+      { label: "Domain Registration", href: "/domain-registration" },
+      { label: "Domain Transfer", href: "/domain-transfer" },
+      { label: "Domain Renewal", href: "/domain-renewal" },
+      { label: "Domain Pricing", href: "/domain-pricing" },
+      { label: "Search Domain", href: "/domains" },
+    ],
+  },
+  {
+    title: "Support",
+    links: [
+      { label: "Client Area", href: "/client/dashboard" },
+      { label: "Support Tickets", href: "/client/dashboard" },
+      { label: "How to Pay", href: "/how-to-pay" },
+      { label: "Service Status", href: "/service-status" },
+      { label: "FAQs", href: "/faqs" },
+    ],
+  },
+];
+
+const paymentBadges = [
+  { label: "Visa", classes: "bg-white text-[#1a1f71]" },
+  { label: "Mastercard", classes: "bg-white text-[#eb001b]" },
+  { label: "Verve", classes: "bg-white text-[#00833e]" },
+];
+
 function Footer({ logo }: { logo: LogoImage }) {
   return (
-    <footer className="border-t border-white/10 py-6">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-        <div>
-          <Logo logo={logo} />
-          <p className="mt-3 text-xs text-white/48">© 2026 NAITALK. All rights reserved.</p>
-        </div>
-        <div className="flex flex-wrap gap-5 text-sm text-white/58">
-          <a href="#services" className="hover:text-primary">Services</a>
-          <a href="#portfolio" className="hover:text-primary">Projects</a>
-          <a href="#hosting" className="hover:text-primary">Hosting</a>
-          <a href="#contact" className="hover:text-primary">Contact</a>
-        </div>
-        <div className="flex gap-3">
-          {socialLinks.map(([Icon, label, href]) => (
-            <a
-              key={label}
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={label}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-white/55 transition hover:border-primary/40 hover:text-primary"
-            >
-              {React.createElement(Icon, { className: "h-4 w-4" })}
-            </a>
+    <>
+      <footer className="border-t border-white/10 pt-14">
+        <div className="mx-auto grid max-w-7xl gap-10 px-4 sm:px-6 lg:grid-cols-[1.2fr_1fr_1fr_1fr_1.1fr] lg:gap-6 lg:px-8">
+          <div>
+            <h3 className="text-sm font-black text-white">Get in Touch</h3>
+            <ul className="mt-4 grid gap-3 text-sm text-white/58">
+              <li className="flex items-start gap-2">
+                <Mail className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <a href="mailto:info@naitalk.com" className="transition hover:text-primary">info@naitalk.com</a>
+              </li>
+              <li className="flex items-start gap-2">
+                <Phone className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <a href="tel:+2347087057654" className="transition hover:text-primary">0708 705 7654</a>
+              </li>
+              <li className="flex items-start gap-2">
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <span>7 Unity Rd, Off Command Rd, Ikola, Lagos.</span>
+              </li>
+            </ul>
+            <div className="mt-5 flex gap-3">
+              {socialLinks.map(([Icon, label, href]) => (
+                <a
+                  key={label}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={label}
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-white/55 transition hover:border-primary/40 hover:text-primary"
+                >
+                  {React.createElement(Icon, { className: "h-4 w-4" })}
+                </a>
+              ))}
+            </div>
+            <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-4">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-primary">
+                <Headphones className="h-4 w-4" />
+              </div>
+              <p className="mt-3 text-sm font-black text-white">Need Help?</p>
+              <p className="mt-1 text-xs leading-5 text-white/50">Our support team is ready to assist you.</p>
+              <a href={whatsappUrl} className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline">
+                Open a Ticket
+                <ArrowRight className="h-3 w-3" />
+              </a>
+            </div>
+          </div>
+
+          {footerColumns.map((column) => (
+            <div key={column.title}>
+              <h3 className="text-sm font-black text-white">{column.title}</h3>
+              <ul className="mt-4 grid gap-3 text-sm text-white/58">
+                {column.links.map((link) => (
+                  <li key={link.label}>
+                    <a href={link.href} className="transition hover:text-primary">{link.label}</a>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ))}
         </div>
-      </div>
-    </footer>
+
+        <div className="mx-auto mt-10 flex max-w-7xl flex-col gap-4 border-t border-white/10 px-4 py-6 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+          <div className="flex items-center gap-3">
+            <Logo logo={logo} />
+            <p className="text-xs text-white/48">© {new Date().getFullYear()} NAI TALK. All rights reserved.</p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-white/48">
+            <a href="/privacy-policy" className="hover:text-primary">Privacy Policy</a>
+            <span className="text-white/20">|</span>
+            <a href="/terms-of-service" className="hover:text-primary">Terms of Service</a>
+            <span className="text-white/20">|</span>
+            <a href="/refund-policy" className="hover:text-primary">Refund Policy</a>
+            <span className="text-white/20">|</span>
+            <a href="/sitemap.xml" className="hover:text-primary">Sitemap</a>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-white/45">We accept:</span>
+            <div className="flex gap-1.5">
+              {paymentBadges.map((badge) => (
+                <span key={badge.label} className={`rounded px-2 py-1 text-[10px] font-black uppercase ${badge.classes}`}>
+                  {badge.label}
+                </span>
+              ))}
+            </div>
+            <a
+              href="#home"
+              aria-label="Back to top"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-on-primary transition hover:brightness-95"
+            >
+              <ArrowUp className="h-4 w-4" />
+            </a>
+          </div>
+        </div>
+      </footer>
+    </>
   );
 }
 
@@ -10267,21 +10946,1991 @@ function DomainSearchSection({ initialDomain }: { initialDomain?: string } = {})
 }
 
 /**
+ * Shared shell for every new marketing/content page — same dark Navbar/
+ * Footer as the homepage, with a light content area in between (matching
+ * the approved /domains page direction). seoOverrides falls back to the
+ * per-path defaults in seo/pageSeoConfig.mjs when omitted.
+ */
+function PublicPage({
+  children,
+  seoOverrides,
+}: {
+  children: React.ReactNode;
+  seoOverrides?: { title?: string; description?: string };
+}) {
+  useSeo(seoOverrides);
+
+  return (
+    <div className="min-h-screen overflow-x-hidden bg-background text-white">
+      <Navbar logo={fallbackSiteContent.brand.logo} />
+      <main className="pt-20">{children}</main>
+      <Footer logo={fallbackSiteContent.brand.logo} />
+      <FloatingWhatsApp />
+    </div>
+  );
+}
+
+function PublicBreadcrumbs({ items }: { items: Array<{ label: string; href?: string }> }) {
+  return (
+    <nav aria-label="Breadcrumb" className="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-4 pt-8 text-xs font-bold text-[#596273] sm:px-6 lg:px-8">
+      <a href="/" className="hover:text-primary">Home</a>
+      {items.map((item, index) => (
+        <span key={item.label} className="flex items-center gap-2">
+          <span className="text-black/25">/</span>
+          {item.href && index < items.length - 1 ? (
+            <a href={item.href} className="hover:text-primary">{item.label}</a>
+          ) : (
+            <span className="text-[#07111f]">{item.label}</span>
+          )}
+        </span>
+      ))}
+    </nav>
+  );
+}
+
+/**
+ * Fetches a business-friendly Pexels image for a page hero/card via the
+ * cached backend endpoint — never calls Pexels directly from the browser,
+ * so the API key never reaches the client. Always renders the local
+ * placeholder immediately so there's no layout shift while the real image
+ * (or the fallback the backend itself returns) loads in.
+ */
+function usePublicImage(query: string, orientation: "landscape" | "portrait" = "landscape") {
+  const [image, setImage] = useState<{ url: string; alt_text: string } | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    laravelApi<{ data: { url: string; alt_text: string } }>(
+      `/api/v1/public/images/search?query=${encodeURIComponent(query)}&orientation=${orientation}`,
+    )
+      .then((response) => isMounted && setImage(response.data))
+      .catch(() => undefined);
+    return () => {
+      isMounted = false;
+    };
+  }, [query, orientation]);
+
+  return image;
+}
+
+function MarketingHero({
+  eyebrow,
+  title,
+  subtitle,
+  ctaLabel,
+  ctaHref,
+  secondaryLabel,
+  secondaryHref,
+  imageQuery,
+}: {
+  eyebrow: string;
+  title: React.ReactNode;
+  subtitle: string;
+  ctaLabel: string;
+  ctaHref: string;
+  secondaryLabel?: string;
+  secondaryHref?: string;
+  imageQuery: string;
+}) {
+  const image = usePublicImage(imageQuery);
+
+  return (
+    <section className="pub-section">
+      <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-2 lg:items-center lg:px-8 lg:py-20">
+        <div>
+          <span className="pub-eyebrow">{eyebrow}</span>
+          <h1 className="mt-4 text-4xl font-black leading-[1.08] text-[#07111f] sm:text-5xl">{title}</h1>
+          <p className="mt-5 max-w-xl text-base leading-8 text-[#596273] sm:text-lg">{subtitle}</p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <a href={ctaHref} className="btn-primary justify-center">
+              {ctaLabel}
+              <ArrowRight className="h-4 w-4" />
+            </a>
+            {secondaryLabel && secondaryHref && (
+              <a href={secondaryHref} className="btn-outline-light justify-center">
+                {secondaryLabel}
+              </a>
+            )}
+          </div>
+        </div>
+        <div className="relative">
+          <img
+            src={image?.url || "/images/placeholder-business.svg"}
+            alt={image?.alt_text || String(title)}
+            loading="eager"
+            width={800}
+            height={600}
+            className="aspect-[4/3] w-full rounded-2xl object-cover shadow-[0_30px_80px_rgba(16,24,16,0.14)]"
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function MarketingCtaBand({ title, subtitle, ctaLabel, ctaHref }: { title: string; subtitle: string; ctaLabel: string; ctaHref: string }) {
+  return (
+    <section className="pub-section-tint border-y border-black/5">
+      <div className="mx-auto flex max-w-5xl flex-col items-center gap-5 px-4 py-16 text-center sm:px-6 lg:px-8">
+        <h2 className="text-3xl font-black text-[#07111f] sm:text-4xl">{title}</h2>
+        <p className="max-w-2xl text-base leading-7 text-[#596273]">{subtitle}</p>
+        <a href={ctaHref} className="btn-primary justify-center">
+          {ctaLabel}
+          <ArrowRight className="h-4 w-4" />
+        </a>
+      </div>
+    </section>
+  );
+}
+
+const FaqAccordionItem: React.FC<{ question: string; answer: string }> = ({ question, answer }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="pub-card !p-0 overflow-hidden">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
+        onClick={() => setIsOpen((current) => !current)}
+        aria-expanded={isOpen}
+      >
+        <span className="text-sm font-black text-[#07111f] sm:text-base">{question}</span>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-primary transition ${isOpen ? "rotate-180" : ""}`} />
+      </button>
+      {isOpen && <p className="border-t border-black/8 px-5 py-4 text-sm leading-7 text-[#596273]">{answer}</p>}
+    </div>
+  );
+};
+
+const FaqAccordionGroup: React.FC<{ title?: string; items: Array<{ question: string; answer: string }> }> = ({ title, items }) => {
+  return (
+    <div className="grid gap-3">
+      {title && <h3 className="text-lg font-black text-[#07111f]">{title}</h3>}
+      {items.map((item) => (
+        <FaqAccordionItem key={item.question} question={item.question} answer={item.answer} />
+      ))}
+    </div>
+  );
+}
+
+/**
  * Standalone /domains page — same section as the homepage, wrapped in the
  * site's normal nav/footer for direct navigation and deep links.
  */
+const DOMAIN_WHY_NAI_TALK = [
+  { icon: ShieldCheck, title: "Real-time availability", description: "We check the registry directly, so you never pay for a domain that's already taken." },
+  { icon: RefreshCw, title: "Renewal reminders & auto-renewal", description: "Never lose a domain to a forgotten expiry date — we remind you and can renew automatically." },
+  { icon: Wallet, title: "Flexible payment", description: "Pay by card, bank transfer, or your NAI TALK wallet — whichever suits your business." },
+  { icon: Headphones, title: "Real human support", description: "Questions about your domain? Reach us on WhatsApp or a support ticket, any time." },
+];
+
+const DOMAIN_FAQ_ITEMS = [
+  { question: "Can I buy only a domain without hosting?", answer: "Yes. You can register or transfer a domain on its own and add hosting to it whenever you're ready — there's no requirement to buy both together." },
+  { question: "Can I buy hosting later after buying a domain?", answer: "Absolutely. From your dashboard, open the domain and choose \"Add Hosting\" — your existing registration stays exactly as it is." },
+  { question: "Can I transfer my domain to NAI TALK?", answer: "Yes, as long as it's unlocked and you have its EPP/authorization code from your current registrar. Most transfers complete within a few days." },
+  { question: "What happens if I don't renew my domain?", answer: "You'll get renewal reminders before the expiry date. If a domain does expire, there's usually a short grace period before it becomes available to the public again — but renewing on time is always the safest option." },
+];
+
 function DomainsLandingPage() {
   const initialDomain = new URLSearchParams(window.location.search).get("domain") || undefined;
+  useSeo();
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-background text-white">
       <Navbar logo={fallbackSiteContent.brand.logo} />
       <main className="pt-20">
         <DomainSearchSection initialDomain={initialDomain} />
+
+        <section className="pub-section-tint border-y border-black/5">
+          <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-2xl text-center">
+              <span className="pub-eyebrow">Why NAI TALK</span>
+              <h2 className="mt-4 text-3xl font-black text-[#07111f] sm:text-4xl">Why choose NAI TALK for domains</h2>
+            </div>
+            <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {DOMAIN_WHY_NAI_TALK.map((item) => (
+                <div key={item.title} className="pub-card">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+                    <item.icon className="h-5 w-5" />
+                  </div>
+                  <h3 className="mt-4 text-base font-black text-[#07111f]">{item.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-[#596273]">{item.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="pub-section">
+          <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6 lg:px-8">
+            <div className="text-center">
+              <span className="pub-eyebrow">FAQ</span>
+              <h2 className="mt-4 text-3xl font-black text-[#07111f]">Domain questions, answered</h2>
+            </div>
+            <div className="mt-8">
+              <FaqAccordionGroup items={DOMAIN_FAQ_ITEMS} />
+            </div>
+          </div>
+        </section>
+
+        <MarketingCtaBand
+          title="Ready to find your domain?"
+          subtitle="Search availability instantly and register in minutes — with hosting and email available in the same checkout if you want them."
+          ctaLabel="Search Domain"
+          ctaHref="#homepage-domain-search"
+        />
       </main>
       <Footer logo={fallbackSiteContent.brand.logo} />
       <FloatingWhatsApp />
     </div>
+  );
+}
+
+function DomainRegistrationPage() {
+  return (
+    <PublicPage>
+      <PublicBreadcrumbs items={[{ label: "Domains", href: "/domains" }, { label: "Domain Registration" }]} />
+      <MarketingHero
+        eyebrow="Domain Registration"
+        title="Domain Registration in Nigeria for Businesses"
+        subtitle="Your domain name is your business's address online. Search, register, and manage .com, .com.ng, .ng, .org and .net domains in minutes — with hosting and email available in the same checkout."
+        ctaLabel="Search Domain"
+        ctaHref="/domains"
+        secondaryLabel="View Website Care Plans"
+        secondaryHref="/website-care-plans"
+        imageQuery="domain name website"
+      />
+
+      <section className="pub-section">
+        <div className="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:px-8">
+          <div>
+            <h2 className="text-2xl font-black text-[#07111f]">What is a domain name?</h2>
+            <p className="mt-3 text-base leading-7 text-[#596273]">
+              A domain name is the address customers type to find your business online — like yourbusiness.com. It's what appears in your email address, on
+              your business card, and in every Google search result for your brand. A good domain builds trust before a visitor even sees your website.
+            </p>
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-[#07111f]">Why the right domain matters</h2>
+            <p className="mt-3 text-base leading-7 text-[#596273]">
+              A short, memorable domain that matches your business name makes it easier for customers to find you, remember you, and trust you. It also
+              protects your brand from competitors registering it first.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="pub-section-tint border-y border-black/5">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-2xl text-center">
+            <span className="pub-eyebrow">Extensions we support</span>
+            <h2 className="mt-4 text-3xl font-black text-[#07111f]">Which extension fits your business?</h2>
+          </div>
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            {[
+              [".com", "Global businesses"],
+              [".com.ng", "Nigerian businesses"],
+              [".ng", "Premium Nigerian identity"],
+              [".org", "Organizations and NGOs"],
+              [".net", "Networks and tech brands"],
+            ].map(([tld, description]) => (
+              <div key={tld} className="pub-card text-center">
+                <p className="text-2xl font-black text-primary">{tld}</p>
+                <p className="mt-2 text-sm text-[#596273]">{description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="pub-section">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-2xl text-center">
+            <span className="pub-eyebrow">How it works</span>
+            <h2 className="mt-4 text-3xl font-black text-[#07111f]">Search and register in minutes</h2>
+          </div>
+          <div className="mt-10 grid gap-4 sm:grid-cols-3">
+            {[
+              ["Search", "Type the name you want — we check real-time availability against the registry."],
+              ["Choose", "Buy the domain only, or bundle it with hosting and a Website Care Plan in one checkout."],
+              ["Manage", "Renew, auto-renew, and manage everything from your NAI TALK client dashboard."],
+            ].map(([title, description], index) => (
+              <div key={title} className="pub-card">
+                <span className="text-xs font-black uppercase text-primary">Step {index + 1}</span>
+                <h3 className="mt-2 text-lg font-black text-[#07111f]">{title}</h3>
+                <p className="mt-2 text-sm leading-6 text-[#596273]">{description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="pub-section-tint border-y border-black/5">
+        <div className="mx-auto max-w-5xl px-4 py-14 text-center sm:px-6 lg:px-8">
+          <h2 className="text-2xl font-black text-[#07111f]">Explore related services</h2>
+          <div className="mt-6 flex flex-wrap justify-center gap-3 text-sm font-bold">
+            <a href="/web-hosting" className="btn-outline-light">Web Hosting</a>
+            <a href="/website-care-plans" className="btn-outline-light">Website Care Plans</a>
+            <a href="/domain-transfer" className="btn-outline-light">Domain Transfer</a>
+            <a href="/business-email-hosting" className="btn-outline-light">Business Email Hosting</a>
+          </div>
+        </div>
+      </section>
+
+      <MarketingCtaBand
+        title="Find your domain today"
+        subtitle="Search availability instantly — if your first choice is taken, we'll suggest similar available alternatives."
+        ctaLabel="Search Domain"
+        ctaHref="/domains"
+      />
+    </PublicPage>
+  );
+}
+
+function PublicDomainTransferPage() {
+  return (
+    <PublicPage>
+      <PublicBreadcrumbs items={[{ label: "Domains", href: "/domains" }, { label: "Domain Transfer" }]} />
+      <MarketingHero
+        eyebrow="Domain Transfer"
+        title="Transfer Your Domain to NAI TALK"
+        subtitle="Move your domain to NAI TALK for easier management, renewal reminders, and support — with no downtime while the transfer completes."
+        ctaLabel="Start Domain Transfer"
+        ctaHref="/client/domains/transfer"
+        secondaryLabel="Check Domain Pricing"
+        secondaryHref="/domain-pricing"
+        imageQuery="data transfer digital connection"
+      />
+
+      <section className="pub-section">
+        <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
+          <h2 className="text-2xl font-black text-[#07111f]">What domain transfer means</h2>
+          <p className="mt-3 text-base leading-7 text-[#596273]">
+            Transferring a domain moves its management from your current registrar to NAI TALK, without changing who owns it or affecting your website and
+            email while the transfer is in progress. Your domain keeps working normally throughout.
+          </p>
+
+          <div className="mt-10 grid gap-4 sm:grid-cols-2">
+            <div className="pub-card">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+                <KeyRound className="h-5 w-5" />
+              </div>
+              <h3 className="mt-4 text-base font-black text-[#07111f]">EPP / Authorization code</h3>
+              <p className="mt-2 text-sm leading-6 text-[#596273]">
+                Your current registrar can provide this code — it proves you're authorized to move the domain. You'll enter it when you start the transfer.
+              </p>
+            </div>
+            <div className="pub-card">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <h3 className="mt-4 text-base font-black text-[#07111f]">Transfer eligibility</h3>
+              <p className="mt-2 text-sm leading-6 text-[#596273]">
+                Your domain must be unlocked at its current registrar and past any recent-registration lock period before it can be transferred.
+              </p>
+            </div>
+          </div>
+
+          <h2 className="mt-14 text-2xl font-black text-[#07111f]">What to prepare</h2>
+          <ul className="mt-4 grid gap-3 text-sm leading-7 text-[#596273]">
+            <li className="flex gap-3"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" /> Unlock the domain with your current registrar.</li>
+            <li className="flex gap-3"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" /> Get your EPP/authorization code from them.</li>
+            <li className="flex gap-3"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" /> Make sure the domain isn't within 60 days of a previous transfer.</li>
+          </ul>
+
+          <h2 className="mt-14 text-2xl font-black text-[#07111f]">The transfer process</h2>
+          <p className="mt-3 text-base leading-7 text-[#596273]">
+            Once you submit your domain and EPP code, we check eligibility immediately. Most transfers complete within a few days on the registry side, and
+            you'll get a notification at each stage. Your new registration period is extended once the transfer completes, so you don't lose any time.
+          </p>
+        </div>
+      </section>
+
+      <MarketingCtaBand
+        title="Ready to move your domain?"
+        subtitle="Start your transfer today — our team is on hand if you have questions about your EPP code or eligibility."
+        ctaLabel="Start Domain Transfer"
+        ctaHref="/client/domains/transfer"
+      />
+    </PublicPage>
+  );
+}
+
+function DomainRenewalPage() {
+  return (
+    <PublicPage>
+      <PublicBreadcrumbs items={[{ label: "Domains", href: "/domains" }, { label: "Domain Renewal" }]} />
+      <MarketingHero
+        eyebrow="Domain Renewal"
+        title="Renew Your Domain Before It Expires"
+        subtitle="An expired domain can take your website and email offline. Renewal reminders and auto-renewal keep your domain safely in your hands."
+        ctaLabel="Renew Domain"
+        ctaHref="/client/domains"
+        secondaryLabel="Search a New Domain"
+        secondaryHref="/domains"
+        imageQuery="online business calendar reminder"
+      />
+
+      <section className="pub-section">
+        <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
+          <div className="grid gap-6 sm:grid-cols-2">
+            <div className="pub-card">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+                <Bell className="h-5 w-5" />
+              </div>
+              <h3 className="mt-4 text-base font-black text-[#07111f]">Renewal reminders</h3>
+              <p className="mt-2 text-sm leading-6 text-[#596273]">We email you well before your domain's expiry date, so it's never a surprise.</p>
+            </div>
+            <div className="pub-card">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+                <RefreshCw className="h-5 w-5" />
+              </div>
+              <h3 className="mt-4 text-base font-black text-[#07111f]">Auto-renewal</h3>
+              <p className="mt-2 text-sm leading-6 text-[#596273]">On by default — we renew automatically using your wallet or a saved card, so you never have to remember.</p>
+            </div>
+            <div className="pub-card">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+                <Wallet className="h-5 w-5" />
+              </div>
+              <h3 className="mt-4 text-base font-black text-[#07111f]">Flexible payment</h3>
+              <p className="mt-2 text-sm leading-6 text-[#596273]">Renew with your NAI TALK wallet, a saved card, bank transfer, or a fresh card payment.</p>
+            </div>
+            <div className="pub-card">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <h3 className="mt-4 text-base font-black text-[#07111f]">Grace period</h3>
+              <p className="mt-2 text-sm leading-6 text-[#596273]">Most extensions allow a short grace period after expiry — but renewing on time is always the safest option.</p>
+            </div>
+          </div>
+
+          <h2 className="mt-14 text-2xl font-black text-[#07111f]">What happens if a domain expires?</h2>
+          <p className="mt-3 text-base leading-7 text-[#596273]">
+            Your website and email tied to that domain may stop working. After a grace period, an expired domain can become available for anyone else to
+            register — meaning you could lose it permanently. Turning on auto-renewal is the simplest way to avoid this entirely.
+          </p>
+        </div>
+      </section>
+
+      <MarketingCtaBand
+        title="Don't risk losing your domain"
+        subtitle="Turn on auto-renewal from your dashboard, or renew manually any time before your expiry date."
+        ctaLabel="Renew Domain"
+        ctaHref="/client/domains"
+      />
+    </PublicPage>
+  );
+}
+
+type PublicPricingRow = {
+  tld: string;
+  registration_price: string;
+  renewal_price: string;
+  transfer_price: string;
+  best_for: string;
+};
+
+function DomainPricingPage() {
+  const [rows, setRows] = useState<PublicPricingRow[] | null>(null);
+  const [isAvailable, setIsAvailable] = useState(true);
+
+  useEffect(() => {
+    laravelApi<{ data: PublicPricingRow[]; available: boolean }>("/api/v1/public/domains/pricing-table")
+      .then((response) => {
+        setRows(response.data);
+        setIsAvailable(response.available);
+      })
+      .catch(() => {
+        setRows([]);
+        setIsAvailable(false);
+      });
+  }, []);
+
+  return (
+    <PublicPage>
+      <PublicBreadcrumbs items={[{ label: "Domains", href: "/domains" }, { label: "Domain Pricing" }]} />
+      <section className="pub-section">
+        <div className="mx-auto max-w-4xl px-4 pt-10 text-center sm:px-6 lg:px-8">
+          <span className="pub-eyebrow">Domain Pricing</span>
+          <h1 className="mt-4 text-4xl font-black text-[#07111f] sm:text-5xl">Domain Pricing</h1>
+          <p className="mt-4 text-base leading-7 text-[#596273]">Transparent registration, renewal and transfer pricing — no hidden fees added at checkout.</p>
+        </div>
+
+        <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
+          {rows === null ? (
+            <div className="pub-card text-center text-sm text-[#596273]">Loading pricing...</div>
+          ) : !isAvailable || rows.length === 0 ? (
+            <div className="pub-card text-center text-sm font-bold text-[#596273]">Pricing temporarily unavailable. Please contact support.</div>
+          ) : (
+            <div className="overflow-x-auto rounded-2xl border border-black/8 shadow-[0_15px_45px_rgba(16,24,16,0.06)]">
+              <table className="w-full min-w-[640px] border-collapse bg-white text-left text-sm">
+                <thead>
+                  <tr className="border-b border-black/8 text-xs font-black uppercase text-[#596273]">
+                    <th className="px-5 py-4">Extension</th>
+                    <th className="px-5 py-4">Registration</th>
+                    <th className="px-5 py-4">Renewal</th>
+                    <th className="px-5 py-4">Transfer</th>
+                    <th className="px-5 py-4">Best For</th>
+                    <th className="px-5 py-4"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.tld} className="border-b border-black/5 last:border-0">
+                      <td className="px-5 py-4 text-base font-black text-[#07111f]">{row.tld}</td>
+                      <td className="px-5 py-4 text-[#0b1210]">{row.registration_price}</td>
+                      <td className="px-5 py-4 text-[#0b1210]">{row.renewal_price}</td>
+                      <td className="px-5 py-4 text-[#0b1210]">{row.transfer_price}</td>
+                      <td className="px-5 py-4 text-[#596273]">{row.best_for}</td>
+                      <td className="px-5 py-4">
+                        <a href={`/domains?domain=example${row.tld}`} className="btn-outline-light !min-h-9 !px-4 !text-[10px]">Search</a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <MarketingCtaBand
+        title="See it for your own business name"
+        subtitle="Search your exact domain to see live availability and the price you'll actually pay."
+        ctaLabel="Search Domain"
+        ctaHref="/domains"
+      />
+    </PublicPage>
+  );
+}
+
+function WebHostingPage() {
+  return (
+    <PublicPage>
+      <PublicBreadcrumbs items={[{ label: "Web Hosting" }]} />
+      <MarketingHero
+        eyebrow="Web Hosting"
+        title="Reliable Web Hosting in Nigeria"
+        subtitle="Fast, secure, and supported hosting for small and medium businesses — with SSL, professional email and backups included, and no technical stress on you."
+        ctaLabel="View Website Care Plans"
+        ctaHref="/website-care-plans"
+        secondaryLabel="Start Your Website"
+        secondaryHref="/website-design"
+        imageQuery="cloud hosting data center"
+      />
+
+      <section className="pub-section">
+        <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
+          <h2 className="text-2xl font-black text-[#07111f]">What is hosting?</h2>
+          <p className="mt-3 text-base leading-7 text-[#596273]">
+            If your domain name is your business address, hosting is the building where your website actually lives. It stores your website's files and
+            makes them available to anyone who visits your domain, at any hour — without you ever needing to touch a server.
+          </p>
+        </div>
+      </section>
+
+      <section className="pub-section-tint border-y border-black/5">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-2xl text-center">
+            <span className="pub-eyebrow">Why NAI TALK hosting</span>
+            <h2 className="mt-4 text-3xl font-black text-[#07111f]">Everything your website needs, in one place</h2>
+          </div>
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              [ShieldCheck, "Website security", "SSL and security protection included, so your site and your customers stay safe."],
+              [Mail, "Professional email", "A business email address that matches your domain, included on every plan."],
+              [RefreshCw, "Automatic backups", "Regular backups mean your website can always be restored if something goes wrong."],
+              [Headphones, "Real support", "Reach a real person by WhatsApp or support ticket whenever you need help."],
+            ].map(([Icon, title, description]) => (
+              <div key={title as string} className="pub-card">
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+                  {React.createElement(Icon as LucideIcon, { className: "h-5 w-5" })}
+                </div>
+                <h3 className="mt-4 text-base font-black text-[#07111f]">{title as string}</h3>
+                <p className="mt-2 text-sm leading-6 text-[#596273]">{description as string}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="pub-section">
+        <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <span className="pub-eyebrow">FAQ</span>
+            <h2 className="mt-4 text-3xl font-black text-[#07111f]">Common hosting questions</h2>
+          </div>
+          <div className="mt-8">
+            <FaqAccordionGroup
+              items={[
+                { question: "Do I need technical knowledge to use your hosting?", answer: "No. Our hosting and Website Care Plans are built so you never have to touch a server or configuration file — we handle the technical side for you." },
+                { question: "What happens if my hosting expires?", answer: "Your website may go offline. We send renewal reminders in advance, and auto-renewal (on by default) helps you avoid this entirely." },
+                { question: "Can I move my existing website to NAI TALK?", answer: "Yes, we can help migrate an existing website — get in touch and our team will guide you through it." },
+              ]}
+            />
+          </div>
+        </div>
+      </section>
+
+      <MarketingCtaBand
+        title="See our Website Care Plans"
+        subtitle="Hosting, security, backups, email and support — bundled into one simple monthly or yearly plan."
+        ctaLabel="View Plans"
+        ctaHref="/website-care-plans"
+      />
+    </PublicPage>
+  );
+}
+
+type PublicHostingPlan = {
+  name: string;
+  slug: string;
+  short_description: string;
+  monthly_price: string;
+  annual_price: string;
+  is_popular: boolean;
+  is_recommended: boolean;
+  display_badge: string | null;
+  cta_label: string;
+  public_features: string[];
+};
+
+function WebsiteCarePlansPage() {
+  const [plans, setPlans] = useState<PublicHostingPlan[] | null>(null);
+
+  useEffect(() => {
+    laravelApi<PublicHostingPlan[]>("/api/v1/public/hosting-plans")
+      .then(setPlans)
+      .catch(() => setPlans([]));
+  }, []);
+
+  return (
+    <PublicPage>
+      <PublicBreadcrumbs items={[{ label: "Website Care Plans" }]} />
+      <section className="pub-section">
+        <div className="mx-auto max-w-3xl px-4 pt-14 text-center sm:px-6 lg:px-8">
+          <span className="pub-eyebrow">Website Care Plans</span>
+          <h1 className="mt-4 text-4xl font-black text-[#07111f] sm:text-5xl">Website Care Plans for Growing Businesses</h1>
+          <p className="mt-4 text-base leading-7 text-[#596273] sm:text-lg">
+            No technical stress. We keep your website online, secure, backed up, and supported so you can focus on running your business.
+          </p>
+        </div>
+
+        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+          {plans === null ? (
+            <p className="text-center text-sm text-[#596273]">Loading plans...</p>
+          ) : plans.length === 0 ? (
+            <p className="text-center text-sm font-bold text-[#596273]">Plans are temporarily unavailable. Please contact support.</p>
+          ) : (
+            <div className="grid gap-6 lg:grid-cols-3">
+              {plans.map((plan) => (
+                <div
+                  key={plan.slug}
+                  className={`pub-card flex flex-col ${plan.is_popular ? "border-2 border-primary shadow-[0_25px_60px_rgba(155,234,22,0.18)] lg:-translate-y-3" : ""}`}
+                >
+                  {plan.is_popular && (
+                    <span className="mb-3 inline-flex w-fit items-center rounded-full bg-primary px-3 py-1 text-[10px] font-black uppercase text-on-primary">
+                      {plan.display_badge || "Most Popular"}
+                    </span>
+                  )}
+                  <h2 className="text-xl font-black text-[#07111f]">{plan.name}</h2>
+                  <p className="mt-1 text-sm text-[#596273]">{plan.short_description}</p>
+                  <div className="mt-4">
+                    <p className="text-3xl font-black text-[#07111f]">{plan.monthly_price}<span className="text-sm font-bold text-[#596273]">/month</span></p>
+                    <p className="text-sm text-[#596273]">{plan.annual_price}/year</p>
+                  </div>
+                  <ul className="mt-6 grid flex-1 gap-2.5 text-sm text-[#334138]">
+                    {(plan.public_features || []).map((feature) => (
+                      <li key={feature} className="flex gap-2">
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+                  <a
+                    href={`/client/order/hosting?plan=${plan.slug}`}
+                    className={`mt-6 justify-center ${plan.is_popular ? "btn-primary" : "btn-outline-light"}`}
+                  >
+                    {plan.is_popular ? "Choose Business Care" : plan.cta_label || "Get Started"}
+                    <ArrowRight className="h-4 w-4" />
+                  </a>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <MarketingCtaBand
+        title="Not sure which plan fits?"
+        subtitle="Chat with our team on WhatsApp and we'll help you pick the right Website Care Plan for your business."
+        ctaLabel="Contact Support"
+        ctaHref="/contact"
+      />
+    </PublicPage>
+  );
+}
+
+function WebsiteDesignPage() {
+  return (
+    <PublicPage>
+      <PublicBreadcrumbs items={[{ label: "Website Design" }]} />
+      <MarketingHero
+        eyebrow="Website Design"
+        title="Website Design for Nigerian Businesses"
+        subtitle="We build professional websites that help your business look credible, attract customers, and grow online."
+        ctaLabel="Start Your Website"
+        ctaHref="/contact"
+        secondaryLabel="View Portfolio"
+        secondaryHref="/portfolio"
+        imageQuery="web design laptop workspace"
+      />
+
+      <section className="pub-section-tint border-y border-black/5">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-2xl text-center">
+            <span className="pub-eyebrow">What we build</span>
+            <h2 className="mt-4 text-3xl font-black text-[#07111f]">Websites for every kind of business</h2>
+          </div>
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              ["Business websites", "A professional online presence that builds trust with customers."],
+              ["Landing pages", "A focused page built to convert visitors for a specific offer or campaign."],
+              ["E-commerce websites", "Sell products online with a store built for Nigerian customers."],
+              ["Schools, churches, clinics & NGOs", "Websites tailored to the needs of organisations, not just businesses."],
+            ].map(([title, description]) => (
+              <div key={title} className="pub-card">
+                <h3 className="text-base font-black text-[#07111f]">{title}</h3>
+                <p className="mt-2 text-sm leading-6 text-[#596273]">{description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="pub-section">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-2xl text-center">
+            <span className="pub-eyebrow">Our process</span>
+            <h2 className="mt-4 text-3xl font-black text-[#07111f]">From idea to launch</h2>
+          </div>
+          <div className="mt-10 grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
+            {["Consult", "Design", "Build", "Launch", "Support"].map((step, index) => (
+              <div key={step} className="pub-card text-center">
+                <span className="text-xs font-black uppercase text-primary">Step {index + 1}</span>
+                <h3 className="mt-2 text-base font-black text-[#07111f]">{step}</h3>
+              </div>
+            ))}
+          </div>
+          <p className="mx-auto mt-8 max-w-2xl text-center text-sm leading-7 text-[#596273]">
+            Every website comes with the option to bundle your domain, hosting, and a Website Care Plan in one simple checkout — so there's nothing left for
+            you to configure on your own.
+          </p>
+        </div>
+      </section>
+
+      <section className="pub-section-tint border-y border-black/5">
+        <div className="mx-auto max-w-5xl px-4 py-14 text-center sm:px-6 lg:px-8">
+          <span className="pub-eyebrow">Our work</span>
+          <h2 className="mt-4 text-2xl font-black text-[#07111f]">See examples of what we've built</h2>
+          <a href="/portfolio" className="btn-outline-light mt-6 justify-center">
+            View Portfolio
+            <ArrowRight className="h-4 w-4" />
+          </a>
+        </div>
+      </section>
+
+      <MarketingCtaBand
+        title="Ready to start your website?"
+        subtitle="Tell us about your business and we'll help you plan a website that fits your budget and goals."
+        ctaLabel="Start Your Website"
+        ctaHref="/contact"
+      />
+    </PublicPage>
+  );
+}
+
+function BusinessEmailHostingPage() {
+  return (
+    <PublicPage>
+      <PublicBreadcrumbs items={[{ label: "Business Email Hosting" }]} />
+      <MarketingHero
+        eyebrow="Business Email"
+        title="Professional Business Email Hosting"
+        subtitle="info@yourbusiness.com builds trust that a free Gmail or Yahoo address never can. Included with every NAI TALK Website Care Plan."
+        ctaLabel="Get Business Email"
+        ctaHref="/website-care-plans"
+        secondaryLabel="Register a Domain First"
+        secondaryHref="/domain-registration"
+        imageQuery="professional email office laptop"
+      />
+
+      <section className="pub-section">
+        <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
+          <h2 className="text-2xl font-black text-[#07111f]">Why professional email matters</h2>
+          <p className="mt-3 text-base leading-7 text-[#596273]">
+            First impressions matter, and for many customers, your email address is one of the first things they notice. "info@yourbusiness.com" reads as
+            established and trustworthy — a free address reads as a side project. It also gives you control: create addresses for different roles
+            (info@, support@, accounts@) without sharing a single personal inbox.
+          </p>
+
+          <div className="mt-10 grid gap-4 sm:grid-cols-2">
+            <div className="pub-card">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+                <BadgeCheck className="h-5 w-5" />
+              </div>
+              <h3 className="mt-4 text-base font-black text-[#07111f]">Trust and professionalism</h3>
+              <p className="mt-2 text-sm leading-6 text-[#596273]">A matching email address makes your business look established, even if you're just getting started.</p>
+            </div>
+            <div className="pub-card">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+                <Settings className="h-5 w-5" />
+              </div>
+              <h3 className="mt-4 text-base font-black text-[#07111f]">We help you set it up</h3>
+              <p className="mt-2 text-sm leading-6 text-[#596273]">No technical steps for you to figure out — our team gets your business email working with your domain.</p>
+            </div>
+            <div className="pub-card">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+                <PackageCheck className="h-5 w-5" />
+              </div>
+              <h3 className="mt-4 text-base font-black text-[#07111f]">Included in Website Care</h3>
+              <p className="mt-2 text-sm leading-6 text-[#596273]">Every plan includes at least one business email account, with higher plans including more.</p>
+            </div>
+            <div className="pub-card">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+                <Globe2 className="h-5 w-5" />
+              </div>
+              <h3 className="mt-4 text-base font-black text-[#07111f]">Works with your domain</h3>
+              <p className="mt-2 text-sm leading-6 text-[#596273]">Business email is tied to your domain name — register or transfer yours to get started.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <MarketingCtaBand
+        title="Get a professional email address"
+        subtitle="Business email comes included in every Website Care Plan — no separate setup needed."
+        ctaLabel="View Website Care Plans"
+        ctaHref="/website-care-plans"
+      />
+    </PublicPage>
+  );
+}
+
+function SeoServicesPage() {
+  return (
+    <PublicPage>
+      <PublicBreadcrumbs items={[{ label: "SEO Services" }]} />
+      <MarketingHero
+        eyebrow="SEO Services"
+        title="SEO Services for Nigerian Businesses"
+        subtitle="Improve your Google visibility with on-page SEO, content SEO, local SEO, and a well-structured, fast website."
+        ctaLabel="Improve My Website SEO"
+        ctaHref="/contact"
+        secondaryLabel="Read Our Blog"
+        secondaryHref="/blog"
+        imageQuery="analytics search engine marketing dashboard"
+      />
+
+      <section className="pub-section-tint border-y border-black/5">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-2xl text-center">
+            <span className="pub-eyebrow">What's included</span>
+            <h2 className="mt-4 text-3xl font-black text-[#07111f]">How we improve your visibility</h2>
+          </div>
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              ["On-page SEO", "Clear titles, headings, and page structure that help Google understand what your business offers."],
+              ["Content & blog SEO", "Helpful articles that answer real customer questions and bring in organic search traffic."],
+              ["Local SEO", "Show up when Nigerian customers search for businesses like yours in their area."],
+              ["Technical SEO basics", "A fast, well-structured website — the foundation every good SEO strategy is built on."],
+            ].map(([title, description]) => (
+              <div key={title} className="pub-card">
+                <h3 className="text-base font-black text-[#07111f]">{title}</h3>
+                <p className="mt-2 text-sm leading-6 text-[#596273]">{description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="pub-section">
+        <div className="mx-auto max-w-4xl px-4 py-16 text-center sm:px-6 lg:px-8">
+          <h2 className="text-2xl font-black text-[#07111f]">SEO works better on a solid foundation</h2>
+          <p className="mt-3 text-base leading-7 text-[#596273]">
+            A fast, well-structured website with clear pages for every service you offer gives search engines far more to work with than a single crowded
+            page. That's exactly how NAI TALK builds every website — with SEO in mind from the start, not bolted on afterward.
+          </p>
+        </div>
+      </section>
+
+      <MarketingCtaBand
+        title="Ready to improve your search visibility?"
+        subtitle="Let's talk about your business goals and how SEO fits into your website strategy."
+        ctaLabel="Improve My Website SEO"
+        ctaHref="/contact"
+      />
+    </PublicPage>
+  );
+}
+
+function NewsletterSignup() {
+  const toast = useToast();
+  const [email, setEmail] = useState("");
+
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!email.trim()) return;
+    // There's no email marketing platform wired up yet — this simply
+    // acknowledges interest rather than pretending to subscribe anywhere.
+    toast.push({ type: "success", message: "Thanks! We'll be in touch." });
+    setEmail("");
+  };
+
+  return (
+    <div className="pub-card !bg-[#0b1210] !border-white/10">
+      <h3 className="text-lg font-black text-white">Get business tips in your inbox</h3>
+      <p className="mt-2 text-sm leading-6 text-white/60">Practical guides on domains, hosting, and growing your business online.</p>
+      <form className="mt-4 flex flex-col gap-2 sm:flex-row" onSubmit={submit}>
+        <input
+          type="email"
+          required
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder="you@yourbusiness.com"
+          className="w-full rounded-lg border border-white/15 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-primary/50"
+        />
+        <button type="submit" className="btn-primary shrink-0 justify-center">Subscribe</button>
+      </form>
+    </div>
+  );
+}
+
+type PublicBlogSummary = {
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  featured_image_url: string | null;
+  featured_image_alt: string | null;
+  author_name: string;
+  published_at: string | null;
+  reading_time_minutes: number;
+};
+
+const BlogCard: React.FC<{ post: PublicBlogSummary }> = ({ post }) => {
+  return (
+    <a href={`/blog/${post.slug}`} className="pub-card group flex flex-col overflow-hidden !p-0">
+      <img
+        src={post.featured_image_url || "/images/placeholder-business.svg"}
+        alt={post.featured_image_alt || post.title}
+        loading="lazy"
+        className="aspect-[16/10] w-full object-cover"
+      />
+      <div className="flex flex-1 flex-col p-5">
+        <h3 className="text-lg font-black text-[#07111f] transition group-hover:text-primary">{post.title}</h3>
+        <p className="mt-2 flex-1 text-sm leading-6 text-[#596273]">{post.excerpt}</p>
+        <div className="mt-4 flex items-center justify-between border-t border-black/8 pt-4 text-xs font-bold text-[#596273]">
+          <span>{post.author_name} · {post.published_at ? formatDate(post.published_at) : ""}</span>
+          <span className="inline-flex items-center gap-1 text-primary">
+            Read more
+            <ArrowRight className="h-3.5 w-3.5" />
+          </span>
+        </div>
+      </div>
+    </a>
+  );
+};
+
+function BlogIndexPage() {
+  const [posts, setPosts] = useState<PublicBlogSummary[] | null>(null);
+  const [popular, setPopular] = useState<Array<{ title: string; slug: string }>>([]);
+  const [search, setSearch] = useState("");
+  const [meta, setMeta] = useState<{ current_page: number; last_page: number }>({ current_page: 1, last_page: 1 });
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setPosts(null);
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (page > 1) params.set("page", String(page));
+
+    laravelApi<{ data: PublicBlogSummary[]; meta: typeof meta; popular: Array<{ title: string; slug: string }> }>(`/api/v1/public/blog?${params.toString()}`)
+      .then((response) => {
+        setPosts(response.data);
+        setMeta(response.meta);
+        setPopular(response.popular);
+      })
+      .catch(() => setPosts([]));
+  }, [search, page]);
+
+  return (
+    <PublicPage>
+      <section className="pub-section">
+        <div className="mx-auto max-w-3xl px-4 pt-14 text-center sm:px-6 lg:px-8">
+          <span className="pub-eyebrow">Blog</span>
+          <h1 className="mt-4 text-4xl font-black text-[#07111f] sm:text-5xl">Guides for growing your business online</h1>
+          <p className="mt-4 text-base leading-7 text-[#596273]">Practical, jargon-free articles on domains, hosting, website design, and email — written for Nigerian business owners.</p>
+          <div className="mx-auto mt-8 flex max-w-md items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 shadow-[0_10px_30px_rgba(16,24,16,0.06)]">
+            <Search className="h-4 w-4 shrink-0 text-[#596273]" />
+            <input
+              value={search}
+              onChange={(event) => { setSearch(event.target.value); setPage(1); }}
+              placeholder="Search articles..."
+              className="w-full bg-transparent text-sm text-[#07111f] outline-none placeholder:text-[#9aa39a]"
+            />
+          </div>
+        </div>
+
+        <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+          <div className="grid gap-10 lg:grid-cols-[1fr_320px]">
+            <div>
+              {posts === null ? (
+                <p className="text-sm text-[#596273]">Loading articles...</p>
+              ) : posts.length === 0 ? (
+                <p className="pub-card text-sm text-[#596273]">No articles found{search ? ` for "${search}"` : ""}.</p>
+              ) : (
+                <>
+                  <div className="grid gap-6 sm:grid-cols-2">
+                    {posts.map((post) => (
+                      <BlogCard key={post.slug} post={post} />
+                    ))}
+                  </div>
+                  {meta.last_page > 1 && (
+                    <div className="mt-8 flex items-center justify-center gap-3">
+                      <button type="button" className="btn-outline-light !min-h-10 !px-4 !text-[11px]" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>Previous</button>
+                      <span className="text-xs font-bold text-[#596273]">Page {meta.current_page} of {meta.last_page}</span>
+                      <button type="button" className="btn-outline-light !min-h-10 !px-4 !text-[11px]" disabled={page >= meta.last_page} onClick={() => setPage((current) => current + 1)}>Next</button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <aside className="grid gap-6">
+              <div className="pub-card">
+                <h3 className="text-base font-black text-[#07111f]">Popular Posts</h3>
+                <ul className="mt-4 grid gap-3 text-sm">
+                  {popular.map((item) => (
+                    <li key={item.slug}>
+                      <a href={`/blog/${item.slug}`} className="font-bold text-[#07111f] transition hover:text-primary">{item.title}</a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <NewsletterSignup />
+            </aside>
+          </div>
+        </div>
+      </section>
+    </PublicPage>
+  );
+}
+
+function BlogDetailPage({ slug }: { slug: string }) {
+  const toast = useToast();
+  const [post, setPost] = useState<(PublicBlogSummary & { content: string; seo_title: string; seo_description: string; og_image: string | null }) | null>(null);
+  const [related, setRelated] = useState<PublicBlogSummary[]>([]);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    laravelApi<{ data: typeof post; related: PublicBlogSummary[] }>(`/api/v1/public/blog/${slug}`)
+      .then((response) => {
+        setPost(response.data);
+        setRelated(response.related);
+      })
+      .catch(() => {
+        setNotFound(true);
+        toast.push({ type: "error", message: "That article could not be found." });
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
+
+  useSeo(post ? { title: post.seo_title, description: post.seo_description, ogImage: post.og_image || undefined } : undefined);
+
+  if (notFound) {
+    return (
+      <PublicPage>
+        <div className="pub-section flex min-h-[40vh] items-center justify-center">
+          <p className="text-sm text-[#596273]">Article not found. <a href="/blog" className="font-bold text-primary">Back to Blog</a></p>
+        </div>
+      </PublicPage>
+    );
+  }
+
+  if (!post) {
+    return (
+      <PublicPage>
+        <div className="pub-section flex min-h-[40vh] items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-[#596273]" />
+        </div>
+      </PublicPage>
+    );
+  }
+
+  return (
+    <PublicPage>
+      <PublicBreadcrumbs items={[{ label: "Blog", href: "/blog" }, { label: post.title }]} />
+      <article className="pub-section">
+        <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
+          <h1 className="text-3xl font-black leading-tight text-[#07111f] sm:text-4xl">{post.title}</h1>
+          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-bold text-[#596273]">
+            <span>{post.author_name}</span>
+            <span>{post.published_at ? formatDate(post.published_at) : ""}</span>
+            <span>{post.reading_time_minutes} min read</span>
+          </div>
+
+          <img
+            src={post.featured_image_url || "/images/placeholder-business.svg"}
+            alt={post.featured_image_alt || post.title}
+            className="mt-6 aspect-[16/9] w-full rounded-2xl object-cover"
+          />
+
+          <div className="prose-content mt-8 grid gap-5 text-base leading-8 text-[#334138]">
+            {post.content.split(/\n{2,}/).map((block, index) => {
+              const trimmed = block.trim();
+              const h3 = trimmed.match(/^###\s+(.+)$/);
+              if (h3) {
+                return (
+                  <h3 key={index} className="mt-2 text-lg font-black text-[#07111f] sm:text-xl">
+                    {h3[1]}
+                  </h3>
+                );
+              }
+              const h2 = trimmed.match(/^##\s+(.+)$/);
+              if (h2) {
+                return (
+                  <h2 key={index} className="mt-4 text-2xl font-black text-[#07111f] sm:text-3xl">
+                    {h2[1]}
+                  </h2>
+                );
+              }
+              return <p key={index}>{block}</p>;
+            })}
+          </div>
+
+          <div className="mt-10 grid gap-4 rounded-2xl border border-primary/25 bg-primary/5 p-6 sm:grid-cols-2">
+            <div>
+              <h3 className="text-base font-black text-[#07111f]">Ready to get started?</h3>
+              <p className="mt-1 text-sm text-[#596273]">Search a domain or explore our Website Care Plans.</p>
+            </div>
+            <div className="flex flex-wrap gap-3 sm:justify-end">
+              <a href="/domains" className="btn-outline-light !min-h-10 !text-[11px]">Search Domain</a>
+              <a href="/website-care-plans" className="btn-primary !min-h-10 !text-[11px]">View Website Care Plans</a>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      {related.length > 0 && (
+        <section className="pub-section-tint border-y border-black/5">
+          <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+            <h2 className="text-2xl font-black text-[#07111f]">Related articles</h2>
+            <div className="mt-6 grid gap-6 sm:grid-cols-3">
+              {related.map((item) => (
+                <BlogCard key={item.slug} post={item} />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      <section className="pub-section">
+        <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6 lg:px-8">
+          <NewsletterSignup />
+        </div>
+      </section>
+    </PublicPage>
+  );
+}
+
+function BlogRouter() {
+  const slug = window.location.pathname.replace(/^\/blog\/?/, "").replace(/\/$/, "");
+
+  return slug ? <BlogDetailPage slug={slug} /> : <BlogIndexPage />;
+}
+
+const KB_GROUP_ICONS: Record<string, LucideIcon> = {
+  LayoutDashboard,
+  PackageCheck,
+  FileText,
+  Globe2,
+  Wallet,
+  RefreshCw,
+  ShieldCheck,
+  MessageCircle,
+  Server,
+};
+
+const KB_POPULAR_SLUGS = [
+  "how-to-fund-your-wallet",
+  "how-to-pay-an-invoice",
+  "how-to-search-and-register-a-domain",
+  "how-to-raise-a-support-ticket",
+  "how-auto-renewal-works",
+  "how-to-order-hosting-and-manage-services",
+  "how-to-add-hosting-to-a-domain",
+  "how-to-update-your-profile",
+];
+
+type KbGroup = {
+  name: string;
+  slug: string;
+  icon: string | null;
+  articles: Array<{ title: string; slug: string; summary: string | null }>;
+};
+
+function KnowledgeBaseIndexPage() {
+  const [groups, setGroups] = useState<KbGroup[] | null>(null);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    laravelApi<{ groups: KbGroup[] }>("/api/v1/public/knowledge-base")
+      .then((response) => setGroups(response.groups))
+      .catch(() => setGroups([]));
+  }, []);
+
+  const filteredGroups = (groups || [])
+    .map((group) => ({
+      ...group,
+      articles: search
+        ? group.articles.filter((article) => article.title.toLowerCase().includes(search.toLowerCase()))
+        : group.articles,
+    }))
+    .filter((group) => group.articles.length > 0);
+
+  const popularArticles = (groups || [])
+    .flatMap((group) => group.articles)
+    .filter((article) => KB_POPULAR_SLUGS.includes(article.slug))
+    .sort((a, b) => KB_POPULAR_SLUGS.indexOf(a.slug) - KB_POPULAR_SLUGS.indexOf(b.slug));
+
+  return (
+    <PublicPage>
+      <section className="bg-[#0b0f0d] text-white">
+        <div className="mx-auto max-w-4xl px-4 py-16 text-center sm:px-6 lg:px-8">
+          <span className="pub-eyebrow !bg-primary/15 !text-primary">Client Area</span>
+          <h1 className="mt-4 text-4xl font-black sm:text-5xl">Knowledge Base for the Client Area</h1>
+          <p className="mt-4 text-base leading-7 text-white/62 sm:text-lg">
+            Find step-by-step guides, tutorials, and articles to help you manage your account, services, domains, billing, and support with ease.
+          </p>
+          <div className="mx-auto mt-8 flex max-w-md items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2">
+            <Search className="h-4 w-4 shrink-0 text-white/50" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search the knowledge base..."
+              className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35"
+            />
+          </div>
+        </div>
+      </section>
+
+      <section className="pub-section-tint border-b border-black/5">
+        <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+          <h2 className="text-center text-2xl font-black text-[#07111f]">Getting Started</h2>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { label: "Open Client Area", href: "/client/dashboard", icon: LayoutDashboard },
+              { label: "Contact Support", href: "/contact", icon: Headphones },
+              { label: "Start a Domain Search", href: "/domains", icon: Search },
+              { label: "View Website Care Plans", href: "/website-care-plans", icon: PackageCheck },
+            ].map((action) => (
+              <a key={action.label} href={action.href} className="pub-card flex items-center gap-3 !p-4">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+                  <action.icon className="h-4 w-4" />
+                </span>
+                <span className="text-sm font-black text-[#07111f]">{action.label}</span>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="pub-section">
+        <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+          <div className="grid gap-10 lg:grid-cols-[1fr_320px]">
+            <div>
+              {groups === null ? (
+                <p className="text-sm text-[#596273]">Loading articles...</p>
+              ) : filteredGroups.length === 0 ? (
+                <p className="pub-card text-sm text-[#596273]">No articles matched your search.</p>
+              ) : (
+                <div className="grid gap-8">
+                  {filteredGroups.map((group) => {
+                    const Icon = (group.icon && KB_GROUP_ICONS[group.icon]) || Server;
+                    return (
+                      <div key={group.slug}>
+                        <div className="flex items-center gap-2">
+                          <Icon className="h-4 w-4 text-primary" />
+                          <h3 className="text-lg font-black text-[#07111f]">{group.name}</h3>
+                        </div>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          {group.articles.map((article) => (
+                            <a key={article.slug} href={`/knowledge-base/${article.slug}`} className="pub-card !p-4 transition hover:border-primary/40">
+                              <p className="text-sm font-black text-[#07111f]">{article.title}</p>
+                              {article.summary && <p className="mt-1 line-clamp-2 text-xs text-[#596273]">{article.summary}</p>}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <aside className="grid gap-6">
+              <div className="pub-card">
+                <h3 className="text-base font-black text-[#07111f]">Popular Articles</h3>
+                <ul className="mt-4 grid gap-3 text-sm">
+                  {popularArticles.map((article) => (
+                    <li key={article.slug}>
+                      <a href={`/knowledge-base/${article.slug}`} className="font-bold text-[#07111f] transition hover:text-primary">{article.title}</a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="pub-card !bg-[#0b1210] !border-white/10 text-center">
+                <Headphones className="mx-auto h-8 w-8 text-primary" />
+                <h3 className="mt-3 text-base font-black text-white">Still need help?</h3>
+                <p className="mt-1 text-sm text-white/55">Our support team is ready to assist you.</p>
+                <a href="/contact" className="btn-primary mt-4 w-full justify-center">Contact Support</a>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
+    </PublicPage>
+  );
+}
+
+function KnowledgeBaseArticlePage({ slug }: { slug: string }) {
+  const toast = useToast();
+  const [article, setArticle] = useState<{
+    title: string; summary: string | null; content: string; group: { name: string; slug: string };
+    last_updated_at: string | null; seo_title: string; seo_description: string;
+  } | null>(null);
+  const [related, setRelated] = useState<Array<{ title: string; slug: string; summary: string | null }>>([]);
+  const [notFound, setNotFound] = useState(false);
+  const [feedback, setFeedback] = useState<"yes" | "no" | null>(null);
+
+  useEffect(() => {
+    laravelApi<{ data: typeof article; related: typeof related }>(`/api/v1/public/knowledge-base/${slug}`)
+      .then((response) => {
+        setArticle(response.data);
+        setRelated(response.related);
+      })
+      .catch(() => setNotFound(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
+
+  useSeo(article ? { title: article.seo_title, description: article.seo_description } : undefined);
+
+  const submitFeedback = (value: "yes" | "no") => {
+    setFeedback(value);
+    toast.push({ type: "success", message: "Thanks for the feedback!" });
+  };
+
+  if (notFound) {
+    return (
+      <PublicPage>
+        <div className="pub-section flex min-h-[40vh] items-center justify-center">
+          <p className="text-sm text-[#596273]">Article not found. <a href="/knowledge-base" className="font-bold text-primary">Back to Knowledge Base</a></p>
+        </div>
+      </PublicPage>
+    );
+  }
+
+  if (!article) {
+    return (
+      <PublicPage>
+        <div className="pub-section flex min-h-[40vh] items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-[#596273]" />
+        </div>
+      </PublicPage>
+    );
+  }
+
+  const headings = article.content.split(/\n{2,}/).map((paragraph) => paragraph.split("\n")[0]).slice(0, 6);
+
+  return (
+    <PublicPage>
+      <PublicBreadcrumbs items={[{ label: "Knowledge Base", href: "/knowledge-base" }, { label: article.group.name }, { label: article.title }]} />
+      <section className="pub-section">
+        <div className="mx-auto grid max-w-6xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_260px] lg:px-8">
+          <article>
+            <h1 className="text-3xl font-black text-[#07111f] sm:text-4xl">{article.title}</h1>
+            {article.summary && <p className="mt-3 text-base leading-7 text-[#596273]">{article.summary}</p>}
+            <p className="mt-2 text-xs font-bold text-[#9aa39a]">Last updated {article.last_updated_at ? formatDate(article.last_updated_at) : "recently"}</p>
+
+            <div className="mt-8 grid gap-5 text-base leading-8 text-[#334138]">
+              {article.content.split(/\n{2,}/).map((paragraph, index) => (
+                <p key={index}>{paragraph}</p>
+              ))}
+            </div>
+
+            <div className="mt-10 rounded-2xl border border-black/8 bg-white p-6 text-center shadow-[0_15px_45px_rgba(16,24,16,0.06)]">
+              <p className="text-sm font-black text-[#07111f]">Was this helpful?</p>
+              <div className="mt-3 flex justify-center gap-3">
+                <button type="button" onClick={() => submitFeedback("yes")} className={`btn-outline-light !min-h-10 !px-5 !text-[11px] ${feedback === "yes" ? "!border-primary !text-primary" : ""}`}>Yes</button>
+                <button type="button" onClick={() => submitFeedback("no")} className={`btn-outline-light !min-h-10 !px-5 !text-[11px] ${feedback === "no" ? "!border-primary !text-primary" : ""}`}>No</button>
+              </div>
+              <a href="/contact" className="mt-4 inline-block text-xs font-bold text-primary hover:underline">Still stuck? Contact support</a>
+            </div>
+          </article>
+
+          <aside className="grid gap-6">
+            {headings.length > 1 && (
+              <div className="pub-card">
+                <h3 className="text-sm font-black uppercase text-[#596273]">On this page</h3>
+                <ul className="mt-3 grid gap-2 text-sm text-[#334138]">
+                  {headings.map((heading, index) => (
+                    <li key={index} className="truncate">{heading}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {related.length > 0 && (
+              <div className="pub-card">
+                <h3 className="text-sm font-black uppercase text-[#596273]">Related Articles</h3>
+                <ul className="mt-3 grid gap-2.5 text-sm">
+                  {related.map((item) => (
+                    <li key={item.slug}>
+                      <a href={`/knowledge-base/${item.slug}`} className="font-bold text-[#07111f] transition hover:text-primary">{item.title}</a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </aside>
+        </div>
+      </section>
+    </PublicPage>
+  );
+}
+
+function KnowledgeBaseRouter() {
+  const slug = window.location.pathname.replace(/^\/knowledge-base\/?/, "").replace(/\/$/, "");
+
+  return slug ? <KnowledgeBaseArticlePage slug={slug} /> : <KnowledgeBaseIndexPage />;
+}
+
+function FaqsPage() {
+  const [groups, setGroups] = useState<Array<{ group: string; items: Array<{ question: string; answer: string }> }> | null>(null);
+
+  useEffect(() => {
+    laravelApi<{ groups: typeof groups }>("/api/v1/public/faqs")
+      .then((response) => setGroups(response.groups))
+      .catch(() => setGroups([]));
+  }, []);
+
+  return (
+    <PublicPage>
+      <PublicBreadcrumbs items={[{ label: "FAQs" }]} />
+      <section className="pub-section">
+        <div className="mx-auto max-w-3xl px-4 pt-10 text-center sm:px-6 lg:px-8">
+          <span className="pub-eyebrow">FAQs</span>
+          <h1 className="mt-4 text-4xl font-black text-[#07111f] sm:text-5xl">Frequently Asked Questions</h1>
+          <p className="mt-4 text-base leading-7 text-[#596273]">Answers to the questions we hear most about domains, hosting, website care, payments and support.</p>
+        </div>
+
+        <div className="mx-auto max-w-4xl px-4 py-14 sm:px-6 lg:px-8">
+          {groups === null ? (
+            <p className="text-center text-sm text-[#596273]">Loading...</p>
+          ) : groups.length === 0 ? (
+            <p className="pub-card text-center text-sm text-[#596273]">FAQs are temporarily unavailable. Please contact support.</p>
+          ) : (
+            <div className="grid gap-10">
+              {groups.map((group) => (
+                <FaqAccordionGroup key={group.group} title={group.group} items={group.items} />
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <MarketingCtaBand
+        title="Still have questions?"
+        subtitle="Our support team is ready to help — reach out any time."
+        ctaLabel="Contact Support"
+        ctaHref="/contact"
+      />
+    </PublicPage>
+  );
+}
+
+function HowToPayPage() {
+  return (
+    <PublicPage>
+      <PublicBreadcrumbs items={[{ label: "How to Pay" }]} />
+      <section className="pub-section">
+        <div className="mx-auto max-w-3xl px-4 pt-10 text-center sm:px-6 lg:px-8">
+          <span className="pub-eyebrow">How to Pay</span>
+          <h1 className="mt-4 text-4xl font-black text-[#07111f] sm:text-5xl">How to Pay</h1>
+          <p className="mt-4 text-base leading-7 text-[#596273]">A simple guide to settling any invoice, however you'd rather pay.</p>
+        </div>
+
+        <div className="mx-auto max-w-4xl px-4 py-14 sm:px-6 lg:px-8">
+          <div className="grid gap-6 sm:grid-cols-2">
+            {[
+              [CreditCard, "Card payment", "Pay instantly online with your debit card via Paystack or Flutterwave — your invoice is marked paid immediately."],
+              [Building2, "Bank transfer", "Transfer directly to our bank account, then upload your proof of payment. Our team verifies it and confirms your invoice."],
+              [Wallet, "Wallet payment", "Fund your NAI TALK wallet once, then pay any invoice instantly from your balance — no card details needed each time."],
+              [RefreshCw, "Pay with wallet (partial)", "If your wallet balance only covers part of an invoice, that portion is applied automatically and the rest stays outstanding."],
+            ].map(([Icon, title, description]) => (
+              <div key={title as string} className="pub-card">
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+                  {React.createElement(Icon as LucideIcon, { className: "h-5 w-5" })}
+                </div>
+                <h3 className="mt-4 text-base font-black text-[#07111f]">{title as string}</h3>
+                <p className="mt-2 text-sm leading-6 text-[#596273]">{description as string}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-10 grid gap-4">
+            <h2 className="text-xl font-black text-[#07111f]">Uploading proof of payment</h2>
+            <p className="text-sm leading-7 text-[#596273]">
+              After a bank transfer, open the invoice from your dashboard and upload a screenshot or receipt of the transfer. Our team reviews it and
+              confirms payment — you'll get a notification once it's approved.
+            </p>
+
+            <h2 className="mt-4 text-xl font-black text-[#07111f]">Overpayments and underpayments</h2>
+            <p className="text-sm leading-7 text-[#596273]">
+              If you pay slightly more than an invoice total, the extra amount is automatically credited to your wallet for future use. If you pay slightly
+              less, the remaining balance simply stays outstanding until it's settled — nothing is lost either way.
+            </p>
+
+            <h2 className="mt-4 text-xl font-black text-[#07111f]">What happens after payment?</h2>
+            <p className="text-sm leading-7 text-[#596273]">
+              Once your payment is confirmed, your service is activated or renewed automatically, and you'll receive a confirmation email with your receipt.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <MarketingCtaBand
+        title="Need help with a payment?"
+        subtitle="Our support team can help you complete a payment or check on an invoice."
+        ctaLabel="Contact Support"
+        ctaHref="/contact"
+      />
+    </PublicPage>
+  );
+}
+
+const SERVICE_STATUS_STYLES: Record<string, string> = {
+  operational: "bg-primary/10 text-[#2f6d10] border-primary/30",
+  degraded: "bg-yellow-100 text-yellow-800 border-yellow-300",
+  maintenance: "bg-blue-100 text-blue-800 border-blue-300",
+  incident: "bg-red-100 text-red-700 border-red-300",
+};
+
+const SERVICE_STATUS_LABELS: Record<string, string> = {
+  operational: "Operational",
+  degraded: "Degraded",
+  maintenance: "Maintenance",
+  incident: "Incident",
+};
+
+function ServiceStatusPage() {
+  const [data, setData] = useState<{ overall_status: string; services: Array<{ name: string; status: string; message: string | null; updated_at: string | null }> } | null>(null);
+
+  useEffect(() => {
+    laravelApi<typeof data>("/api/v1/public/service-status")
+      .then(setData)
+      .catch(() => setData({ overall_status: "operational", services: [] }));
+  }, []);
+
+  return (
+    <PublicPage>
+      <PublicBreadcrumbs items={[{ label: "Service Status" }]} />
+      <section className="pub-section">
+        <div className="mx-auto max-w-3xl px-4 pt-10 text-center sm:px-6 lg:px-8">
+          <span className="pub-eyebrow">Service Status</span>
+          <h1 className="mt-4 text-4xl font-black text-[#07111f] sm:text-5xl">Service Status</h1>
+          <p className="mt-4 text-base leading-7 text-[#596273]">Live status for the services you depend on.</p>
+        </div>
+
+        <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6 lg:px-8">
+          {!data ? (
+            <p className="text-center text-sm text-[#596273]">Loading status...</p>
+          ) : (
+            <>
+              <div className={`mb-6 rounded-xl border px-5 py-4 text-center text-sm font-black ${SERVICE_STATUS_STYLES[data.overall_status] || SERVICE_STATUS_STYLES.operational}`}>
+                {data.overall_status === "operational" ? "All systems operational" : `Some services need attention: ${SERVICE_STATUS_LABELS[data.overall_status]}`}
+              </div>
+              <div className="grid gap-3">
+                {data.services.map((service) => (
+                  <div key={service.name} className="pub-card flex items-center justify-between !p-4">
+                    <div>
+                      <p className="text-sm font-black text-[#07111f]">{service.name}</p>
+                      {service.message && <p className="mt-0.5 text-xs text-[#596273]">{service.message}</p>}
+                    </div>
+                    <span className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase ${SERVICE_STATUS_STYLES[service.status] || SERVICE_STATUS_STYLES.operational}`}>
+                      {SERVICE_STATUS_LABELS[service.status] || service.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </section>
+    </PublicPage>
+  );
+}
+
+const ABOUT_VALUES = [
+  { icon: ShieldCheck, title: "Reliability first", description: "Your website, email and domains stay online and backed up — we treat every client's business as if it were our own." },
+  { icon: Headphones, title: "Real human support", description: "No ticket queues that go nowhere — you can always reach a real person on WhatsApp or a support ticket." },
+  { icon: BadgeCheck, title: "Straightforward pricing", description: "No hidden fees or surprise renewals — you always know what you're paying for and why." },
+  { icon: Rocket, title: "Built for growth", description: "From your first domain to a fully managed website, we scale with you as your business grows." },
+];
+
+function AboutPage() {
+  const heroImage = usePublicImage("team meeting office africa", "landscape");
+
+  return (
+    <PublicPage>
+      <PublicBreadcrumbs items={[{ label: "About" }]} />
+      <section className="pub-section">
+        <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-2 lg:items-center lg:px-8 lg:py-20">
+          <div>
+            <span className="pub-eyebrow">About NAI TALK</span>
+            <h1 className="mt-4 text-4xl font-black leading-[1.08] text-[#07111f] sm:text-5xl">Helping Nigerian businesses build a trustworthy online presence</h1>
+            <p className="mt-5 max-w-xl text-base leading-8 text-[#596273] sm:text-lg">
+              NAI TALK gives small businesses, schools, churches, NGOs and growing brands an easy way to get online and stay online — domains, hosting,
+              professional email and website design, without the technical stress.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <a href="/contact" className="btn-primary justify-center">
+                Contact Us
+                <ArrowRight className="h-4 w-4" />
+              </a>
+              <a href="/portfolio" className="btn-outline-light justify-center">View Our Work</a>
+            </div>
+          </div>
+          <div className="relative">
+            <img
+              src={heroImage?.url || "/images/placeholder-business.svg"}
+              alt={heroImage?.alt_text || "The NAI TALK team at work"}
+              loading="eager"
+              width={800}
+              height={600}
+              className="aspect-[4/3] w-full rounded-2xl object-cover shadow-[0_30px_80px_rgba(16,24,16,0.14)]"
+            />
+          </div>
+        </div>
+      </section>
+
+      <section className="pub-section-tint">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-2xl text-center">
+            <span className="pub-eyebrow">What we stand for</span>
+            <h2 className="mt-4 text-3xl font-black text-[#07111f] sm:text-4xl">Why businesses trust NAI TALK</h2>
+          </div>
+          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {ABOUT_VALUES.map((value) => (
+              <div key={value.title} className="pub-card">
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+                  <value.icon className="h-5 w-5" />
+                </div>
+                <h3 className="mt-4 text-base font-black text-[#07111f]">{value.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-[#596273]">{value.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="pub-section">
+        <div className="mx-auto max-w-4xl px-4 py-16 text-center sm:px-6 lg:px-8">
+          <span className="pub-eyebrow">Our story</span>
+          <h2 className="mt-4 text-3xl font-black text-[#07111f] sm:text-4xl">Started to make going online simple</h2>
+          <p className="mt-5 text-base leading-8 text-[#596273]">
+            NAI TALK started with a simple observation: too many Nigerian businesses were losing customers because their websites were slow, their email
+            looked unprofessional, or their domain had quietly expired. We set out to fix that — bundling domains, hosting, website care and design into one
+            place, backed by people who actually pick up the phone.
+          </p>
+        </div>
+      </section>
+
+      <MarketingCtaBand
+        title="Ready to start your online journey?"
+        subtitle="Search your domain, choose a website care plan, or talk to our team about what you need."
+        ctaLabel="Search Domain"
+        ctaHref="/domains"
+      />
+    </PublicPage>
+  );
+}
+
+const contactPageInputClass =
+  "w-full rounded-lg border border-black/10 bg-white px-4 py-3 text-sm text-[#07111f] outline-none transition placeholder:text-black/30 focus:border-primary/50 focus:ring-2 focus:ring-primary/15";
+
+const contactPageInfoItems = [
+  { icon: Mail, label: "Email", lines: ["info@naitalk.com"], href: "mailto:info@naitalk.com" },
+  { icon: Phone, label: "Phone", lines: ["+234 708 705 7654"], href: "tel:+2347087057654" },
+  { icon: MapPin, label: "Office Address", lines: ["7 Unity Rd, Off Command Rd, Ikola, Lagos."] },
+  { icon: Clock, label: "Support Hours", lines: ["Mon – Fri: 8:00 AM – 6:00 PM", "Sat: 9:00 AM – 2:00 PM"] },
+];
+
+function ContactPage() {
+  const [formData, setFormData] = useState({ name: "", email: "", phone: "", service: "Business Website", details: "" });
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [message, setMessage] = useState("");
+
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = event.target;
+    setFormData((current) => ({ ...current, [name]: value }));
+  };
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setStatus("loading");
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Message could not be sent. Please try WhatsApp instead.");
+      }
+
+      setStatus("success");
+      setMessage("Message sent successfully. We will get back to you shortly.");
+      setFormData({ name: "", email: "", phone: "", service: "Business Website", details: "" });
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "Message could not be sent.");
+    }
+  };
+
+  return (
+    <PublicPage>
+      <PublicBreadcrumbs items={[{ label: "Contact" }]} />
+      <section className="pub-section relative overflow-hidden">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-primary/12 blur-3xl" />
+        <div aria-hidden="true" className="pointer-events-none absolute -left-16 top-20 hidden h-64 w-64 rounded-full border border-black/5 sm:block" />
+        <div aria-hidden="true" className="pointer-events-none absolute -left-10 bottom-0 hidden h-56 w-56 rounded-full border border-black/5 sm:block" />
+
+        <div className="relative mx-auto max-w-3xl px-4 pt-14 text-center sm:px-6 lg:px-8">
+          <span className="pub-eyebrow inline-flex items-center gap-2">
+            <Mail className="h-3.5 w-3.5" />
+            Contact Us
+          </span>
+          <h1 className="mt-4 text-4xl font-black text-[#07111f] sm:text-5xl">Let's talk about your website</h1>
+          <p className="mt-4 text-base leading-7 text-[#596273]">
+            Whether you need a domain, hosting, a new website or expert support, our team is here to help you succeed online.
+          </p>
+        </div>
+
+        <div className="relative mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+          <div className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
+            <div className="grid gap-4">
+              {contactPageInfoItems.map((item) => {
+                const Icon = item.icon;
+                const body = (
+                  <>
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-sm font-black text-[#07111f]">{item.label}</h3>
+                      {item.lines.map((line) => (
+                        <p key={line} className="mt-0.5 text-sm text-[#596273]">{line}</p>
+                      ))}
+                    </div>
+                    {item.href && <ChevronRight className="h-4 w-4 shrink-0 text-black/25" />}
+                  </>
+                );
+
+                return item.href ? (
+                  <a key={item.label} href={item.href} className="pub-card flex items-center gap-4 !p-5 transition hover:border-primary/40">
+                    {body}
+                  </a>
+                ) : (
+                  <div key={item.label} className="pub-card flex items-center gap-4 !p-5">
+                    {body}
+                  </div>
+                );
+              })}
+
+              <div className="rounded-2xl border border-primary/25 bg-primary/[0.06] p-5">
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#25D366]/15 text-[#1c8a45]">
+                    <MessageCircle className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-sm font-black text-[#07111f]">Prefer quick help?</h3>
+                    <p className="mt-0.5 text-sm text-[#596273]">Chat with us on WhatsApp</p>
+                  </div>
+                  <a
+                    href={whatsappUrl}
+                    className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-primary/30 bg-white px-4 py-2 text-xs font-black text-[#2f6d10] transition hover:border-primary/60"
+                  >
+                    Chat on WhatsApp
+                    <ArrowUpRight className="h-3.5 w-3.5" />
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <div className="pub-card !p-6 sm:!p-8">
+              <div className="flex items-center gap-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+                  <Send className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black text-[#07111f]">Send us a message</h2>
+                  <p className="mt-0.5 text-sm text-[#596273]">Fill out the form below and we'll get back to you shortly.</p>
+                </div>
+              </div>
+
+              <form className="mt-6 grid gap-5" onSubmit={handleSubmit}>
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <label className="grid gap-2">
+                    <span className="flex items-center gap-1.5 text-xs font-black text-[#07111f]">
+                      <User className="h-3.5 w-3.5 text-[#596273]" />
+                      Full Name
+                    </span>
+                    <input
+                      required
+                      minLength={2}
+                      name="name"
+                      value={formData.name}
+                      onChange={handleChange}
+                      placeholder="e.g. John Doe"
+                      className={contactPageInputClass}
+                    />
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="flex items-center gap-1.5 text-xs font-black text-[#07111f]">
+                      <Mail className="h-3.5 w-3.5 text-[#596273]" />
+                      Email Address
+                    </span>
+                    <input
+                      required
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      placeholder="e.g. john@example.com"
+                      className={contactPageInputClass}
+                    />
+                  </label>
+                </div>
+
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <label className="grid gap-2">
+                    <span className="flex items-center gap-1.5 text-xs font-black text-[#07111f]">
+                      <Briefcase className="h-3.5 w-3.5 text-[#596273]" />
+                      Service Interested In
+                    </span>
+                    <select name="service" value={formData.service} onChange={handleChange} className={contactPageInputClass}>
+                      <option>Business Website</option>
+                      <option>Domains & Hosting</option>
+                      <option>Website Care Plan</option>
+                      <option>Business Email Hosting</option>
+                      <option>SEO Services</option>
+                      <option>Something else</option>
+                    </select>
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="flex items-center gap-1.5 text-xs font-black text-[#07111f]">
+                      <Phone className="h-3.5 w-3.5 text-[#596273]" />
+                      Phone Number
+                    </span>
+                    <input
+                      type="tel"
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      placeholder="e.g. 0708 705 7654"
+                      className={contactPageInputClass}
+                    />
+                  </label>
+                </div>
+
+                <label className="grid gap-2">
+                  <span className="flex items-center gap-1.5 text-xs font-black text-[#07111f]">
+                    <MessageCircle className="h-3.5 w-3.5 text-[#596273]" />
+                    Message
+                  </span>
+                  <textarea
+                    required
+                    minLength={10}
+                    maxLength={1000}
+                    name="details"
+                    value={formData.details}
+                    onChange={handleChange}
+                    rows={5}
+                    placeholder="Tell us how we can help you..."
+                    className={`${contactPageInputClass} resize-none`}
+                  />
+                  <span className="text-right text-xs text-black/35">{formData.details.length} / 1000</span>
+                </label>
+
+                <div className="flex flex-wrap items-center justify-between gap-4 border-t border-black/8 pt-5">
+                  <span className="inline-flex items-center gap-2 text-xs font-bold text-[#596273]">
+                    <ShieldCheck className="h-4 w-4 text-[#2f6d10]" />
+                    Your information is safe with us.
+                  </span>
+                  <button type="submit" className="btn-primary justify-center" disabled={status === "loading"}>
+                    {status === "loading" ? "Sending..." : "Send Message"}
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+                {message && (
+                  <p
+                    className={`rounded-lg border px-4 py-3 text-sm font-bold ${
+                      status === "success" ? "border-primary/30 bg-primary/10 text-[#2f6d10]" : "border-red-200 bg-red-50 text-red-600"
+                    }`}
+                  >
+                    {message}
+                  </p>
+                )}
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+    </PublicPage>
+  );
+}
+
+function PortfolioPage() {
+  const [projects, setProjects] = useState<Project[]>(fallbackProjects);
+
+  useEffect(() => {
+    fetch("/api/site-content")
+      .then((response) => response.json())
+      .then((data) => {
+        if (Array.isArray(data.projects) && data.projects.length > 0) {
+          setProjects(data.projects);
+        }
+      })
+      .catch(() => setProjects(fallbackProjects));
+  }, []);
+
+  return (
+    <PublicPage>
+      <PublicBreadcrumbs items={[{ label: "Portfolio" }]} />
+      <div className="pt-4">
+        <Portfolio projects={projects} />
+      </div>
+      <MarketingCtaBand
+        title="Ready to start your online journey?"
+        subtitle="Search your domain, choose a website care plan, or talk to our team about what you need."
+        ctaLabel="Search Domain"
+        ctaHref="/domains"
+      />
+    </PublicPage>
   );
 }
 
@@ -10341,6 +12990,74 @@ function DomainGlobeIllustration() {
         </div>
       </div>
     </div>
+  );
+}
+
+function LegalPage({ title, sections }: { title: string; sections: Array<{ heading: string; body: string }> }) {
+  return (
+    <PublicPage seoOverrides={{ title: `${title} | NAI TALK`, description: `${title} for NAI TALK's domains, hosting and website services.` }}>
+      <PublicBreadcrumbs items={[{ label: title }]} />
+      <section className="pub-section">
+        <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6 lg:px-8">
+          <span className="pub-eyebrow">Legal</span>
+          <h1 className="mt-4 text-3xl font-black text-[#07111f] sm:text-4xl">{title}</h1>
+          <p className="mt-2 text-xs text-[#596273]">Last updated: 11 July 2026</p>
+          <div className="mt-8 grid gap-8">
+            {sections.map((section) => (
+              <div key={section.heading}>
+                <h2 className="text-lg font-black text-[#07111f]">{section.heading}</h2>
+                <p className="mt-2 text-sm leading-7 text-[#596273]">{section.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    </PublicPage>
+  );
+}
+
+function PrivacyPolicyPage() {
+  return (
+    <LegalPage
+      title="Privacy Policy"
+      sections={[
+        { heading: "Information we collect", body: "We collect the information you provide when creating an account, placing an order, or contacting support — such as your name, email address, phone number, business address, and payment reference details. We never store your full card details; those are handled directly by our payment processors." },
+        { heading: "How we use your information", body: "We use your information to provision and manage your domains and hosting, send billing and renewal notices, respond to support requests, and improve our services. We do not sell your personal information to third parties." },
+        { heading: "Data storage & security", body: "Your data is stored on secured servers with access restricted to authorised NAI TALK staff. Sensitive details such as domain transfer codes are encrypted at rest." },
+        { heading: "Your rights", body: "You can request a copy of the personal information we hold about you, ask us to correct inaccuracies, or request account deletion by contacting info@naitalk.com." },
+        { heading: "Contact us", body: "Questions about this policy can be sent to info@naitalk.com or via WhatsApp on 0708 705 7654." },
+      ]}
+    />
+  );
+}
+
+function TermsOfServicePage() {
+  return (
+    <LegalPage
+      title="Terms of Service"
+      sections={[
+        { heading: "Our services", body: "NAI TALK provides domain registration and transfer, web hosting, website care plans, business email hosting, website design, and related support services to clients in Nigeria and internationally." },
+        { heading: "Accounts & payments", body: "You are responsible for the accuracy of the information on your account and for keeping your login details secure. Invoices are payable by card, bank transfer, or your NAI TALK wallet before a service is activated or renewed." },
+        { heading: "Domains", body: "Domain registrations and transfers are subject to the policies of the relevant domain registry. NAI TALK acts as your registrar/reseller and is not responsible for delays or decisions made by registries outside our control." },
+        { heading: "Hosting & website care", body: "We provide the infrastructure, backups, and support described in your chosen plan. You remain responsible for the content you publish on your website." },
+        { heading: "Service suspension", body: "We may suspend a service for non-payment, abuse, or activity that threatens the security of our platform, after reasonable notice where practical." },
+        { heading: "Changes to these terms", body: "We may update these terms from time to time. Continued use of our services after an update means you accept the revised terms." },
+      ]}
+    />
+  );
+}
+
+function RefundPolicyPage() {
+  return (
+    <LegalPage
+      title="Refund Policy"
+      sections={[
+        { heading: "Domains", body: "Domain registration and transfer fees are generally non-refundable once a domain has been successfully registered or transferred, in line with registry policy." },
+        { heading: "Hosting & website care plans", body: "If you're not satisfied with a new hosting or website care plan, contact support within 7 days of your first payment and we'll review your case for a refund or credit." },
+        { heading: "Overpayments", body: "If you pay more than an invoice total, the extra amount is automatically credited to your NAI TALK wallet and can be used against any future invoice." },
+        { heading: "How to request a refund", body: "Reach out to info@naitalk.com or open a support ticket from your dashboard with your invoice reference, and our team will review your request within 3 business days." },
+      ]}
+    />
   );
 }
 
@@ -10452,8 +13169,30 @@ function PublicSite() {
 }
 
 export default function App() {
-  if (window.location.pathname.startsWith("/admin")) return <AdminApp />;
-  if (window.location.pathname.startsWith("/client")) return <ClientPortal />;
-  if (window.location.pathname.startsWith("/domains")) return <DomainsLandingPage />;
+  const path = window.location.pathname;
+
+  if (path.startsWith("/admin")) return <AdminApp />;
+  if (path.startsWith("/client")) return <ClientPortal />;
+  if (path.startsWith("/domains")) return <DomainsLandingPage />;
+  if (path.startsWith("/domain-registration")) return <DomainRegistrationPage />;
+  if (path.startsWith("/domain-transfer")) return <PublicDomainTransferPage />;
+  if (path.startsWith("/domain-renewal")) return <DomainRenewalPage />;
+  if (path.startsWith("/domain-pricing")) return <DomainPricingPage />;
+  if (path.startsWith("/web-hosting")) return <WebHostingPage />;
+  if (path.startsWith("/website-care-plans")) return <WebsiteCarePlansPage />;
+  if (path.startsWith("/website-design")) return <WebsiteDesignPage />;
+  if (path.startsWith("/business-email-hosting")) return <BusinessEmailHostingPage />;
+  if (path.startsWith("/seo-services")) return <SeoServicesPage />;
+  if (path.startsWith("/blog")) return <BlogRouter />;
+  if (path.startsWith("/knowledge-base")) return <KnowledgeBaseRouter />;
+  if (path.startsWith("/faqs")) return <FaqsPage />;
+  if (path.startsWith("/how-to-pay")) return <HowToPayPage />;
+  if (path.startsWith("/service-status")) return <ServiceStatusPage />;
+  if (path.startsWith("/about")) return <AboutPage />;
+  if (path.startsWith("/contact")) return <ContactPage />;
+  if (path.startsWith("/portfolio")) return <PortfolioPage />;
+  if (path.startsWith("/privacy-policy")) return <PrivacyPolicyPage />;
+  if (path.startsWith("/terms-of-service")) return <TermsOfServicePage />;
+  if (path.startsWith("/refund-policy")) return <RefundPolicyPage />;
   return <PublicSite />;
 }

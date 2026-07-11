@@ -12,4 +12,11 @@ return [
     'client_template_id' => env('ISPCONFIG_CLIENT_TEMPLATE_ID'),
     'website_template_id' => env('ISPCONFIG_WEBSITE_TEMPLATE_ID'),
     'verify_ssl' => (bool) env('ISPCONFIG_VERIFY_SSL', true),
+    // Self-service client SSH/SFTP accounts are ISPConfig "shell users" —
+    // FTP (PureFTPd) is not reliably working on this server, so client-area
+    // provisioning creates shell users instead. jailkit confines the shell
+    // to the website's own document root, matching ISPConfig's standard
+    // secure default for shell users.
+    'ssh_shell' => env('ISPCONFIG_SSH_SHELL', '/bin/bash'),
+    'ssh_chroot' => env('ISPCONFIG_SSH_CHROOT', 'jailkit'),
 ];
