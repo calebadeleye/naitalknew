@@ -76,7 +76,27 @@ import { useToast } from "./toast/ToastProvider";
 import { useSeo } from "./seo/useSeo";
 import { useClientRoute, navigateClient, type ClientRouteName } from "./routing/useClientRoute";
 import { useAdminRoute, adminPath, adminClientDetailPath, adminServiceDetailPath, type AdminSectionId } from "./routing/useAdminRoute";
-import { consumePendingOrder, hasClientToken, savePendingOrder, startHostingOrder } from "./routing/pendingOrder";
+import {
+  consumePendingOrder,
+  hasClientToken,
+  savePendingOrder,
+  startHostingOrder,
+  savePendingPayment,
+  peekPendingPayment,
+  clearPendingPayment,
+} from "./routing/pendingOrder";
+import {
+  trackPageView,
+  trackEvent,
+  trackViewOnce,
+  trackCtaClick,
+  trackFormSubmission,
+  trackDomainSearch,
+  trackPlanSelection,
+  trackCheckout,
+  trackPurchase,
+  initScrollDepthTracking,
+} from "./lib/analytics";
 
 type LogoImage = {
   src: string;
@@ -739,7 +759,14 @@ function Navbar({ logo }: { logo: LogoImage }) {
                   <a
                     key={item.label}
                     href={item.href}
-                    onClick={item.label === "Logout" ? (event) => { event.preventDefault(); void handleLogout(); } : undefined}
+                    onClick={(event) => {
+                      if (item.label === "Logout") {
+                        event.preventDefault();
+                        void handleLogout();
+                        return;
+                      }
+                      trackCtaClick({ button_text: item.label, page_section: "navbar", destination_url: item.href });
+                    }}
                     className="block rounded-md px-3 py-3 text-xs font-extrabold uppercase text-white/68 transition hover:bg-primary/10 hover:text-primary"
                   >
                     {item.label}
@@ -751,7 +778,11 @@ function Navbar({ logo }: { logo: LogoImage }) {
         </nav>
 
         <div className="hidden items-center gap-3 sm:flex">
-          <a href="#contact" className="btn-primary">
+          <a
+            href="#contact"
+            className="btn-primary"
+            onClick={() => trackCtaClick({ button_text: "Start a project", page_section: "navbar" })}
+          >
             Start a project
             <ArrowRight className="h-4 w-4" />
           </a>
@@ -805,11 +836,15 @@ function Navbar({ logo }: { logo: LogoImage }) {
                       <a
                         key={item.label}
                         href={item.href}
-                        onClick={
-                          item.label === "Logout"
-                            ? (event) => { event.preventDefault(); void handleLogout(); }
-                            : () => setIsOpen(false)
-                        }
+                        onClick={(event) => {
+                          if (item.label === "Logout") {
+                            event.preventDefault();
+                            void handleLogout();
+                            return;
+                          }
+                          trackCtaClick({ button_text: item.label, page_section: "navbar_mobile", destination_url: item.href });
+                          setIsOpen(false);
+                        }}
                         className="rounded-md border border-white/8 bg-black/20 px-3 py-3 text-sm font-extrabold uppercase text-white/78"
                       >
                         {item.label}
@@ -818,7 +853,14 @@ function Navbar({ logo }: { logo: LogoImage }) {
                   </div>
                 </div>
               ))}
-              <a href="#contact" onClick={() => setIsOpen(false)} className="btn-primary mt-3 justify-center">
+              <a
+                href="#contact"
+                onClick={() => {
+                  trackCtaClick({ button_text: "Start a project", page_section: "navbar_mobile" });
+                  setIsOpen(false);
+                }}
+                className="btn-primary mt-3 justify-center"
+              >
                 Start a project
                 <ArrowRight className="h-4 w-4" />
               </a>
@@ -968,11 +1010,19 @@ function Hero({ projects, logo }: { projects: Project[]; logo: LogoImage }) {
             tools when you're ready to grow further.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <a href="#contact" className="btn-primary justify-center sm:justify-start">
+            <a
+              href="#contact"
+              className="btn-primary justify-center sm:justify-start"
+              onClick={() => trackCtaClick({ button_text: "Start a project", page_section: "hero" })}
+            >
               Start a project
               <ArrowRight className="h-4 w-4" />
             </a>
-            <a href={whatsappUrl} className="btn-outline justify-center sm:justify-start">
+            <a
+              href={whatsappUrl}
+              className="btn-outline justify-center sm:justify-start"
+              onClick={() => trackEvent("whatsapp_click", { page_section: "hero" })}
+            >
               <MessageCircle className="h-4 w-4 text-[#25D366]" />
               Chat on WhatsApp
             </a>
@@ -1258,6 +1308,10 @@ function HostingSection() {
   const [plans, setPlans] = useState<HostingPlanCard[]>(fallbackHostingPlans);
 
   useEffect(() => {
+    trackPlanSelection("view", {});
+  }, []);
+
+  useEffect(() => {
     let isMounted = true;
 
     laravelApi<Array<Record<string, unknown>>>("/api/v1/public/hosting-plans")
@@ -1355,7 +1409,12 @@ function HostingSection() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => startHostingOrder(plan.slug)}
+                  onClick={() => {
+                    trackPlanSelection("select", { plan_id: plan.slug, plan_name: plan.name });
+                    trackPlanSelection("buy_click", { plan_id: plan.slug, plan_name: plan.name });
+                    trackCtaClick({ button_text: plan.ctaLabel, page_section: "homepage_hosting" });
+                    startHostingOrder(plan.slug);
+                  }}
                   className={plan.featured ? "btn-primary mt-7 w-full justify-center" : "btn-outline mt-7 w-full justify-center"}
                 >
                   {plan.ctaLabel}
@@ -3787,6 +3846,36 @@ type SavedPaymentMethodRow = {
  * when the balance can't cover the full outstanding amount (used right after
  * checkout, before any partial payment has ever landed on the invoice).
  */
+/**
+ * Shared by the wallet and saved-card payment paths in PaymentOptionsPanel —
+ * both confirm payment synchronously (no gateway redirect), so this can fire
+ * payment_success + purchase immediately. Falls back to invoice-only details
+ * when no pendingPayment was stashed (e.g. paying a renewal invoice that
+ * wasn't just created by handleSubmitOrder).
+ */
+function trackInvoicePaymentSuccess(invoiceNumber: string, outstandingKobo: number, paymentMethod: string) {
+  const pendingPayment = peekPendingPayment(invoiceNumber);
+  const value = outstandingKobo / 100;
+
+  trackEvent("payment_success", { transaction_id: invoiceNumber, payment_method: paymentMethod });
+  trackPurchase({
+    transaction_id: invoiceNumber,
+    value,
+    currency: "NGN",
+    payment_method: paymentMethod,
+    items: [
+      {
+        item_id: pendingPayment?.plan_id || invoiceNumber,
+        item_name: pendingPayment?.plan_name || "Hosting invoice payment",
+        price: value,
+        quantity: 1,
+      },
+    ],
+  });
+
+  if (pendingPayment) clearPendingPayment();
+}
+
 function PaymentOptionsPanel({
   token,
   invoiceNumber,
@@ -3835,6 +3924,7 @@ function PaymentOptionsPanel({
     try {
       const result = await laravelApi<{ message: string }>(`/api/v1/client/invoices/${invoiceNumber}/pay/wallet`, token, { method: "POST" });
       toast.push({ type: "success", message: result.message });
+      trackInvoicePaymentSuccess(invoiceNumber, outstandingKobo, "wallet");
       onPaid();
       await loadWallet();
     } catch (error) {
@@ -3850,6 +3940,7 @@ function PaymentOptionsPanel({
     try {
       const result = await laravelApi<{ message: string }>(`/api/v1/client/invoices/${invoiceNumber}/pay/saved-card/${methodId}`, token, { method: "POST" });
       toast.push({ type: "success", message: result.message });
+      trackInvoicePaymentSuccess(invoiceNumber, outstandingKobo, "saved_card");
       onPaid();
     } catch (error) {
       toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not complete the card payment." });
@@ -4020,6 +4111,7 @@ function ClientInvoicePage({
       link.download = `invoice-${invoice?.invoice_number || orderNumber}.pdf`;
       link.click();
       URL.revokeObjectURL(url);
+      trackEvent("file_download", { content_title: "invoice_pdf", transaction_id: invoice?.invoice_number || orderNumber });
     } catch (error) {
       toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not download this invoice." });
     } finally {
@@ -4594,10 +4686,14 @@ function DomainSearchPage({
     setIsSearching(true);
     setResult(null);
 
+    const domainExtension = domain.includes(".") ? domain.slice(domain.lastIndexOf(".")) : undefined;
+    trackDomainSearch("query", { domain_extension: domainExtension });
+
     try {
       const data = await laravelApi<DomainSearchResult>(`/api/v1/public/domains/search?domain=${encodeURIComponent(domain)}`);
       setResult(data);
       setHasSearched(true);
+      trackDomainSearch("result", { domain_extension: domainExtension, available: data.available });
     } catch (error) {
       toast.push({
         type: "error",
@@ -6209,10 +6305,35 @@ function ClientPortal() {
 
     if (paymentStatus === "success") {
       toast.push({ type: "success", message: `Payment confirmed for invoice ${invoiceParam || ""}. Provisioning will begin shortly.` });
+
+      // React state doesn't survive the redirect to Paystack/Flutterwave and
+      // back, so the order/plan details saved in handleSubmitOrder are read
+      // back here, keyed by invoice number, to fire the purchase event.
+      const pendingPayment = invoiceParam ? peekPendingPayment(invoiceParam) : null;
+      trackEvent("payment_success", { transaction_id: invoiceParam || undefined, payment_method: pendingPayment?.payment_method });
+      if (pendingPayment) {
+        trackPurchase({
+          transaction_id: pendingPayment.invoice_number,
+          value: pendingPayment.value,
+          currency: pendingPayment.currency,
+          payment_method: pendingPayment.payment_method,
+          items: [
+            {
+              item_id: pendingPayment.plan_id,
+              item_name: pendingPayment.plan_name,
+              price: pendingPayment.value,
+              quantity: 1,
+            },
+          ],
+        });
+        clearPendingPayment();
+      }
     } else if (paymentStatus === "failed") {
       toast.push({ type: "error", message: "Payment verification failed. Please try again or contact support." });
+      trackEvent("payment_failed", { transaction_id: invoiceParam || undefined, error_category: "gateway_failed" });
     } else if (paymentStatus === "not_found") {
       toast.push({ type: "error", message: "We could not find that payment. Please try again or contact support." });
+      trackEvent("payment_failed", { transaction_id: invoiceParam || undefined, error_category: "not_found" });
     }
 
     if (paymentStatus || invoiceParam) {
@@ -6320,6 +6441,8 @@ function ClientPortal() {
       await loadClientDashboard(data.token);
       await loadVerificationStatus(data.token);
 
+      trackEvent("login", { method: "email" });
+
       const pending = consumePendingOrder();
       if (pending) {
         setOrderDraft((current) => ({ ...current, plan_slug: pending.plan, billing_cycle: pending.billing_cycle }));
@@ -6330,6 +6453,7 @@ function ClientPortal() {
     } catch (error) {
       setLogin((current) => ({ ...current, password: "" }));
       toast.push({ type: "error", message: error instanceof Error ? error.message : "Invalid email address or password." });
+      trackEvent("login_error", { method: "email" });
     } finally {
       setIsLoading(false);
     }
@@ -6344,6 +6468,7 @@ function ClientPortal() {
       return;
     }
 
+    trackEvent("signup_start", { method: "email" });
     setIsLoading(true);
 
     try {
@@ -6366,6 +6491,7 @@ function ClientPortal() {
       setIsVerified(false);
       setRegisterForm(INITIAL_REGISTER);
       toast.push({ type: "success", message: data.message || "Your account has been created successfully. Please check your email to verify your account." });
+      trackEvent("sign_up", { method: "email" });
       await loadClientDashboard(data.token);
       navigate("/client/verify-email");
     } catch (error) {
@@ -6507,6 +6633,29 @@ function ClientPortal() {
 
       setCheckoutResult(checkout);
       toast.push({ type: "success", message: `Order created. Invoice ${checkout.invoice.invoice_number} has been emailed to you.` });
+
+      const selectedPlan = hostingPlans.find((plan) => plan.slug === orderDraft.plan_slug);
+      const value = checkout.invoice.total_kobo / 100;
+      trackCheckout({
+        plan_id: orderDraft.plan_slug,
+        plan_name: selectedPlan?.name,
+        billing_cycle: orderDraft.billing_cycle,
+        value,
+        currency: "NGN",
+      });
+      // Stashed so the purchase event can still fire correctly after the
+      // full-page redirect to Paystack/Flutterwave (see the payment=success
+      // handling below) — React state doesn't survive that round trip.
+      savePendingPayment({
+        invoice_number: checkout.invoice.invoice_number,
+        order_number: checkout.order.order_number,
+        value,
+        currency: "NGN",
+        plan_id: orderDraft.plan_slug,
+        plan_name: selectedPlan?.name || orderDraft.plan_slug,
+        billing_cycle: orderDraft.billing_cycle,
+      });
+
       setOrderDraft(INITIAL_ORDER_DRAFT);
     } catch (error) {
       toast.push({ type: "error", message: error instanceof Error ? error.message : "Hosting order could not be created." });
@@ -6527,6 +6676,10 @@ function ClientPortal() {
       );
       const redirectUrl = data.authorization_url || data.link;
       if (!redirectUrl) throw new Error("Could not start payment.");
+
+      const pendingPayment = peekPendingPayment(invoiceNumber);
+      if (pendingPayment) savePendingPayment({ ...pendingPayment, payment_method: gateway });
+
       window.location.href = redirectUrl;
     } catch (error) {
       toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not start payment. Please try again or contact support." });
@@ -6887,7 +7040,11 @@ function ClientPortal() {
                   )}
                   <div className="mt-4 flex flex-wrap gap-2">
                     {isContactOnly && (
-                      <a href="mailto:info@naitalk.com" className="btn-outline justify-center">
+                      <a
+                        href="mailto:info@naitalk.com"
+                        className="btn-outline justify-center"
+                        onClick={() => trackEvent("email_click", { page_section: "services_catalog" })}
+                      >
                         Contact Us
                       </a>
                     )}
@@ -7502,6 +7659,7 @@ function ClientPortal() {
                         className="btn-outline"
                         onClick={(event) => {
                           event.stopPropagation();
+                          trackCtaClick({ button_text: "Pay Now / Upload Proof", page_section: "client_orders_list" });
                           navigate(`/client/orders/${order.order_number}`);
                         }}
                       >
@@ -7711,10 +7869,13 @@ function Contact({ logo }: { logo: LogoImage }) {
 
       setStatus("success");
       setMessage("Message sent successfully. We will get back to you shortly.");
+      // service is a dropdown category (e.g. "Business Website"), never PII.
+      trackFormSubmission("contact_form", "success", { page_section: "homepage_contact", service: formData.service });
       setFormData({ name: "", email: "", service: "Business Website", details: "" });
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "Message could not be sent.");
+      trackFormSubmission("contact_form", "error", { page_section: "homepage_contact" });
     }
   };
 
@@ -7729,11 +7890,19 @@ function Contact({ logo }: { logo: LogoImage }) {
             </h2>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
-            <a href="#contact-form" className="btn-primary justify-center">
+            <a
+              href="#contact-form"
+              className="btn-primary justify-center"
+              onClick={() => trackCtaClick({ button_text: "Start a project", page_section: "contact_cta_panel" })}
+            >
               Start a project
               <ArrowRight className="h-4 w-4" />
             </a>
-            <a href={whatsappUrl} className="btn-outline justify-center">
+            <a
+              href={whatsappUrl}
+              className="btn-outline justify-center"
+              onClick={() => trackEvent("whatsapp_click", { page_section: "contact_cta_panel" })}
+            >
               <MessageCircle className="h-4 w-4 text-[#25D366]" />
               Chat on WhatsApp
             </a>
@@ -7745,11 +7914,19 @@ function Contact({ logo }: { logo: LogoImage }) {
             <Logo logo={logo} />
             <p className="mt-4 text-sm leading-7 text-white/60">Let's talk. We build. You grow.</p>
             <div className="mt-8 space-y-5">
-              <a href="mailto:info@naitalk.com" className="contact-line">
+              <a
+                href="mailto:info@naitalk.com"
+                className="contact-line"
+                onClick={() => trackEvent("email_click", { page_section: "homepage_contact" })}
+              >
                 <Mail className="h-4 w-4 text-primary" />
                 info@naitalk.com
               </a>
-              <a href="tel:+2347087057654" className="contact-line">
+              <a
+                href="tel:+2347087057654"
+                className="contact-line"
+                onClick={() => trackEvent("phone_click", { page_section: "homepage_contact" })}
+              >
                 <Phone className="h-4 w-4 text-primary" />
                 07087057654
               </a>
@@ -7885,11 +8062,23 @@ function Footer({ logo }: { logo: LogoImage }) {
             <ul className="mt-4 grid gap-3 text-sm text-white/58">
               <li className="flex items-start gap-2">
                 <Mail className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                <a href="mailto:info@naitalk.com" className="transition hover:text-primary">info@naitalk.com</a>
+                <a
+                  href="mailto:info@naitalk.com"
+                  className="transition hover:text-primary"
+                  onClick={() => trackEvent("email_click", { page_section: "footer" })}
+                >
+                  info@naitalk.com
+                </a>
               </li>
               <li className="flex items-start gap-2">
                 <Phone className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                <a href="tel:+2347087057654" className="transition hover:text-primary">0708 705 7654</a>
+                <a
+                  href="tel:+2347087057654"
+                  className="transition hover:text-primary"
+                  onClick={() => trackEvent("phone_click", { page_section: "footer" })}
+                >
+                  0708 705 7654
+                </a>
               </li>
               <li className="flex items-start gap-2">
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
@@ -7916,7 +8105,11 @@ function Footer({ logo }: { logo: LogoImage }) {
               </div>
               <p className="mt-3 text-sm font-black text-white">Need Help?</p>
               <p className="mt-1 text-xs leading-5 text-white/50">Our support team is ready to assist you.</p>
-              <a href={whatsappUrl} className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline">
+              <a
+                href={whatsappUrl}
+                className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline"
+                onClick={() => trackEvent("whatsapp_click", { page_section: "footer" })}
+              >
                 Open a Ticket
                 <ArrowRight className="h-3 w-3" />
               </a>
@@ -7983,6 +8176,7 @@ function FloatingWhatsApp() {
       href={whatsappUrl}
       aria-label="Chat with NAITALK on WhatsApp"
       className="fixed bottom-5 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-[0_12px_40px_rgba(37,211,102,0.35)] transition hover:scale-105"
+      onClick={() => trackEvent("whatsapp_click", { page_section: "floating_button" })}
     >
       <MessageCircle className="h-7 w-7" />
     </a>
@@ -10645,6 +10839,8 @@ const DOMAIN_FEATURES: DomainFeature[] = [
 ];
 
 function goToDomainCheckout(domain: string) {
+  const domainExtension = domain.includes(".") ? domain.slice(domain.lastIndexOf(".")) : undefined;
+  trackEvent("domain_purchase_start", { domain_extension: domainExtension });
   window.location.href = `/client/domains/search?domain=${encodeURIComponent(domain)}`;
 }
 
@@ -10712,10 +10908,18 @@ function DomainSearchBar({ initialDomain }: { initialDomain?: string } = {}) {
     setSearchError("");
     setResult(null);
 
+    const domainExtension = domain.includes(".") ? domain.slice(domain.lastIndexOf(".")) : undefined;
+    trackDomainSearch("query", { domain_extension: domainExtension });
+
     try {
       const data = await laravelApi<PublicDomainSearchResult>(`/api/v1/public/domains/search?domain=${encodeURIComponent(domain)}`);
       setResult(data);
       setHasSearched(true);
+      trackDomainSearch("result", {
+        domain_extension: domainExtension,
+        available: data.available,
+        search_result_count: 1 + (data.suggestions?.length || 0),
+      });
     } catch (error) {
       setSearchError(error instanceof Error ? error.message : "Domain search is temporarily unavailable. Please try again shortly.");
     } finally {
@@ -11065,12 +11269,20 @@ function MarketingHero({
           <h1 className={`mt-4 text-4xl font-black leading-[1.08] sm:text-5xl ${dark ? "text-white" : "text-[#07111f]"}`}>{title}</h1>
           <p className={`mt-5 max-w-xl text-base leading-8 sm:text-lg ${dark ? "text-white/62" : "text-[#596273]"}`}>{subtitle}</p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <a href={ctaHref} className="btn-primary justify-center">
+            <a
+              href={ctaHref}
+              className="btn-primary justify-center"
+              onClick={() => trackCtaClick({ button_text: ctaLabel, page_section: "marketing_hero", destination_url: ctaHref })}
+            >
               {ctaLabel}
               <ArrowRight className="h-4 w-4" />
             </a>
             {secondaryLabel && secondaryHref && (
-              <a href={secondaryHref} className={dark ? "btn-outline justify-center" : "btn-outline-light justify-center"}>
+              <a
+                href={secondaryHref}
+                className={dark ? "btn-outline justify-center" : "btn-outline-light justify-center"}
+                onClick={() => trackCtaClick({ button_text: secondaryLabel, page_section: "marketing_hero", destination_url: secondaryHref })}
+              >
                 {secondaryLabel}
               </a>
             )}
@@ -11109,7 +11321,11 @@ function MarketingCtaBand({
       <div className="mx-auto flex max-w-5xl flex-col items-center gap-5 px-4 py-16 text-center sm:px-6 lg:px-8">
         <h2 className={`text-3xl font-black sm:text-4xl ${dark ? "text-white" : "text-[#07111f]"}`}>{title}</h2>
         <p className={`max-w-2xl text-base leading-7 ${dark ? "text-white/62" : "text-[#596273]"}`}>{subtitle}</p>
-        <a href={ctaHref} className="btn-primary justify-center">
+        <a
+          href={ctaHref}
+          className="btn-primary justify-center"
+          onClick={() => trackCtaClick({ button_text: ctaLabel, page_section: "marketing_cta_band", destination_url: ctaHref })}
+        >
           {ctaLabel}
           <ArrowRight className="h-4 w-4" />
         </a>
@@ -11648,7 +11864,10 @@ function WebsiteCarePlansPage() {
 
   useEffect(() => {
     laravelApi<PublicHostingPlan[]>("/api/v1/public/hosting-plans")
-      .then(setPlans)
+      .then((data) => {
+        setPlans(data);
+        if (data.length) trackPlanSelection("view", {});
+      })
       .catch(() => setPlans([]));
   }, []);
 
@@ -11697,6 +11916,12 @@ function WebsiteCarePlansPage() {
                   </ul>
                   <a
                     href={`/client/order/hosting?plan=${plan.slug}`}
+                    onClick={() => {
+                      const buttonText = plan.is_popular ? "Choose Business Care" : plan.cta_label || "Get Started";
+                      trackPlanSelection("select", { plan_id: plan.slug, plan_name: plan.name });
+                      trackPlanSelection("buy_click", { plan_id: plan.slug, plan_name: plan.name });
+                      trackCtaClick({ button_text: buttonText, page_section: "website_care_plans" });
+                    }}
                     className={`mt-6 justify-center ${plan.is_popular ? "btn-primary" : "btn-outline"}`}
                   >
                     {plan.is_popular ? "Choose Business Care" : plan.cta_label || "Get Started"}
@@ -12090,6 +12315,7 @@ function BlogDetailPage({ slug }: { slug: string }) {
       .then((response) => {
         setPost(response.data);
         setRelated(response.related);
+        if (response.data) trackViewOnce(`blog_post_view:${slug}`, "blog_post_view", { content_title: response.data.title, content_slug: slug });
       })
       .catch(() => {
         setNotFound(true);
@@ -12494,6 +12720,7 @@ function KnowledgeBaseArticlePage({ slug }: { slug: string }) {
       .then((response) => {
         setArticle(response.data);
         setRelated(response.related);
+        if (response.data) trackViewOnce(`knowledge_base_view:${slug}`, "knowledge_base_view", { content_title: response.data.title, content_slug: slug });
       })
       .catch(() => setNotFound(true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -12881,10 +13108,13 @@ function ContactPage() {
 
       setStatus("success");
       setMessage("Message sent successfully. We will get back to you shortly.");
+      // service is a dropdown category (e.g. "Business Website"), never PII.
+      trackFormSubmission("contact_form", "success", { page_section: "contact_page", service: formData.service });
       setFormData({ name: "", email: "", phone: "", service: "Business Website", details: "" });
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "Message could not be sent.");
+      trackFormSubmission("contact_form", "error", { page_section: "contact_page" });
     }
   };
 
@@ -12928,7 +13158,15 @@ function ContactPage() {
                 );
 
                 return item.href ? (
-                  <a key={item.label} href={item.href} className="pub-card-dark flex items-center gap-4 !p-5 transition hover:border-primary/40">
+                  <a
+                    key={item.label}
+                    href={item.href}
+                    className="pub-card-dark flex items-center gap-4 !p-5 transition hover:border-primary/40"
+                    onClick={() => {
+                      if (item.href?.startsWith("mailto:")) trackEvent("email_click", { page_section: "contact_page" });
+                      else if (item.href?.startsWith("tel:")) trackEvent("phone_click", { page_section: "contact_page" });
+                    }}
+                  >
                     {body}
                   </a>
                 ) : (
@@ -12950,6 +13188,7 @@ function ContactPage() {
                   <a
                     href={whatsappUrl}
                     className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-xs font-black text-primary transition hover:border-primary/60"
+                    onClick={() => trackEvent("whatsapp_click", { page_section: "contact_page" })}
                   >
                     Chat on WhatsApp
                     <ArrowUpRight className="h-3.5 w-3.5" />
@@ -13347,6 +13586,16 @@ function PublicSite() {
 
 export default function App() {
   const path = window.location.pathname;
+
+  // Fires once per real browser page load (the public site is a classic MPA —
+  // every route change here is a fresh document load). SPA zones (/admin,
+  // /client) additionally track their internal pushState navigations in
+  // useAdminRoute/useClientRoute; trackPageView's own dedupe means the two
+  // never double-count the very first render.
+  useEffect(() => {
+    trackPageView();
+    return initScrollDepthTracking();
+  }, []);
 
   if (path.startsWith("/admin")) return <AdminApp />;
   if (path.startsWith("/client")) return <ClientPortal />;

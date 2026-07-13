@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { trackPageView } from "../lib/analytics";
 
 export type ClientRouteName =
   | "login"
@@ -113,6 +114,13 @@ export function useClientRoute() {
       window.removeEventListener("naitalk:navigate", sync);
     };
   }, [sync]);
+
+  // Virtual page view for this SPA zone's internal (pushState) navigations.
+  // trackPageView dedupes against the initial App()-mount page_view, so the
+  // very first render of /client/* doesn't get counted twice.
+  useEffect(() => {
+    trackPageView();
+  }, [route]);
 
   const navigate = useCallback((path: string) => {
     navigateClient(path);

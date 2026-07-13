@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { trackPageView } from "../lib/analytics";
 
 export type AdminSectionId =
   | "dashboard"
@@ -133,6 +134,11 @@ export function useAdminRoute() {
       window.removeEventListener("naitalk:admin-navigate", sync);
     };
   }, [sync]);
+
+  // Virtual page view for this SPA zone's internal (pushState) navigations.
+  useEffect(() => {
+    trackPageView();
+  }, [section]);
 
   const navigate = useCallback((path: string) => {
     navigateAdmin(path);
