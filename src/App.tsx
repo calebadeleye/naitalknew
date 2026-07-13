@@ -10,6 +10,7 @@ import {
   BadgeCheck,
   BarChart3,
   Bell,
+  BookOpen,
   Bot,
   Briefcase,
   Building2,
@@ -22,6 +23,7 @@ import {
   CreditCard,
   Database,
   Download,
+  ExternalLink,
   Eye,
   Facebook,
   FileText,
@@ -29,11 +31,13 @@ import {
   Globe2,
   HardDrive,
   Headphones,
+  HelpCircle,
   Home,
   Image as ImageIcon,
   KeyRound,
   LayoutDashboard,
   Linkedin,
+  List,
   Loader2,
   LockKeyhole,
   LogOut,
@@ -57,6 +61,7 @@ import {
   Server,
   Settings,
   ShieldCheck,
+  Star,
   Trash2,
   Twitter,
   Upload,
@@ -65,6 +70,7 @@ import {
   Wallet,
   Wifi,
   X,
+  Zap,
 } from "lucide-react";
 import { useToast } from "./toast/ToastProvider";
 import { useSeo } from "./seo/useSeo";
@@ -319,10 +325,19 @@ function formatNaira(value: number): string {
 }
 
 const navItems = [
-  { label: "Home", href: "#home" },
+  { label: "Home", href: "/" },
+  { label: "Solutions", href: "/website-design" },
 ];
 
 const staticNavGroups = [
+  {
+    label: "Hosting",
+    items: [
+      { label: "Web Hosting", href: "/web-hosting" },
+      { label: "Website Care Plans", href: "/website-care-plans" },
+      { label: "Business Email Hosting", href: "/business-email-hosting" },
+    ],
+  },
   {
     label: "Domains",
     items: [
@@ -334,29 +349,10 @@ const staticNavGroups = [
     ],
   },
   {
-    label: "Hosting",
-    items: [
-      { label: "Web Hosting", href: "/web-hosting" },
-      { label: "Website Care Plans", href: "/website-care-plans" },
-      { label: "Business Email Hosting", href: "/business-email-hosting" },
-    ],
-  },
-  {
     label: "Website",
     items: [
       { label: "Website Design", href: "/website-design" },
       { label: "Portfolio", href: "/portfolio" },
-      { label: "Website Maintenance", href: "/website-care-plans" },
-    ],
-  },
-  {
-    label: "Solutions",
-    items: [
-      { label: "For Small Businesses", href: "/website-design" },
-      { label: "For Schools", href: "/website-design" },
-      { label: "For Churches", href: "/website-design" },
-      { label: "For NGOs", href: "/website-design" },
-      { label: "For E-commerce", href: "/website-design" },
     ],
   },
   {
@@ -364,16 +360,6 @@ const staticNavGroups = [
     items: [
       { label: "About", href: "/about" },
       { label: "Contact", href: "/contact" },
-    ],
-  },
-  {
-    label: "Resources",
-    items: [
-      { label: "Blog", href: "/blog" },
-      { label: "Knowledge Base", href: "/knowledge-base" },
-      { label: "FAQs", href: "/faqs" },
-      { label: "How to Pay", href: "/how-to-pay" },
-      { label: "Service Status", href: "/service-status" },
     ],
   },
 ];
@@ -403,30 +389,35 @@ const services = [
     title: "Business Websites",
     description:
       "Professional, fast and mobile-responsive websites that build trust and bring in customers.",
+    href: "/website-design",
   },
   {
     icon: Code2,
     title: "Custom Software",
     description:
       "Portals, dashboards, payment systems, registration platforms, CBT systems and more.",
+    href: "#contact",
   },
   {
     icon: Server,
     title: "Hosting & Domains",
     description:
       "Fast secure hosting, domain registration, SSL, backups and business email.",
+    href: "/web-hosting",
   },
   {
     icon: Bot,
     title: "AI Solutions",
     description:
       "AI call assistants, customer support automation, lead capture and workflow tools.",
+    href: "#contact",
   },
   {
     icon: ShieldCheck,
     title: "Maintenance & Support",
     description:
       "Updates, security, backups and ongoing support so your business never stops.",
+    href: "/website-care-plans",
   },
 ];
 
@@ -668,7 +659,7 @@ const fallbackSiteContent: SiteContent = {
 
 function Logo({ className = "", logo = fallbackSiteContent.brand.logo }: { className?: string; logo?: LogoImage }) {
   return (
-    <a href="#home" className={`inline-flex items-center ${className}`} aria-label="NAITALK home">
+    <a href="/" className={`inline-flex items-center ${className}`} aria-label="NAITALK home">
       <img src={logo.src || "/logo.png"} alt={logo.alt || "NAITALK"} className="h-8 w-auto max-w-[150px] object-contain sm:h-9" />
     </a>
   );
@@ -846,7 +837,7 @@ function DeviceShowcase({ projects, logo }: { projects: Project[]; logo: LogoIma
   const panelImage = featured[2]?.img || "/data/rhm.png";
 
   return (
-    <div className="relative min-h-[420px] sm:min-h-[520px] lg:min-h-[560px]">
+    <div className="relative min-h-[380px] sm:min-h-[440px] lg:min-h-[500px]">
       <div className="absolute left-[18%] top-0 hidden h-64 w-64 rounded-full border border-primary/20 sm:block" />
       <motion.div
         className="absolute right-0 top-4 w-[84%] max-w-[620px] overflow-hidden rounded-[18px] border border-primary/25 bg-[#080c0b] shadow-[0_28px_120px_rgba(100,216,45,0.15)]"
@@ -960,7 +951,7 @@ function HeroDomainSearch() {
 
 function Hero({ projects, logo }: { projects: Project[]; logo: LogoImage }) {
   return (
-    <section id="home" className="hero-grid relative overflow-hidden pb-14 pt-28 sm:pb-18 lg:pt-32">
+    <section id="home" className="hero-grid relative overflow-hidden pb-8 pt-28 sm:pb-10 lg:pt-32">
       <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:px-8">
         <motion.div
           className="max-w-2xl"
@@ -968,13 +959,13 @@ function Hero({ projects, logo }: { projects: Project[]; logo: LogoImage }) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.65 }}
         >
-          <span className="eyebrow">Elite digital engineering & AI solutions</span>
+          <span className="eyebrow">Hosting, domains & websites for growing businesses</span>
           <h1 className="mt-5 max-w-xl text-4xl font-black leading-[1.02] text-white sm:text-5xl lg:text-6xl">
-            We build digital products that help businesses <span className="text-primary">grow.</span>
+            Reliable hosting and websites that keep your business <span className="text-primary">online.</span>
           </h1>
           <p className="mt-5 max-w-lg text-base leading-7 text-white/68 sm:text-lg">
-            Websites, custom software, hosting infrastructure and AI solutions built for ambitious
-            businesses and organisations.
+            Domains, secure hosting and business email, backed by custom websites, software and AI
+            tools when you're ready to grow further.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <a href="#contact" className="btn-primary justify-center sm:justify-start">
@@ -989,8 +980,8 @@ function Hero({ projects, logo }: { projects: Project[]; logo: LogoImage }) {
           <HeroDomainSearch />
           <div className="mt-9 grid gap-4 sm:grid-cols-3">
             {[
-              ["Modern & scalable", "Future-ready solutions"],
-              ["Secure & reliable", "Built for performance"],
+              ["Reliable hosting", "99.9% uptime, every day"],
+              ["Secure by default", "Free SSL & backups included"],
               ["Support you can trust", "We are here when you need us"],
             ].map(([title, description]) => (
               <div className="flex gap-3" key={title}>
@@ -1054,7 +1045,7 @@ function Services() {
               </div>
               <h3 className="mt-7 text-base font-black text-white">{service.title}</h3>
               <p className="mt-3 text-sm leading-6 text-white/58">{service.description}</p>
-              <a href="#contact" className="service-link mt-6 inline-flex items-center gap-2 text-xs font-black">
+              <a href={service.href} className="service-link mt-6 inline-flex items-center gap-2 text-xs font-black">
                 Learn more
                 <ArrowRight className="h-3.5 w-3.5" />
               </a>
@@ -1100,7 +1091,7 @@ function Portfolio({ projects }: { projects: Project[] }) {
             }
             align="left"
           />
-          <a href="#contact" className="inline-flex items-center gap-2 text-sm font-black text-primary">
+          <a href="/portfolio" className="inline-flex items-center gap-2 text-sm font-black text-primary">
             View all projects
             <ArrowRight className="h-4 w-4" />
           </a>
@@ -3058,7 +3049,14 @@ function ClientPortalShell({
             </div>
             <div className="flex items-center gap-3">
               <Bell className="h-5 w-5 text-primary" />
-              <div className="avatar-initial">{dashboard.client.name.split(" ").map((part) => part[0]).join("").slice(0, 2)}</div>
+              <button
+                type="button"
+                className="avatar-initial cursor-pointer border-0"
+                onClick={onProfileClick}
+                aria-label="Account settings"
+              >
+                {dashboard.client.name.split(" ").map((part) => part[0]).join("").slice(0, 2)}
+              </button>
             </div>
           </header>
         )}
@@ -6795,7 +6793,7 @@ function ClientPortal() {
         isVerified={isVerified}
         navigate={navigate}
         onLogout={() => void handleClientLogout()}
-        onProfileClick={() => toast.push({ type: "info", message: "Account settings are coming soon." })}
+        onProfileClick={() => navigate("/client/profile")}
       >
         <section className="portal-card mx-auto max-w-xl text-center">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
@@ -6853,7 +6851,7 @@ function ClientPortal() {
         isVerified={isVerified}
         navigate={navigate}
         onLogout={() => void handleClientLogout()}
-        onProfileClick={() => toast.push({ type: "info", message: "Account settings are coming soon." })}
+        onProfileClick={() => navigate("/client/profile")}
       >
         <section>
           <h2 className="text-2xl font-black text-white">Explore NAI TALK Services</h2>
@@ -6930,7 +6928,7 @@ function ClientPortal() {
         isVerified={isVerified}
         navigate={navigate}
         onLogout={() => void handleClientLogout()}
-        onProfileClick={() => toast.push({ type: "info", message: "Account settings are coming soon." })}
+        onProfileClick={() => navigate("/client/profile")}
       >
           <section className="portal-card mx-auto max-w-lg text-center">
             <h2 className="text-xl font-black text-white">Verify your email to continue</h2>
@@ -6967,7 +6965,7 @@ function ClientPortal() {
         isVerified={isVerified}
         navigate={navigate}
         onLogout={() => void handleClientLogout()}
-        onProfileClick={() => toast.push({ type: "info", message: "Account settings are coming soon." })}
+        onProfileClick={() => navigate("/client/profile")}
       >
           <section className="grid gap-5 lg:grid-cols-[1fr_320px]">
             <div className="portal-card">
@@ -7128,7 +7126,7 @@ function ClientPortal() {
         isVerified={isVerified}
         navigate={navigate}
         onLogout={() => void handleClientLogout()}
-        onProfileClick={() => toast.push({ type: "info", message: "Account settings are coming soon." })}
+        onProfileClick={() => navigate("/client/profile")}
       >
           <section className="mx-auto grid max-w-2xl gap-5">
             <div className="portal-card">
@@ -7182,7 +7180,7 @@ function ClientPortal() {
         isVerified={isVerified}
         navigate={navigate}
         onLogout={() => void handleClientLogout()}
-        onProfileClick={() => toast.push({ type: "info", message: "Account settings are coming soon." })}
+        onProfileClick={() => navigate("/client/profile")}
       >
         <section className="mx-auto max-w-xl portal-card text-center">
           <h2 className="text-xl font-black text-white">Checkout</h2>
@@ -7270,7 +7268,7 @@ function ClientPortal() {
         isVerified={isVerified}
         navigate={navigate}
         onLogout={() => void handleClientLogout()}
-        onProfileClick={() => toast.push({ type: "info", message: "Account settings are coming soon." })}
+        onProfileClick={() => navigate("/client/profile")}
         hideWelcomeHeader
       >
         <HostingManagePanel serviceId={hostingServiceId} token={clientToken} navigate={navigate} toast={toast} />
@@ -7286,7 +7284,7 @@ function ClientPortal() {
         isVerified={isVerified}
         navigate={navigate}
         onLogout={() => void handleClientLogout()}
-        onProfileClick={() => toast.push({ type: "info", message: "Account settings are coming soon." })}
+        onProfileClick={() => navigate("/client/profile")}
       >
         <ClientWalletPage token={clientToken} toast={toast} />
       </ClientPortalShell>
@@ -7301,7 +7299,7 @@ function ClientPortal() {
         isVerified={isVerified}
         navigate={navigate}
         onLogout={() => void handleClientLogout()}
-        onProfileClick={() => toast.push({ type: "info", message: "Account settings are coming soon." })}
+        onProfileClick={() => navigate("/client/profile")}
       >
         <ClientPaymentMethodsPage token={clientToken} toast={toast} />
       </ClientPortalShell>
@@ -7316,7 +7314,7 @@ function ClientPortal() {
         isVerified={isVerified}
         navigate={navigate}
         onLogout={() => void handleClientLogout()}
-        onProfileClick={() => toast.push({ type: "info", message: "Account settings are coming soon." })}
+        onProfileClick={() => navigate("/client/profile")}
       >
         <DomainSearchPage navigate={navigate} toast={toast} />
       </ClientPortalShell>
@@ -7331,7 +7329,7 @@ function ClientPortal() {
         isVerified={isVerified}
         navigate={navigate}
         onLogout={() => void handleClientLogout()}
-        onProfileClick={() => toast.push({ type: "info", message: "Account settings are coming soon." })}
+        onProfileClick={() => navigate("/client/profile")}
       >
         <DomainOnlyCheckoutPage
           token={clientToken}
@@ -7354,7 +7352,7 @@ function ClientPortal() {
         isVerified={isVerified}
         navigate={navigate}
         onLogout={() => void handleClientLogout()}
-        onProfileClick={() => toast.push({ type: "info", message: "Account settings are coming soon." })}
+        onProfileClick={() => navigate("/client/profile")}
       >
         <DomainTransferPage
           token={clientToken}
@@ -7376,7 +7374,7 @@ function ClientPortal() {
         isVerified={isVerified}
         navigate={navigate}
         onLogout={() => void handleClientLogout()}
-        onProfileClick={() => toast.push({ type: "info", message: "Account settings are coming soon." })}
+        onProfileClick={() => navigate("/client/profile")}
       >
         <ClientDomainsPage token={clientToken} navigate={navigate} toast={toast} />
       </ClientPortalShell>
@@ -7391,7 +7389,7 @@ function ClientPortal() {
         isVerified={isVerified}
         navigate={navigate}
         onLogout={() => void handleClientLogout()}
-        onProfileClick={() => toast.push({ type: "info", message: "Account settings are coming soon." })}
+        onProfileClick={() => navigate("/client/profile")}
       >
         <DomainAddHostingPage
           token={clientToken}
@@ -7414,7 +7412,7 @@ function ClientPortal() {
         isVerified={isVerified}
         navigate={navigate}
         onLogout={() => void handleClientLogout()}
-        onProfileClick={() => toast.push({ type: "info", message: "Account settings are coming soon." })}
+        onProfileClick={() => navigate("/client/profile")}
       >
         <DomainContactProfilePage token={clientToken} toast={toast} />
       </ClientPortalShell>
@@ -7449,7 +7447,7 @@ function ClientPortal() {
         isVerified={isVerified}
         navigate={navigate}
         onLogout={() => void handleClientLogout()}
-        onProfileClick={() => toast.push({ type: "info", message: "Account settings are coming soon." })}
+        onProfileClick={() => navigate("/client/profile")}
         hideWelcomeHeader
       >
         <ClientInvoicePage
@@ -7475,7 +7473,7 @@ function ClientPortal() {
         isVerified={isVerified}
         navigate={navigate}
         onLogout={() => void handleClientLogout()}
-        onProfileClick={() => toast.push({ type: "info", message: "Account settings are coming soon." })}
+        onProfileClick={() => navigate("/client/profile")}
       >
         <section>
           <h2 className="text-2xl font-black text-white">My Orders</h2>
@@ -7529,7 +7527,7 @@ function ClientPortal() {
         isVerified={isVerified}
         navigate={navigate}
         onLogout={() => void handleClientLogout()}
-        onProfileClick={() => toast.push({ type: "info", message: "Account settings are coming soon." })}
+        onProfileClick={() => navigate("/client/profile")}
       >
       {dashboard.empty_state ? (
         <section className="portal-card mx-auto max-w-xl text-center">
@@ -7642,14 +7640,32 @@ function Testimonials({ reviews }: { reviews: Review[] }) {
           </div>
           <div className="grid gap-4 md:grid-cols-3">
             {shown.map((review) => (
-              <article className="rounded-lg border border-white/10 bg-white/[0.035] p-5" key={review.author_name}>
+              <article className="flex flex-col rounded-lg border border-white/10 bg-white/[0.035] p-5" key={review.author_name}>
                 <div className="mb-4 flex gap-1 text-primary" aria-label={`${review.rating} star rating`}>
                   {Array.from({ length: Math.min(review.rating || 5, 5) }).map((_, index) => (
-                    <span key={index}>*</span>
+                    <Star key={index} className="h-3.5 w-3.5 fill-primary text-primary" />
                   ))}
                 </div>
-                <p className="text-sm leading-6 text-white/66">{review.text}</p>
-                <div className="mt-5 text-sm font-black text-white">{review.author_name}</div>
+                <p className="flex-1 text-sm leading-6 text-white/66">{review.text}</p>
+                <div className="mt-5 flex items-center gap-3">
+                  {review.profile_photo_url ? (
+                    <img
+                      src={review.profile_photo_url}
+                      alt={review.author_name}
+                      className="h-9 w-9 shrink-0 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-black text-primary">
+                      {review.author_name.charAt(0)}
+                    </div>
+                  )}
+                  <div>
+                    <div className="text-sm font-black text-white">{review.author_name}</div>
+                    {review.relative_time_description && (
+                      <div className="text-xs text-white/45">{review.relative_time_description}</div>
+                    )}
+                  </div>
+                </div>
               </article>
             ))}
           </div>
@@ -7846,7 +7862,6 @@ const footerColumns: Array<{ title: string; links: Array<{ label: string; href: 
     title: "Support",
     links: [
       { label: "Client Area", href: "/client/dashboard" },
-      { label: "Support Tickets", href: "/client/dashboard" },
       { label: "How to Pay", href: "/how-to-pay" },
       { label: "Service Status", href: "/service-status" },
       { label: "FAQs", href: "/faqs" },
@@ -7947,13 +7962,14 @@ function Footer({ logo }: { logo: LogoImage }) {
                 </span>
               ))}
             </div>
-            <a
-              href="#home"
+            <button
+              type="button"
+              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
               aria-label="Back to top"
               className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-on-primary transition hover:brightness-95"
             >
               <ArrowUp className="h-4 w-4" />
-            </a>
+            </button>
           </div>
         </div>
       </footer>
@@ -10339,7 +10355,7 @@ function AdminApp() {
           </div>
           <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {content.clientLogos.map((logo, index) => (
-              <article key={`${logo.name}-${index}`} className="admin-card">
+              <article key={index} className="admin-card">
                 <div className="flex h-20 items-center justify-center rounded-lg border border-white/10 bg-[#050806] p-3">
                   {logo.src ? (
                     <img src={logo.src} alt={logo.alt || logo.name} className="max-h-full w-full object-contain" />
@@ -10412,7 +10428,7 @@ function AdminApp() {
 
           <div className="mt-6 grid gap-5">
             {content.projects.map((project, index) => (
-              <article key={`${project.title}-${index}`} className="admin-card">
+              <article key={index} className="admin-card">
                 <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
                   <div>
                     <div className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-[#050806]">
@@ -10881,11 +10897,11 @@ function DomainSearchSection({ initialDomain }: { initialDomain?: string } = {})
 
         <div className="domain-bottom-grid">
           {tldPricing === null && (
-            <p className="col-span-full text-sm font-semibold text-black/45">Loading domain pricing…</p>
+            <p className="col-span-full text-sm font-semibold text-white/45">Loading domain pricing…</p>
           )}
 
           {tldPricing !== null && orderedPricing.length === 0 && (
-            <p className="col-span-full text-sm font-semibold text-black/45">
+            <p className="col-span-full text-sm font-semibold text-white/45">
               Domain pricing is being finalized — check back shortly.
             </p>
           )}
@@ -10914,7 +10930,7 @@ function DomainSearchSection({ initialDomain }: { initialDomain?: string } = {})
             <ShieldCheck className="h-4 w-4 text-primary" aria-hidden="true" />
             Trusted by thousands of businesses
           </div>
-          <div className="flex items-center gap-2 font-bold text-black/70">
+          <div className="flex items-center gap-2 font-bold text-white/70">
             <span className="flex -space-x-2">
               {["A", "B", "C"].map((letter) => (
                 <span
@@ -10946,10 +10962,12 @@ function DomainSearchSection({ initialDomain }: { initialDomain?: string } = {})
 }
 
 /**
- * Shared shell for every new marketing/content page — same dark Navbar/
- * Footer as the homepage, with a light content area in between (matching
- * the approved /domains page direction). seoOverrides falls back to the
- * per-path defaults in seo/pageSeoConfig.mjs when omitted.
+ * Shared shell for every marketing/content page — same dark Navbar/Footer
+ * as the homepage. Content in between is being migrated page-by-page from
+ * the older light `pub-*` styles to the dark-native styles (pass `dark` to
+ * MarketingHero/MarketingCtaBand/FaqAccordionGroup/PublicBreadcrumbs on
+ * migrated pages). seoOverrides falls back to the per-path defaults in
+ * seo/pageSeoConfig.mjs when omitted.
  */
 function PublicPage({
   children,
@@ -10970,17 +10988,20 @@ function PublicPage({
   );
 }
 
-function PublicBreadcrumbs({ items }: { items: Array<{ label: string; href?: string }> }) {
+function PublicBreadcrumbs({ items, dark = false }: { items: Array<{ label: string; href?: string }>; dark?: boolean }) {
   return (
-    <nav aria-label="Breadcrumb" className="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-4 pt-8 text-xs font-bold text-[#596273] sm:px-6 lg:px-8">
+    <nav
+      aria-label="Breadcrumb"
+      className={`mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-4 pt-8 text-xs font-bold sm:px-6 lg:px-8 ${dark ? "text-white/50" : "text-[#596273]"}`}
+    >
       <a href="/" className="hover:text-primary">Home</a>
       {items.map((item, index) => (
         <span key={item.label} className="flex items-center gap-2">
-          <span className="text-black/25">/</span>
+          <span className={dark ? "text-white/20" : "text-black/25"}>/</span>
           {item.href && index < items.length - 1 ? (
             <a href={item.href} className="hover:text-primary">{item.label}</a>
           ) : (
-            <span className="text-[#07111f]">{item.label}</span>
+            <span className={dark ? "text-white" : "text-[#07111f]"}>{item.label}</span>
           )}
         </span>
       ))}
@@ -11022,6 +11043,7 @@ function MarketingHero({
   secondaryLabel,
   secondaryHref,
   imageQuery,
+  dark = false,
 }: {
   eyebrow: string;
   title: React.ReactNode;
@@ -11031,23 +11053,24 @@ function MarketingHero({
   secondaryLabel?: string;
   secondaryHref?: string;
   imageQuery: string;
+  dark?: boolean;
 }) {
   const image = usePublicImage(imageQuery);
 
   return (
-    <section className="pub-section">
+    <section className={dark ? "pub-section-dark" : "pub-section"}>
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-2 lg:items-center lg:px-8 lg:py-20">
         <div>
-          <span className="pub-eyebrow">{eyebrow}</span>
-          <h1 className="mt-4 text-4xl font-black leading-[1.08] text-[#07111f] sm:text-5xl">{title}</h1>
-          <p className="mt-5 max-w-xl text-base leading-8 text-[#596273] sm:text-lg">{subtitle}</p>
+          <span className={dark ? "eyebrow" : "pub-eyebrow"}>{eyebrow}</span>
+          <h1 className={`mt-4 text-4xl font-black leading-[1.08] sm:text-5xl ${dark ? "text-white" : "text-[#07111f]"}`}>{title}</h1>
+          <p className={`mt-5 max-w-xl text-base leading-8 sm:text-lg ${dark ? "text-white/62" : "text-[#596273]"}`}>{subtitle}</p>
           <div className="mt-8 flex flex-wrap gap-3">
             <a href={ctaHref} className="btn-primary justify-center">
               {ctaLabel}
               <ArrowRight className="h-4 w-4" />
             </a>
             {secondaryLabel && secondaryHref && (
-              <a href={secondaryHref} className="btn-outline-light justify-center">
+              <a href={secondaryHref} className={dark ? "btn-outline justify-center" : "btn-outline-light justify-center"}>
                 {secondaryLabel}
               </a>
             )}
@@ -11068,12 +11091,24 @@ function MarketingHero({
   );
 }
 
-function MarketingCtaBand({ title, subtitle, ctaLabel, ctaHref }: { title: string; subtitle: string; ctaLabel: string; ctaHref: string }) {
+function MarketingCtaBand({
+  title,
+  subtitle,
+  ctaLabel,
+  ctaHref,
+  dark = false,
+}: {
+  title: string;
+  subtitle: string;
+  ctaLabel: string;
+  ctaHref: string;
+  dark?: boolean;
+}) {
   return (
-    <section className="pub-section-tint border-y border-black/5">
+    <section className={dark ? "pub-section-tint-dark border-y border-white/8" : "pub-section-tint border-y border-black/5"}>
       <div className="mx-auto flex max-w-5xl flex-col items-center gap-5 px-4 py-16 text-center sm:px-6 lg:px-8">
-        <h2 className="text-3xl font-black text-[#07111f] sm:text-4xl">{title}</h2>
-        <p className="max-w-2xl text-base leading-7 text-[#596273]">{subtitle}</p>
+        <h2 className={`text-3xl font-black sm:text-4xl ${dark ? "text-white" : "text-[#07111f]"}`}>{title}</h2>
+        <p className={`max-w-2xl text-base leading-7 ${dark ? "text-white/62" : "text-[#596273]"}`}>{subtitle}</p>
         <a href={ctaHref} className="btn-primary justify-center">
           {ctaLabel}
           <ArrowRight className="h-4 w-4" />
@@ -11083,31 +11118,33 @@ function MarketingCtaBand({ title, subtitle, ctaLabel, ctaHref }: { title: strin
   );
 }
 
-const FaqAccordionItem: React.FC<{ question: string; answer: string }> = ({ question, answer }) => {
+const FaqAccordionItem: React.FC<{ question: string; answer: string; dark?: boolean }> = ({ question, answer, dark = false }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="pub-card !p-0 overflow-hidden">
+    <div className={dark ? "pub-card-dark !p-0 overflow-hidden" : "pub-card !p-0 overflow-hidden"}>
       <button
         type="button"
         className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
         onClick={() => setIsOpen((current) => !current)}
         aria-expanded={isOpen}
       >
-        <span className="text-sm font-black text-[#07111f] sm:text-base">{question}</span>
+        <span className={`text-sm font-black sm:text-base ${dark ? "text-white" : "text-[#07111f]"}`}>{question}</span>
         <ChevronDown className={`h-4 w-4 shrink-0 text-primary transition ${isOpen ? "rotate-180" : ""}`} />
       </button>
-      {isOpen && <p className="border-t border-black/8 px-5 py-4 text-sm leading-7 text-[#596273]">{answer}</p>}
+      {isOpen && (
+        <p className={`border-t px-5 py-4 text-sm leading-7 ${dark ? "border-white/10 text-white/62" : "border-black/8 text-[#596273]"}`}>{answer}</p>
+      )}
     </div>
   );
 };
 
-const FaqAccordionGroup: React.FC<{ title?: string; items: Array<{ question: string; answer: string }> }> = ({ title, items }) => {
+const FaqAccordionGroup: React.FC<{ title?: string; items: Array<{ question: string; answer: string }>; dark?: boolean }> = ({ title, items, dark = false }) => {
   return (
     <div className="grid gap-3">
-      {title && <h3 className="text-lg font-black text-[#07111f]">{title}</h3>}
+      {title && <h3 className={`text-lg font-black ${dark ? "text-white" : "text-[#07111f]"}`}>{title}</h3>}
       {items.map((item) => (
-        <FaqAccordionItem key={item.question} question={item.question} answer={item.answer} />
+        <FaqAccordionItem key={item.question} question={item.question} answer={item.answer} dark={dark} />
       ))}
     </div>
   );
@@ -11141,34 +11178,34 @@ function DomainsLandingPage() {
       <main className="pt-20">
         <DomainSearchSection initialDomain={initialDomain} />
 
-        <section className="pub-section-tint border-y border-black/5">
+        <section className="pub-section-tint-dark border-y border-white/8">
           <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
             <div className="mx-auto max-w-2xl text-center">
-              <span className="pub-eyebrow">Why NAI TALK</span>
-              <h2 className="mt-4 text-3xl font-black text-[#07111f] sm:text-4xl">Why choose NAI TALK for domains</h2>
+              <span className="eyebrow">Why NAI TALK</span>
+              <h2 className="mt-4 text-3xl font-black text-white sm:text-4xl">Why choose NAI TALK for domains</h2>
             </div>
             <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {DOMAIN_WHY_NAI_TALK.map((item) => (
-                <div key={item.title} className="pub-card">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+                <div key={item.title} className="pub-card-dark">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
                     <item.icon className="h-5 w-5" />
                   </div>
-                  <h3 className="mt-4 text-base font-black text-[#07111f]">{item.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-[#596273]">{item.description}</p>
+                  <h3 className="mt-4 text-base font-black text-white">{item.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-white/62">{item.description}</p>
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        <section className="pub-section">
+        <section className="pub-section-dark">
           <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6 lg:px-8">
             <div className="text-center">
-              <span className="pub-eyebrow">FAQ</span>
-              <h2 className="mt-4 text-3xl font-black text-[#07111f]">Domain questions, answered</h2>
+              <span className="eyebrow">FAQ</span>
+              <h2 className="mt-4 text-3xl font-black text-white">Domain questions, answered</h2>
             </div>
             <div className="mt-8">
-              <FaqAccordionGroup items={DOMAIN_FAQ_ITEMS} />
+              <FaqAccordionGroup dark items={DOMAIN_FAQ_ITEMS} />
             </div>
           </div>
         </section>
@@ -11178,6 +11215,7 @@ function DomainsLandingPage() {
           subtitle="Search availability instantly and register in minutes — with hosting and email available in the same checkout if you want them."
           ctaLabel="Search Domain"
           ctaHref="#homepage-domain-search"
+          dark
         />
       </main>
       <Footer logo={fallbackSiteContent.brand.logo} />
@@ -11189,7 +11227,7 @@ function DomainsLandingPage() {
 function DomainRegistrationPage() {
   return (
     <PublicPage>
-      <PublicBreadcrumbs items={[{ label: "Domains", href: "/domains" }, { label: "Domain Registration" }]} />
+      <PublicBreadcrumbs items={[{ label: "Domains", href: "/domains" }, { label: "Domain Registration" }]} dark />
       <MarketingHero
         eyebrow="Domain Registration"
         title="Domain Registration in Nigeria for Businesses"
@@ -11199,20 +11237,21 @@ function DomainRegistrationPage() {
         secondaryLabel="View Website Care Plans"
         secondaryHref="/website-care-plans"
         imageQuery="domain name website"
+        dark
       />
 
-      <section className="pub-section">
+      <section className="pub-section-dark">
         <div className="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:px-8">
           <div>
-            <h2 className="text-2xl font-black text-[#07111f]">What is a domain name?</h2>
-            <p className="mt-3 text-base leading-7 text-[#596273]">
+            <h2 className="text-2xl font-black text-white">What is a domain name?</h2>
+            <p className="mt-3 text-base leading-7 text-white/62">
               A domain name is the address customers type to find your business online — like yourbusiness.com. It's what appears in your email address, on
               your business card, and in every Google search result for your brand. A good domain builds trust before a visitor even sees your website.
             </p>
           </div>
           <div>
-            <h2 className="text-2xl font-black text-[#07111f]">Why the right domain matters</h2>
-            <p className="mt-3 text-base leading-7 text-[#596273]">
+            <h2 className="text-2xl font-black text-white">Why the right domain matters</h2>
+            <p className="mt-3 text-base leading-7 text-white/62">
               A short, memorable domain that matches your business name makes it easier for customers to find you, remember you, and trust you. It also
               protects your brand from competitors registering it first.
             </p>
@@ -11220,11 +11259,11 @@ function DomainRegistrationPage() {
         </div>
       </section>
 
-      <section className="pub-section-tint border-y border-black/5">
+      <section className="pub-section-tint-dark border-y border-white/8">
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="pub-eyebrow">Extensions we support</span>
-            <h2 className="mt-4 text-3xl font-black text-[#07111f]">Which extension fits your business?</h2>
+            <span className="eyebrow">Extensions we support</span>
+            <h2 className="mt-4 text-3xl font-black text-white">Which extension fits your business?</h2>
           </div>
           <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             {[
@@ -11234,20 +11273,20 @@ function DomainRegistrationPage() {
               [".org", "Organizations and NGOs"],
               [".net", "Networks and tech brands"],
             ].map(([tld, description]) => (
-              <div key={tld} className="pub-card text-center">
+              <div key={tld} className="pub-card-dark text-center">
                 <p className="text-2xl font-black text-primary">{tld}</p>
-                <p className="mt-2 text-sm text-[#596273]">{description}</p>
+                <p className="mt-2 text-sm text-white/62">{description}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="pub-section">
+      <section className="pub-section-dark">
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="pub-eyebrow">How it works</span>
-            <h2 className="mt-4 text-3xl font-black text-[#07111f]">Search and register in minutes</h2>
+            <span className="eyebrow">How it works</span>
+            <h2 className="mt-4 text-3xl font-black text-white">Search and register in minutes</h2>
           </div>
           <div className="mt-10 grid gap-4 sm:grid-cols-3">
             {[
@@ -11255,24 +11294,24 @@ function DomainRegistrationPage() {
               ["Choose", "Buy the domain only, or bundle it with hosting and a Website Care Plan in one checkout."],
               ["Manage", "Renew, auto-renew, and manage everything from your NAI TALK client dashboard."],
             ].map(([title, description], index) => (
-              <div key={title} className="pub-card">
+              <div key={title} className="pub-card-dark">
                 <span className="text-xs font-black uppercase text-primary">Step {index + 1}</span>
-                <h3 className="mt-2 text-lg font-black text-[#07111f]">{title}</h3>
-                <p className="mt-2 text-sm leading-6 text-[#596273]">{description}</p>
+                <h3 className="mt-2 text-lg font-black text-white">{title}</h3>
+                <p className="mt-2 text-sm leading-6 text-white/62">{description}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="pub-section-tint border-y border-black/5">
+      <section className="pub-section-tint-dark border-y border-white/8">
         <div className="mx-auto max-w-5xl px-4 py-14 text-center sm:px-6 lg:px-8">
-          <h2 className="text-2xl font-black text-[#07111f]">Explore related services</h2>
+          <h2 className="text-2xl font-black text-white">Explore related services</h2>
           <div className="mt-6 flex flex-wrap justify-center gap-3 text-sm font-bold">
-            <a href="/web-hosting" className="btn-outline-light">Web Hosting</a>
-            <a href="/website-care-plans" className="btn-outline-light">Website Care Plans</a>
-            <a href="/domain-transfer" className="btn-outline-light">Domain Transfer</a>
-            <a href="/business-email-hosting" className="btn-outline-light">Business Email Hosting</a>
+            <a href="/web-hosting" className="btn-outline">Web Hosting</a>
+            <a href="/website-care-plans" className="btn-outline">Website Care Plans</a>
+            <a href="/domain-transfer" className="btn-outline">Domain Transfer</a>
+            <a href="/business-email-hosting" className="btn-outline">Business Email Hosting</a>
           </div>
         </div>
       </section>
@@ -11282,6 +11321,7 @@ function DomainRegistrationPage() {
         subtitle="Search availability instantly — if your first choice is taken, we'll suggest similar available alternatives."
         ctaLabel="Search Domain"
         ctaHref="/domains"
+        dark
       />
     </PublicPage>
   );
@@ -11290,7 +11330,7 @@ function DomainRegistrationPage() {
 function PublicDomainTransferPage() {
   return (
     <PublicPage>
-      <PublicBreadcrumbs items={[{ label: "Domains", href: "/domains" }, { label: "Domain Transfer" }]} />
+      <PublicBreadcrumbs items={[{ label: "Domains", href: "/domains" }, { label: "Domain Transfer" }]} dark />
       <MarketingHero
         eyebrow="Domain Transfer"
         title="Transfer Your Domain to NAI TALK"
@@ -11300,46 +11340,47 @@ function PublicDomainTransferPage() {
         secondaryLabel="Check Domain Pricing"
         secondaryHref="/domain-pricing"
         imageQuery="data transfer digital connection"
+        dark
       />
 
-      <section className="pub-section">
+      <section className="pub-section-dark">
         <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
-          <h2 className="text-2xl font-black text-[#07111f]">What domain transfer means</h2>
-          <p className="mt-3 text-base leading-7 text-[#596273]">
+          <h2 className="text-2xl font-black text-white">What domain transfer means</h2>
+          <p className="mt-3 text-base leading-7 text-white/62">
             Transferring a domain moves its management from your current registrar to NAI TALK, without changing who owns it or affecting your website and
             email while the transfer is in progress. Your domain keeps working normally throughout.
           </p>
 
           <div className="mt-10 grid gap-4 sm:grid-cols-2">
-            <div className="pub-card">
-              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+            <div className="pub-card-dark">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
                 <KeyRound className="h-5 w-5" />
               </div>
-              <h3 className="mt-4 text-base font-black text-[#07111f]">EPP / Authorization code</h3>
-              <p className="mt-2 text-sm leading-6 text-[#596273]">
+              <h3 className="mt-4 text-base font-black text-white">EPP / Authorization code</h3>
+              <p className="mt-2 text-sm leading-6 text-white/62">
                 Your current registrar can provide this code — it proves you're authorized to move the domain. You'll enter it when you start the transfer.
               </p>
             </div>
-            <div className="pub-card">
-              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+            <div className="pub-card-dark">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
                 <ShieldCheck className="h-5 w-5" />
               </div>
-              <h3 className="mt-4 text-base font-black text-[#07111f]">Transfer eligibility</h3>
-              <p className="mt-2 text-sm leading-6 text-[#596273]">
+              <h3 className="mt-4 text-base font-black text-white">Transfer eligibility</h3>
+              <p className="mt-2 text-sm leading-6 text-white/62">
                 Your domain must be unlocked at its current registrar and past any recent-registration lock period before it can be transferred.
               </p>
             </div>
           </div>
 
-          <h2 className="mt-14 text-2xl font-black text-[#07111f]">What to prepare</h2>
-          <ul className="mt-4 grid gap-3 text-sm leading-7 text-[#596273]">
+          <h2 className="mt-14 text-2xl font-black text-white">What to prepare</h2>
+          <ul className="mt-4 grid gap-3 text-sm leading-7 text-white/62">
             <li className="flex gap-3"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" /> Unlock the domain with your current registrar.</li>
             <li className="flex gap-3"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" /> Get your EPP/authorization code from them.</li>
             <li className="flex gap-3"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" /> Make sure the domain isn't within 60 days of a previous transfer.</li>
           </ul>
 
-          <h2 className="mt-14 text-2xl font-black text-[#07111f]">The transfer process</h2>
-          <p className="mt-3 text-base leading-7 text-[#596273]">
+          <h2 className="mt-14 text-2xl font-black text-white">The transfer process</h2>
+          <p className="mt-3 text-base leading-7 text-white/62">
             Once you submit your domain and EPP code, we check eligibility immediately. Most transfers complete within a few days on the registry side, and
             you'll get a notification at each stage. Your new registration period is extended once the transfer completes, so you don't lose any time.
           </p>
@@ -11351,6 +11392,7 @@ function PublicDomainTransferPage() {
         subtitle="Start your transfer today — our team is on hand if you have questions about your EPP code or eligibility."
         ctaLabel="Start Domain Transfer"
         ctaHref="/client/domains/transfer"
+        dark
       />
     </PublicPage>
   );
@@ -11359,7 +11401,7 @@ function PublicDomainTransferPage() {
 function DomainRenewalPage() {
   return (
     <PublicPage>
-      <PublicBreadcrumbs items={[{ label: "Domains", href: "/domains" }, { label: "Domain Renewal" }]} />
+      <PublicBreadcrumbs items={[{ label: "Domains", href: "/domains" }, { label: "Domain Renewal" }]} dark />
       <MarketingHero
         eyebrow="Domain Renewal"
         title="Renew Your Domain Before It Expires"
@@ -11369,43 +11411,44 @@ function DomainRenewalPage() {
         secondaryLabel="Search a New Domain"
         secondaryHref="/domains"
         imageQuery="online business calendar reminder"
+        dark
       />
 
-      <section className="pub-section">
+      <section className="pub-section-dark">
         <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
           <div className="grid gap-6 sm:grid-cols-2">
-            <div className="pub-card">
-              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+            <div className="pub-card-dark">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
                 <Bell className="h-5 w-5" />
               </div>
-              <h3 className="mt-4 text-base font-black text-[#07111f]">Renewal reminders</h3>
-              <p className="mt-2 text-sm leading-6 text-[#596273]">We email you well before your domain's expiry date, so it's never a surprise.</p>
+              <h3 className="mt-4 text-base font-black text-white">Renewal reminders</h3>
+              <p className="mt-2 text-sm leading-6 text-white/62">We email you well before your domain's expiry date, so it's never a surprise.</p>
             </div>
-            <div className="pub-card">
-              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+            <div className="pub-card-dark">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
                 <RefreshCw className="h-5 w-5" />
               </div>
-              <h3 className="mt-4 text-base font-black text-[#07111f]">Auto-renewal</h3>
-              <p className="mt-2 text-sm leading-6 text-[#596273]">On by default — we renew automatically using your wallet or a saved card, so you never have to remember.</p>
+              <h3 className="mt-4 text-base font-black text-white">Auto-renewal</h3>
+              <p className="mt-2 text-sm leading-6 text-white/62">On by default — we renew automatically using your wallet or a saved card, so you never have to remember.</p>
             </div>
-            <div className="pub-card">
-              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+            <div className="pub-card-dark">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
                 <Wallet className="h-5 w-5" />
               </div>
-              <h3 className="mt-4 text-base font-black text-[#07111f]">Flexible payment</h3>
-              <p className="mt-2 text-sm leading-6 text-[#596273]">Renew with your NAI TALK wallet, a saved card, bank transfer, or a fresh card payment.</p>
+              <h3 className="mt-4 text-base font-black text-white">Flexible payment</h3>
+              <p className="mt-2 text-sm leading-6 text-white/62">Renew with your NAI TALK wallet, a saved card, bank transfer, or a fresh card payment.</p>
             </div>
-            <div className="pub-card">
-              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+            <div className="pub-card-dark">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
                 <ShieldCheck className="h-5 w-5" />
               </div>
-              <h3 className="mt-4 text-base font-black text-[#07111f]">Grace period</h3>
-              <p className="mt-2 text-sm leading-6 text-[#596273]">Most extensions allow a short grace period after expiry — but renewing on time is always the safest option.</p>
+              <h3 className="mt-4 text-base font-black text-white">Grace period</h3>
+              <p className="mt-2 text-sm leading-6 text-white/62">Most extensions allow a short grace period after expiry — but renewing on time is always the safest option.</p>
             </div>
           </div>
 
-          <h2 className="mt-14 text-2xl font-black text-[#07111f]">What happens if a domain expires?</h2>
-          <p className="mt-3 text-base leading-7 text-[#596273]">
+          <h2 className="mt-14 text-2xl font-black text-white">What happens if a domain expires?</h2>
+          <p className="mt-3 text-base leading-7 text-white/62">
             Your website and email tied to that domain may stop working. After a grace period, an expired domain can become available for anyone else to
             register — meaning you could lose it permanently. Turning on auto-renewal is the simplest way to avoid this entirely.
           </p>
@@ -11417,6 +11460,7 @@ function DomainRenewalPage() {
         subtitle="Turn on auto-renewal from your dashboard, or renew manually any time before your expiry date."
         ctaLabel="Renew Domain"
         ctaHref="/client/domains"
+        dark
       />
     </PublicPage>
   );
@@ -11448,24 +11492,24 @@ function DomainPricingPage() {
 
   return (
     <PublicPage>
-      <PublicBreadcrumbs items={[{ label: "Domains", href: "/domains" }, { label: "Domain Pricing" }]} />
-      <section className="pub-section">
+      <PublicBreadcrumbs items={[{ label: "Domains", href: "/domains" }, { label: "Domain Pricing" }]} dark />
+      <section className="pub-section-dark">
         <div className="mx-auto max-w-4xl px-4 pt-10 text-center sm:px-6 lg:px-8">
-          <span className="pub-eyebrow">Domain Pricing</span>
-          <h1 className="mt-4 text-4xl font-black text-[#07111f] sm:text-5xl">Domain Pricing</h1>
-          <p className="mt-4 text-base leading-7 text-[#596273]">Transparent registration, renewal and transfer pricing — no hidden fees added at checkout.</p>
+          <span className="eyebrow">Domain Pricing</span>
+          <h1 className="mt-4 text-4xl font-black text-white sm:text-5xl">Domain Pricing</h1>
+          <p className="mt-4 text-base leading-7 text-white/62">Transparent registration, renewal and transfer pricing — no hidden fees added at checkout.</p>
         </div>
 
         <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
           {rows === null ? (
-            <div className="pub-card text-center text-sm text-[#596273]">Loading pricing...</div>
+            <div className="pub-card-dark text-center text-sm text-white/55">Loading pricing...</div>
           ) : !isAvailable || rows.length === 0 ? (
-            <div className="pub-card text-center text-sm font-bold text-[#596273]">Pricing temporarily unavailable. Please contact support.</div>
+            <div className="pub-card-dark text-center text-sm font-bold text-white/55">Pricing temporarily unavailable. Please contact support.</div>
           ) : (
-            <div className="overflow-x-auto rounded-2xl border border-black/8 shadow-[0_15px_45px_rgba(16,24,16,0.06)]">
-              <table className="w-full min-w-[640px] border-collapse bg-white text-left text-sm">
+            <div className="overflow-x-auto rounded-2xl border border-white/10">
+              <table className="w-full min-w-[640px] border-collapse bg-white/[0.02] text-left text-sm">
                 <thead>
-                  <tr className="border-b border-black/8 text-xs font-black uppercase text-[#596273]">
+                  <tr className="border-b border-white/10 text-xs font-black uppercase text-white/55">
                     <th className="px-5 py-4">Extension</th>
                     <th className="px-5 py-4">Registration</th>
                     <th className="px-5 py-4">Renewal</th>
@@ -11476,14 +11520,14 @@ function DomainPricingPage() {
                 </thead>
                 <tbody>
                   {rows.map((row) => (
-                    <tr key={row.tld} className="border-b border-black/5 last:border-0">
-                      <td className="px-5 py-4 text-base font-black text-[#07111f]">{row.tld}</td>
-                      <td className="px-5 py-4 text-[#0b1210]">{row.registration_price}</td>
-                      <td className="px-5 py-4 text-[#0b1210]">{row.renewal_price}</td>
-                      <td className="px-5 py-4 text-[#0b1210]">{row.transfer_price}</td>
-                      <td className="px-5 py-4 text-[#596273]">{row.best_for}</td>
+                    <tr key={row.tld} className="border-b border-white/8 last:border-0">
+                      <td className="px-5 py-4 text-base font-black text-white">{row.tld}</td>
+                      <td className="px-5 py-4 text-white/85">{row.registration_price}</td>
+                      <td className="px-5 py-4 text-white/85">{row.renewal_price}</td>
+                      <td className="px-5 py-4 text-white/85">{row.transfer_price}</td>
+                      <td className="px-5 py-4 text-white/55">{row.best_for}</td>
                       <td className="px-5 py-4">
-                        <a href={`/domains?domain=example${row.tld}`} className="btn-outline-light !min-h-9 !px-4 !text-[10px]">Search</a>
+                        <a href={`/domains?domain=example${row.tld}`} className="btn-outline !min-h-9 !px-4 !text-[10px]">Search</a>
                       </td>
                     </tr>
                   ))}
@@ -11499,6 +11543,7 @@ function DomainPricingPage() {
         subtitle="Search your exact domain to see live availability and the price you'll actually pay."
         ctaLabel="Search Domain"
         ctaHref="/domains"
+        dark
       />
     </PublicPage>
   );
@@ -11507,7 +11552,7 @@ function DomainPricingPage() {
 function WebHostingPage() {
   return (
     <PublicPage>
-      <PublicBreadcrumbs items={[{ label: "Web Hosting" }]} />
+      <PublicBreadcrumbs items={[{ label: "Web Hosting" }]} dark />
       <MarketingHero
         eyebrow="Web Hosting"
         title="Reliable Web Hosting in Nigeria"
@@ -11517,23 +11562,24 @@ function WebHostingPage() {
         secondaryLabel="Start Your Website"
         secondaryHref="/website-design"
         imageQuery="cloud hosting data center"
+        dark
       />
 
-      <section className="pub-section">
+      <section className="pub-section-dark">
         <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
-          <h2 className="text-2xl font-black text-[#07111f]">What is hosting?</h2>
-          <p className="mt-3 text-base leading-7 text-[#596273]">
+          <h2 className="text-2xl font-black text-white">What is hosting?</h2>
+          <p className="mt-3 text-base leading-7 text-white/62">
             If your domain name is your business address, hosting is the building where your website actually lives. It stores your website's files and
             makes them available to anyone who visits your domain, at any hour — without you ever needing to touch a server.
           </p>
         </div>
       </section>
 
-      <section className="pub-section-tint border-y border-black/5">
+      <section className="pub-section-tint-dark border-y border-white/8">
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="pub-eyebrow">Why NAI TALK hosting</span>
-            <h2 className="mt-4 text-3xl font-black text-[#07111f]">Everything your website needs, in one place</h2>
+            <span className="eyebrow">Why NAI TALK hosting</span>
+            <h2 className="mt-4 text-3xl font-black text-white">Everything your website needs, in one place</h2>
           </div>
           <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {[
@@ -11542,26 +11588,27 @@ function WebHostingPage() {
               [RefreshCw, "Automatic backups", "Regular backups mean your website can always be restored if something goes wrong."],
               [Headphones, "Real support", "Reach a real person by WhatsApp or support ticket whenever you need help."],
             ].map(([Icon, title, description]) => (
-              <div key={title as string} className="pub-card">
-                <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+              <div key={title as string} className="pub-card-dark">
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
                   {React.createElement(Icon as LucideIcon, { className: "h-5 w-5" })}
                 </div>
-                <h3 className="mt-4 text-base font-black text-[#07111f]">{title as string}</h3>
-                <p className="mt-2 text-sm leading-6 text-[#596273]">{description as string}</p>
+                <h3 className="mt-4 text-base font-black text-white">{title as string}</h3>
+                <p className="mt-2 text-sm leading-6 text-white/62">{description as string}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="pub-section">
+      <section className="pub-section-dark">
         <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6 lg:px-8">
           <div className="text-center">
-            <span className="pub-eyebrow">FAQ</span>
-            <h2 className="mt-4 text-3xl font-black text-[#07111f]">Common hosting questions</h2>
+            <span className="eyebrow">FAQ</span>
+            <h2 className="mt-4 text-3xl font-black text-white">Common hosting questions</h2>
           </div>
           <div className="mt-8">
             <FaqAccordionGroup
+              dark
               items={[
                 { question: "Do I need technical knowledge to use your hosting?", answer: "No. Our hosting and Website Care Plans are built so you never have to touch a server or configuration file — we handle the technical side for you." },
                 { question: "What happens if my hosting expires?", answer: "Your website may go offline. We send renewal reminders in advance, and auto-renewal (on by default) helps you avoid this entirely." },
@@ -11577,6 +11624,7 @@ function WebHostingPage() {
         subtitle="Hosting, security, backups, email and support — bundled into one simple monthly or yearly plan."
         ctaLabel="View Plans"
         ctaHref="/website-care-plans"
+        dark
       />
     </PublicPage>
   );
@@ -11606,40 +11654,40 @@ function WebsiteCarePlansPage() {
 
   return (
     <PublicPage>
-      <PublicBreadcrumbs items={[{ label: "Website Care Plans" }]} />
-      <section className="pub-section">
+      <PublicBreadcrumbs items={[{ label: "Website Care Plans" }]} dark />
+      <section className="pub-section-dark">
         <div className="mx-auto max-w-3xl px-4 pt-14 text-center sm:px-6 lg:px-8">
-          <span className="pub-eyebrow">Website Care Plans</span>
-          <h1 className="mt-4 text-4xl font-black text-[#07111f] sm:text-5xl">Website Care Plans for Growing Businesses</h1>
-          <p className="mt-4 text-base leading-7 text-[#596273] sm:text-lg">
+          <span className="eyebrow">Website Care Plans</span>
+          <h1 className="mt-4 text-4xl font-black text-white sm:text-5xl">Website Care Plans for Growing Businesses</h1>
+          <p className="mt-4 text-base leading-7 text-white/62 sm:text-lg">
             No technical stress. We keep your website online, secure, backed up, and supported so you can focus on running your business.
           </p>
         </div>
 
         <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
           {plans === null ? (
-            <p className="text-center text-sm text-[#596273]">Loading plans...</p>
+            <p className="text-center text-sm text-white/55">Loading plans...</p>
           ) : plans.length === 0 ? (
-            <p className="text-center text-sm font-bold text-[#596273]">Plans are temporarily unavailable. Please contact support.</p>
+            <p className="text-center text-sm font-bold text-white/55">Plans are temporarily unavailable. Please contact support.</p>
           ) : (
             <div className="grid gap-6 lg:grid-cols-3">
               {plans.map((plan) => (
                 <div
                   key={plan.slug}
-                  className={`pub-card flex flex-col ${plan.is_popular ? "border-2 border-primary shadow-[0_25px_60px_rgba(155,234,22,0.18)] lg:-translate-y-3" : ""}`}
+                  className={`pub-card-dark flex flex-col ${plan.is_popular ? "border-2 border-primary shadow-[0_25px_60px_rgba(155,234,22,0.18)] lg:-translate-y-3" : ""}`}
                 >
                   {plan.is_popular && (
                     <span className="mb-3 inline-flex w-fit items-center rounded-full bg-primary px-3 py-1 text-[10px] font-black uppercase text-on-primary">
                       {plan.display_badge || "Most Popular"}
                     </span>
                   )}
-                  <h2 className="text-xl font-black text-[#07111f]">{plan.name}</h2>
-                  <p className="mt-1 text-sm text-[#596273]">{plan.short_description}</p>
+                  <h2 className="text-xl font-black text-white">{plan.name}</h2>
+                  <p className="mt-1 text-sm text-white/62">{plan.short_description}</p>
                   <div className="mt-4">
-                    <p className="text-3xl font-black text-[#07111f]">{plan.monthly_price}<span className="text-sm font-bold text-[#596273]">/month</span></p>
-                    <p className="text-sm text-[#596273]">{plan.annual_price}/year</p>
+                    <p className="text-3xl font-black text-white">{plan.monthly_price}<span className="text-sm font-bold text-white/55">/month</span></p>
+                    <p className="text-sm text-white/55">{plan.annual_price}/year</p>
                   </div>
-                  <ul className="mt-6 grid flex-1 gap-2.5 text-sm text-[#334138]">
+                  <ul className="mt-6 grid flex-1 gap-2.5 text-sm text-white/72">
                     {(plan.public_features || []).map((feature) => (
                       <li key={feature} className="flex gap-2">
                         <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
@@ -11649,7 +11697,7 @@ function WebsiteCarePlansPage() {
                   </ul>
                   <a
                     href={`/client/order/hosting?plan=${plan.slug}`}
-                    className={`mt-6 justify-center ${plan.is_popular ? "btn-primary" : "btn-outline-light"}`}
+                    className={`mt-6 justify-center ${plan.is_popular ? "btn-primary" : "btn-outline"}`}
                   >
                     {plan.is_popular ? "Choose Business Care" : plan.cta_label || "Get Started"}
                     <ArrowRight className="h-4 w-4" />
@@ -11666,6 +11714,7 @@ function WebsiteCarePlansPage() {
         subtitle="Chat with our team on WhatsApp and we'll help you pick the right Website Care Plan for your business."
         ctaLabel="Contact Support"
         ctaHref="/contact"
+        dark
       />
     </PublicPage>
   );
@@ -11674,7 +11723,7 @@ function WebsiteCarePlansPage() {
 function WebsiteDesignPage() {
   return (
     <PublicPage>
-      <PublicBreadcrumbs items={[{ label: "Website Design" }]} />
+      <PublicBreadcrumbs items={[{ label: "Website Design" }]} dark />
       <MarketingHero
         eyebrow="Website Design"
         title="Website Design for Nigerian Businesses"
@@ -11684,13 +11733,14 @@ function WebsiteDesignPage() {
         secondaryLabel="View Portfolio"
         secondaryHref="/portfolio"
         imageQuery="web design laptop workspace"
+        dark
       />
 
-      <section className="pub-section-tint border-y border-black/5">
+      <section className="pub-section-tint-dark border-y border-white/8">
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="pub-eyebrow">What we build</span>
-            <h2 className="mt-4 text-3xl font-black text-[#07111f]">Websites for every kind of business</h2>
+            <span className="eyebrow">What we build</span>
+            <h2 className="mt-4 text-3xl font-black text-white">Websites for every kind of business</h2>
           </div>
           <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {[
@@ -11699,41 +11749,41 @@ function WebsiteDesignPage() {
               ["E-commerce websites", "Sell products online with a store built for Nigerian customers."],
               ["Schools, churches, clinics & NGOs", "Websites tailored to the needs of organisations, not just businesses."],
             ].map(([title, description]) => (
-              <div key={title} className="pub-card">
-                <h3 className="text-base font-black text-[#07111f]">{title}</h3>
-                <p className="mt-2 text-sm leading-6 text-[#596273]">{description}</p>
+              <div key={title} className="pub-card-dark">
+                <h3 className="text-base font-black text-white">{title}</h3>
+                <p className="mt-2 text-sm leading-6 text-white/62">{description}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="pub-section">
+      <section className="pub-section-dark">
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="pub-eyebrow">Our process</span>
-            <h2 className="mt-4 text-3xl font-black text-[#07111f]">From idea to launch</h2>
+            <span className="eyebrow">Our process</span>
+            <h2 className="mt-4 text-3xl font-black text-white">From idea to launch</h2>
           </div>
           <div className="mt-10 grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
             {["Consult", "Design", "Build", "Launch", "Support"].map((step, index) => (
-              <div key={step} className="pub-card text-center">
+              <div key={step} className="pub-card-dark text-center">
                 <span className="text-xs font-black uppercase text-primary">Step {index + 1}</span>
-                <h3 className="mt-2 text-base font-black text-[#07111f]">{step}</h3>
+                <h3 className="mt-2 text-base font-black text-white">{step}</h3>
               </div>
             ))}
           </div>
-          <p className="mx-auto mt-8 max-w-2xl text-center text-sm leading-7 text-[#596273]">
+          <p className="mx-auto mt-8 max-w-2xl text-center text-sm leading-7 text-white/62">
             Every website comes with the option to bundle your domain, hosting, and a Website Care Plan in one simple checkout — so there's nothing left for
             you to configure on your own.
           </p>
         </div>
       </section>
 
-      <section className="pub-section-tint border-y border-black/5">
+      <section className="pub-section-tint-dark border-y border-white/8">
         <div className="mx-auto max-w-5xl px-4 py-14 text-center sm:px-6 lg:px-8">
-          <span className="pub-eyebrow">Our work</span>
-          <h2 className="mt-4 text-2xl font-black text-[#07111f]">See examples of what we've built</h2>
-          <a href="/portfolio" className="btn-outline-light mt-6 justify-center">
+          <span className="eyebrow">Our work</span>
+          <h2 className="mt-4 text-2xl font-black text-white">See examples of what we've built</h2>
+          <a href="/portfolio" className="btn-outline mt-6 justify-center">
             View Portfolio
             <ArrowRight className="h-4 w-4" />
           </a>
@@ -11745,6 +11795,7 @@ function WebsiteDesignPage() {
         subtitle="Tell us about your business and we'll help you plan a website that fits your budget and goals."
         ctaLabel="Start Your Website"
         ctaHref="/contact"
+        dark
       />
     </PublicPage>
   );
@@ -11753,7 +11804,7 @@ function WebsiteDesignPage() {
 function BusinessEmailHostingPage() {
   return (
     <PublicPage>
-      <PublicBreadcrumbs items={[{ label: "Business Email Hosting" }]} />
+      <PublicBreadcrumbs items={[{ label: "Business Email Hosting" }]} dark />
       <MarketingHero
         eyebrow="Business Email"
         title="Professional Business Email Hosting"
@@ -11763,45 +11814,46 @@ function BusinessEmailHostingPage() {
         secondaryLabel="Register a Domain First"
         secondaryHref="/domain-registration"
         imageQuery="professional email office laptop"
+        dark
       />
 
-      <section className="pub-section">
+      <section className="pub-section-dark">
         <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
-          <h2 className="text-2xl font-black text-[#07111f]">Why professional email matters</h2>
-          <p className="mt-3 text-base leading-7 text-[#596273]">
+          <h2 className="text-2xl font-black text-white">Why professional email matters</h2>
+          <p className="mt-3 text-base leading-7 text-white/62">
             First impressions matter, and for many customers, your email address is one of the first things they notice. "info@yourbusiness.com" reads as
             established and trustworthy — a free address reads as a side project. It also gives you control: create addresses for different roles
             (info@, support@, accounts@) without sharing a single personal inbox.
           </p>
 
           <div className="mt-10 grid gap-4 sm:grid-cols-2">
-            <div className="pub-card">
-              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+            <div className="pub-card-dark">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
                 <BadgeCheck className="h-5 w-5" />
               </div>
-              <h3 className="mt-4 text-base font-black text-[#07111f]">Trust and professionalism</h3>
-              <p className="mt-2 text-sm leading-6 text-[#596273]">A matching email address makes your business look established, even if you're just getting started.</p>
+              <h3 className="mt-4 text-base font-black text-white">Trust and professionalism</h3>
+              <p className="mt-2 text-sm leading-6 text-white/62">A matching email address makes your business look established, even if you're just getting started.</p>
             </div>
-            <div className="pub-card">
-              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+            <div className="pub-card-dark">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
                 <Settings className="h-5 w-5" />
               </div>
-              <h3 className="mt-4 text-base font-black text-[#07111f]">We help you set it up</h3>
-              <p className="mt-2 text-sm leading-6 text-[#596273]">No technical steps for you to figure out — our team gets your business email working with your domain.</p>
+              <h3 className="mt-4 text-base font-black text-white">We help you set it up</h3>
+              <p className="mt-2 text-sm leading-6 text-white/62">No technical steps for you to figure out — our team gets your business email working with your domain.</p>
             </div>
-            <div className="pub-card">
-              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+            <div className="pub-card-dark">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
                 <PackageCheck className="h-5 w-5" />
               </div>
-              <h3 className="mt-4 text-base font-black text-[#07111f]">Included in Website Care</h3>
-              <p className="mt-2 text-sm leading-6 text-[#596273]">Every plan includes at least one business email account, with higher plans including more.</p>
+              <h3 className="mt-4 text-base font-black text-white">Included in Website Care</h3>
+              <p className="mt-2 text-sm leading-6 text-white/62">Every plan includes at least one business email account, with higher plans including more.</p>
             </div>
-            <div className="pub-card">
-              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+            <div className="pub-card-dark">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
                 <Globe2 className="h-5 w-5" />
               </div>
-              <h3 className="mt-4 text-base font-black text-[#07111f]">Works with your domain</h3>
-              <p className="mt-2 text-sm leading-6 text-[#596273]">Business email is tied to your domain name — register or transfer yours to get started.</p>
+              <h3 className="mt-4 text-base font-black text-white">Works with your domain</h3>
+              <p className="mt-2 text-sm leading-6 text-white/62">Business email is tied to your domain name — register or transfer yours to get started.</p>
             </div>
           </div>
         </div>
@@ -11812,6 +11864,7 @@ function BusinessEmailHostingPage() {
         subtitle="Business email comes included in every Website Care Plan — no separate setup needed."
         ctaLabel="View Website Care Plans"
         ctaHref="/website-care-plans"
+        dark
       />
     </PublicPage>
   );
@@ -12172,6 +12225,23 @@ const KB_POPULAR_SLUGS = [
   "how-to-update-your-profile",
 ];
 
+const KB_GETTING_STARTED_SLUGS = [
+  "getting-started-with-your-client-dashboard",
+  "how-to-order-hosting-and-manage-services",
+];
+
+const KB_GROUP_DESCRIPTIONS: Record<string, string> = {
+  "dashboard-overview": "Understand your dashboard and key features.",
+  "services-catalog": "Explore our services and available add-ons.",
+  "orders-invoices": "View orders, invoices, and payment history.",
+  "domains-dns": "Manage domains, DNS records, and name servers.",
+  "wallet-payments": "Add funds, transactions, and payment methods.",
+  "auto-renewal": "Learn how auto-renewal keeps you protected.",
+  "profile-security": "Update your profile and security settings.",
+  "support-tickets": "Open, track, and manage your support tickets.",
+  "website-management": "Manage your websites, SSL, and related tools.",
+};
+
 type KbGroup = {
   name: string;
   slug: string;
@@ -12203,100 +12273,206 @@ function KnowledgeBaseIndexPage() {
     .filter((article) => KB_POPULAR_SLUGS.includes(article.slug))
     .sort((a, b) => KB_POPULAR_SLUGS.indexOf(a.slug) - KB_POPULAR_SLUGS.indexOf(b.slug));
 
+  const gettingStartedArticles = KB_GETTING_STARTED_SLUGS.map((slug) => {
+    const group = (groups || []).find((candidate) => candidate.articles.some((article) => article.slug === slug));
+    const article = group?.articles.find((candidate) => candidate.slug === slug);
+    return article && group ? { ...article, group } : null;
+  }).filter((item): item is { title: string; slug: string; summary: string | null; group: KbGroup } => item !== null);
+
   return (
     <PublicPage>
-      <section className="bg-[#0b0f0d] text-white">
+      <section className="border-b border-white/8">
         <div className="mx-auto max-w-4xl px-4 py-16 text-center sm:px-6 lg:px-8">
-          <span className="pub-eyebrow !bg-primary/15 !text-primary">Client Area</span>
-          <h1 className="mt-4 text-4xl font-black sm:text-5xl">Knowledge Base for the Client Area</h1>
+          <span className="eyebrow">— Help Center</span>
+          <h1 className="mt-4 text-4xl font-black sm:text-5xl">
+            Knowledge Base for the <span className="text-primary">Client Area</span>
+          </h1>
           <p className="mt-4 text-base leading-7 text-white/62 sm:text-lg">
             Find step-by-step guides, tutorials, and articles to help you manage your account, services, domains, billing, and support with ease.
           </p>
-          <div className="mx-auto mt-8 flex max-w-md items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2">
+          <div className="mx-auto mt-8 flex max-w-md items-center gap-2 rounded-full border border-white/15 bg-white/5 py-2 pl-4 pr-2">
             <Search className="h-4 w-4 shrink-0 text-white/50" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search the knowledge base..."
+              placeholder="Search help articles, guides, or tutorials..."
               className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35"
             />
+            <span className="btn-primary !min-h-9 shrink-0 !px-5 !py-0 !text-[10px]">Search</span>
           </div>
         </div>
       </section>
 
-      <section className="pub-section-tint border-b border-black/5">
+      <section className="border-b border-white/8 bg-white/[0.02]">
         <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-          <h2 className="text-center text-2xl font-black text-[#07111f]">Getting Started</h2>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              { label: "Open Client Area", href: "/client/dashboard", icon: LayoutDashboard },
-              { label: "Contact Support", href: "/contact", icon: Headphones },
-              { label: "Start a Domain Search", href: "/domains", icon: Search },
-              { label: "View Website Care Plans", href: "/website-care-plans", icon: PackageCheck },
-            ].map((action) => (
-              <a key={action.label} href={action.href} className="pub-card flex items-center gap-3 !p-4">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
-                  <action.icon className="h-4 w-4" />
-                </span>
-                <span className="text-sm font-black text-[#07111f]">{action.label}</span>
-              </a>
-            ))}
+          <h2 className="flex items-center gap-2 text-xl font-black text-white">
+            <BookOpen className="h-5 w-5 text-primary" />
+            Getting Started
+          </h2>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            {gettingStartedArticles.map((item) => {
+              const Icon = (item.group.icon && KB_GROUP_ICONS[item.group.icon]) || Rocket;
+              return (
+                <a
+                  key={item.slug}
+                  href={`/knowledge-base/${item.slug}`}
+                  className="group flex items-start gap-4 rounded-2xl border border-white/10 bg-white/[0.035] p-5 transition hover:border-primary/40 hover:bg-primary/[0.05]"
+                >
+                  <span className="service-icon shrink-0">
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-black text-white">{item.title}</p>
+                    {item.summary && <p className="mt-1 text-sm text-white/55">{item.summary}</p>}
+                    <span className="mt-3 inline-block rounded-full border border-white/15 px-3 py-1 text-[11px] font-bold text-white/60">
+                      {item.group.articles.length} articles
+                    </span>
+                  </div>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-white/30 transition group-hover:translate-x-1 group-hover:text-primary" />
+                </a>
+              );
+            })}
           </div>
         </div>
       </section>
 
-      <section className="pub-section">
+      <section>
         <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-          <div className="grid gap-10 lg:grid-cols-[1fr_320px]">
+          <div className="grid items-start gap-10 lg:grid-cols-[1fr_320px]">
             <div>
+              <h2 className="flex items-center gap-2 text-xl font-black text-white">
+                <List className="h-5 w-5 text-primary" />
+                Knowledge Base
+              </h2>
+
               {groups === null ? (
-                <p className="text-sm text-[#596273]">Loading articles...</p>
-              ) : filteredGroups.length === 0 ? (
-                <p className="pub-card text-sm text-[#596273]">No articles matched your search.</p>
+                <p className="mt-6 text-sm text-white/55">Loading articles...</p>
               ) : (
-                <div className="grid gap-8">
-                  {filteredGroups.map((group) => {
+                <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {groups.map((group) => {
                     const Icon = (group.icon && KB_GROUP_ICONS[group.icon]) || Server;
                     return (
-                      <div key={group.slug}>
-                        <div className="flex items-center gap-2">
-                          <Icon className="h-4 w-4 text-primary" />
-                          <h3 className="text-lg font-black text-[#07111f]">{group.name}</h3>
-                        </div>
-                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                          {group.articles.map((article) => (
-                            <a key={article.slug} href={`/knowledge-base/${article.slug}`} className="pub-card !p-4 transition hover:border-primary/40">
-                              <p className="text-sm font-black text-[#07111f]">{article.title}</p>
-                              {article.summary && <p className="mt-1 line-clamp-2 text-xs text-[#596273]">{article.summary}</p>}
-                            </a>
-                          ))}
-                        </div>
-                      </div>
+                      <a
+                        key={group.slug}
+                        href={`#group-${group.slug}`}
+                        className="rounded-2xl border border-white/10 bg-white/[0.035] p-5 transition hover:border-primary/40 hover:bg-primary/[0.05]"
+                      >
+                        <Icon className="h-6 w-6 text-primary" />
+                        <p className="mt-3 font-black text-white">{group.name}</p>
+                        {KB_GROUP_DESCRIPTIONS[group.slug] && (
+                          <p className="mt-1 text-sm text-white/55">{KB_GROUP_DESCRIPTIONS[group.slug]}</p>
+                        )}
+                        <span className="mt-3 inline-block rounded-full border border-white/15 px-3 py-1 text-[11px] font-bold text-primary">
+                          {group.articles.length} articles
+                        </span>
+                      </a>
                     );
                   })}
                 </div>
               )}
+
+              <div className="mt-12 grid gap-8">
+                {groups !== null && filteredGroups.length === 0 && (
+                  <p className="rounded-2xl border border-white/10 bg-white/[0.035] p-5 text-sm text-white/55">No articles matched your search.</p>
+                )}
+                {filteredGroups.map((group) => {
+                  const Icon = (group.icon && KB_GROUP_ICONS[group.icon]) || Server;
+                  return (
+                    <div key={group.slug} id={`group-${group.slug}`} className="scroll-mt-24">
+                      <div className="flex items-center gap-2">
+                        <Icon className="h-4 w-4 text-primary" />
+                        <h3 className="text-lg font-black text-white">{group.name}</h3>
+                      </div>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        {group.articles.map((article) => (
+                          <a
+                            key={article.slug}
+                            href={`/knowledge-base/${article.slug}`}
+                            className="rounded-xl border border-white/10 bg-white/[0.03] p-4 transition hover:border-primary/40"
+                          >
+                            <p className="text-sm font-black text-white">{article.title}</p>
+                            {article.summary && <p className="mt-1 line-clamp-2 text-xs text-white/50">{article.summary}</p>}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             <aside className="grid gap-6">
-              <div className="pub-card">
-                <h3 className="text-base font-black text-[#07111f]">Popular Articles</h3>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-6">
+                <h3 className="flex items-center gap-2 text-base font-black text-white">
+                  <Star className="h-4 w-4 text-primary" />
+                  Popular Articles
+                </h3>
                 <ul className="mt-4 grid gap-3 text-sm">
                   {popularArticles.map((article) => (
                     <li key={article.slug}>
-                      <a href={`/knowledge-base/${article.slug}`} className="font-bold text-[#07111f] transition hover:text-primary">{article.title}</a>
+                      <a
+                        href={`/knowledge-base/${article.slug}`}
+                        className="flex items-center justify-between gap-2 font-bold text-white/75 transition hover:text-primary"
+                      >
+                        <span className="truncate">{article.title}</span>
+                        <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                      </a>
                     </li>
                   ))}
                 </ul>
               </div>
-              <div className="pub-card !bg-[#0b1210] !border-white/10 text-center">
-                <Headphones className="mx-auto h-8 w-8 text-primary" />
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-6">
+                <h3 className="flex items-center gap-2 text-base font-black text-white">
+                  <Zap className="h-4 w-4 text-primary" />
+                  Quick Actions
+                </h3>
+                <div className="mt-4 grid gap-2">
+                  {[
+                    { label: "Open Client Area", href: "/client/dashboard" },
+                    { label: "Contact Support", href: "/contact" },
+                    { label: "Start a Domain Search", href: "/domains" },
+                  ].map((action) => (
+                    <a
+                      key={action.label}
+                      href={action.href}
+                      className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm font-bold text-white/75 transition hover:border-primary/40 hover:text-primary"
+                    >
+                      {action.label}
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-primary/30 bg-primary/[0.06] p-6 text-center">
+                <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-primary/40 text-primary">
+                  <HelpCircle className="h-6 w-6" />
+                </span>
                 <h3 className="mt-3 text-base font-black text-white">Still need help?</h3>
-                <p className="mt-1 text-sm text-white/55">Our support team is ready to assist you.</p>
+                <p className="mt-1 text-sm text-white/55">Our support team is here for you 24/7.</p>
                 <a href="/contact" className="btn-primary mt-4 w-full justify-center">Contact Support</a>
               </div>
             </aside>
           </div>
+        </div>
+      </section>
+
+      <section className="border-t border-white/8 bg-white/[0.02]">
+        <div className="mx-auto grid max-w-7xl gap-6 px-4 py-10 sm:grid-cols-3 sm:px-6 lg:px-8">
+          {[
+            { icon: ShieldCheck, title: "Trusted & Secure", desc: "Your data is safe with enterprise-grade security." },
+            { icon: Clock, title: "99.9% Uptime", desc: "Reliable infrastructure you can count on." },
+            { icon: MessageCircle, title: "24/7 Expert Support", desc: "We're here anytime you need us." },
+          ].map((item) => (
+            <div key={item.title} className="flex items-center gap-3">
+              <item.icon className="h-6 w-6 shrink-0 text-primary" />
+              <div>
+                <p className="font-black text-white">{item.title}</p>
+                <p className="text-sm text-white/55">{item.desc}</p>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
     </PublicPage>
@@ -12592,13 +12768,13 @@ function AboutPage() {
 
   return (
     <PublicPage>
-      <PublicBreadcrumbs items={[{ label: "About" }]} />
-      <section className="pub-section">
+      <PublicBreadcrumbs items={[{ label: "About" }]} dark />
+      <section className="pub-section-dark">
         <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-2 lg:items-center lg:px-8 lg:py-20">
           <div>
-            <span className="pub-eyebrow">About NAI TALK</span>
-            <h1 className="mt-4 text-4xl font-black leading-[1.08] text-[#07111f] sm:text-5xl">Helping Nigerian businesses build a trustworthy online presence</h1>
-            <p className="mt-5 max-w-xl text-base leading-8 text-[#596273] sm:text-lg">
+            <span className="eyebrow">About NAI TALK</span>
+            <h1 className="mt-4 text-4xl font-black leading-[1.08] text-white sm:text-5xl">Helping Nigerian businesses build a trustworthy online presence</h1>
+            <p className="mt-5 max-w-xl text-base leading-8 text-white/62 sm:text-lg">
               NAI TALK gives small businesses, schools, churches, NGOs and growing brands an easy way to get online and stay online — domains, hosting,
               professional email and website design, without the technical stress.
             </p>
@@ -12607,7 +12783,7 @@ function AboutPage() {
                 Contact Us
                 <ArrowRight className="h-4 w-4" />
               </a>
-              <a href="/portfolio" className="btn-outline-light justify-center">View Our Work</a>
+              <a href="/portfolio" className="btn-outline justify-center">View Our Work</a>
             </div>
           </div>
           <div className="relative">
@@ -12623,31 +12799,31 @@ function AboutPage() {
         </div>
       </section>
 
-      <section className="pub-section-tint">
+      <section className="pub-section-tint-dark">
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="pub-eyebrow">What we stand for</span>
-            <h2 className="mt-4 text-3xl font-black text-[#07111f] sm:text-4xl">Why businesses trust NAI TALK</h2>
+            <span className="eyebrow">What we stand for</span>
+            <h2 className="mt-4 text-3xl font-black text-white sm:text-4xl">Why businesses trust NAI TALK</h2>
           </div>
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {ABOUT_VALUES.map((value) => (
-              <div key={value.title} className="pub-card">
-                <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+              <div key={value.title} className="pub-card-dark">
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
                   <value.icon className="h-5 w-5" />
                 </div>
-                <h3 className="mt-4 text-base font-black text-[#07111f]">{value.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-[#596273]">{value.description}</p>
+                <h3 className="mt-4 text-base font-black text-white">{value.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-white/62">{value.description}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="pub-section">
+      <section className="pub-section-dark">
         <div className="mx-auto max-w-4xl px-4 py-16 text-center sm:px-6 lg:px-8">
-          <span className="pub-eyebrow">Our story</span>
-          <h2 className="mt-4 text-3xl font-black text-[#07111f] sm:text-4xl">Started to make going online simple</h2>
-          <p className="mt-5 text-base leading-8 text-[#596273]">
+          <span className="eyebrow">Our story</span>
+          <h2 className="mt-4 text-3xl font-black text-white sm:text-4xl">Started to make going online simple</h2>
+          <p className="mt-5 text-base leading-8 text-white/62">
             NAI TALK started with a simple observation: too many Nigerian businesses were losing customers because their websites were slow, their email
             looked unprofessional, or their domain had quietly expired. We set out to fix that — bundling domains, hosting, website care and design into one
             place, backed by people who actually pick up the phone.
@@ -12660,13 +12836,14 @@ function AboutPage() {
         subtitle="Search your domain, choose a website care plan, or talk to our team about what you need."
         ctaLabel="Search Domain"
         ctaHref="/domains"
+        dark
       />
     </PublicPage>
   );
 }
 
 const contactPageInputClass =
-  "w-full rounded-lg border border-black/10 bg-white px-4 py-3 text-sm text-[#07111f] outline-none transition placeholder:text-black/30 focus:border-primary/50 focus:ring-2 focus:ring-primary/15";
+  "w-full rounded-lg border border-white/15 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-primary/50 focus:ring-2 focus:ring-primary/15";
 
 const contactPageInfoItems = [
   { icon: Mail, label: "Email", lines: ["info@naitalk.com"], href: "mailto:info@naitalk.com" },
@@ -12713,19 +12890,19 @@ function ContactPage() {
 
   return (
     <PublicPage>
-      <PublicBreadcrumbs items={[{ label: "Contact" }]} />
-      <section className="pub-section relative overflow-hidden">
+      <PublicBreadcrumbs items={[{ label: "Contact" }]} dark />
+      <section className="pub-section-dark relative overflow-hidden">
         <div aria-hidden="true" className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-primary/12 blur-3xl" />
-        <div aria-hidden="true" className="pointer-events-none absolute -left-16 top-20 hidden h-64 w-64 rounded-full border border-black/5 sm:block" />
-        <div aria-hidden="true" className="pointer-events-none absolute -left-10 bottom-0 hidden h-56 w-56 rounded-full border border-black/5 sm:block" />
+        <div aria-hidden="true" className="pointer-events-none absolute -left-16 top-20 hidden h-64 w-64 rounded-full border border-white/10 sm:block" />
+        <div aria-hidden="true" className="pointer-events-none absolute -left-10 bottom-0 hidden h-56 w-56 rounded-full border border-white/10 sm:block" />
 
         <div className="relative mx-auto max-w-3xl px-4 pt-14 text-center sm:px-6 lg:px-8">
-          <span className="pub-eyebrow inline-flex items-center gap-2">
+          <span className="eyebrow inline-flex items-center gap-2">
             <Mail className="h-3.5 w-3.5" />
             Contact Us
           </span>
-          <h1 className="mt-4 text-4xl font-black text-[#07111f] sm:text-5xl">Let's talk about your website</h1>
-          <p className="mt-4 text-base leading-7 text-[#596273]">
+          <h1 className="mt-4 text-4xl font-black text-white sm:text-5xl">Let's talk about your website</h1>
+          <p className="mt-4 text-base leading-7 text-white/62">
             Whether you need a domain, hosting, a new website or expert support, our team is here to help you succeed online.
           </p>
         </div>
@@ -12737,25 +12914,25 @@ function ContactPage() {
                 const Icon = item.icon;
                 const body = (
                   <>
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
                       <Icon className="h-5 w-5" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-sm font-black text-[#07111f]">{item.label}</h3>
+                      <h3 className="text-sm font-black text-white">{item.label}</h3>
                       {item.lines.map((line) => (
-                        <p key={line} className="mt-0.5 text-sm text-[#596273]">{line}</p>
+                        <p key={line} className="mt-0.5 text-sm text-white/62">{line}</p>
                       ))}
                     </div>
-                    {item.href && <ChevronRight className="h-4 w-4 shrink-0 text-black/25" />}
+                    {item.href && <ChevronRight className="h-4 w-4 shrink-0 text-white/25" />}
                   </>
                 );
 
                 return item.href ? (
-                  <a key={item.label} href={item.href} className="pub-card flex items-center gap-4 !p-5 transition hover:border-primary/40">
+                  <a key={item.label} href={item.href} className="pub-card-dark flex items-center gap-4 !p-5 transition hover:border-primary/40">
                     {body}
                   </a>
                 ) : (
-                  <div key={item.label} className="pub-card flex items-center gap-4 !p-5">
+                  <div key={item.label} className="pub-card-dark flex items-center gap-4 !p-5">
                     {body}
                   </div>
                 );
@@ -12763,16 +12940,16 @@ function ContactPage() {
 
               <div className="rounded-2xl border border-primary/25 bg-primary/[0.06] p-5">
                 <div className="flex flex-wrap items-center gap-4">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#25D366]/15 text-[#1c8a45]">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#25D366]/15 text-[#25D366]">
                     <MessageCircle className="h-5 w-5" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-sm font-black text-[#07111f]">Prefer quick help?</h3>
-                    <p className="mt-0.5 text-sm text-[#596273]">Chat with us on WhatsApp</p>
+                    <h3 className="text-sm font-black text-white">Prefer quick help?</h3>
+                    <p className="mt-0.5 text-sm text-white/62">Chat with us on WhatsApp</p>
                   </div>
                   <a
                     href={whatsappUrl}
-                    className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-primary/30 bg-white px-4 py-2 text-xs font-black text-[#2f6d10] transition hover:border-primary/60"
+                    className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-xs font-black text-primary transition hover:border-primary/60"
                   >
                     Chat on WhatsApp
                     <ArrowUpRight className="h-3.5 w-3.5" />
@@ -12781,22 +12958,22 @@ function ContactPage() {
               </div>
             </div>
 
-            <div className="pub-card !p-6 sm:!p-8">
+            <div className="pub-card-dark !p-6 sm:!p-8">
               <div className="flex items-center gap-4">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-[#2f6d10]">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
                   <Send className="h-5 w-5" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-black text-[#07111f]">Send us a message</h2>
-                  <p className="mt-0.5 text-sm text-[#596273]">Fill out the form below and we'll get back to you shortly.</p>
+                  <h2 className="text-lg font-black text-white">Send us a message</h2>
+                  <p className="mt-0.5 text-sm text-white/62">Fill out the form below and we'll get back to you shortly.</p>
                 </div>
               </div>
 
               <form className="mt-6 grid gap-5" onSubmit={handleSubmit}>
                 <div className="grid gap-5 sm:grid-cols-2">
                   <label className="grid gap-2">
-                    <span className="flex items-center gap-1.5 text-xs font-black text-[#07111f]">
-                      <User className="h-3.5 w-3.5 text-[#596273]" />
+                    <span className="flex items-center gap-1.5 text-xs font-black text-white">
+                      <User className="h-3.5 w-3.5 text-white/50" />
                       Full Name
                     </span>
                     <input
@@ -12810,8 +12987,8 @@ function ContactPage() {
                     />
                   </label>
                   <label className="grid gap-2">
-                    <span className="flex items-center gap-1.5 text-xs font-black text-[#07111f]">
-                      <Mail className="h-3.5 w-3.5 text-[#596273]" />
+                    <span className="flex items-center gap-1.5 text-xs font-black text-white">
+                      <Mail className="h-3.5 w-3.5 text-white/50" />
                       Email Address
                     </span>
                     <input
@@ -12828,8 +13005,8 @@ function ContactPage() {
 
                 <div className="grid gap-5 sm:grid-cols-2">
                   <label className="grid gap-2">
-                    <span className="flex items-center gap-1.5 text-xs font-black text-[#07111f]">
-                      <Briefcase className="h-3.5 w-3.5 text-[#596273]" />
+                    <span className="flex items-center gap-1.5 text-xs font-black text-white">
+                      <Briefcase className="h-3.5 w-3.5 text-white/50" />
                       Service Interested In
                     </span>
                     <select name="service" value={formData.service} onChange={handleChange} className={contactPageInputClass}>
@@ -12842,8 +13019,8 @@ function ContactPage() {
                     </select>
                   </label>
                   <label className="grid gap-2">
-                    <span className="flex items-center gap-1.5 text-xs font-black text-[#07111f]">
-                      <Phone className="h-3.5 w-3.5 text-[#596273]" />
+                    <span className="flex items-center gap-1.5 text-xs font-black text-white">
+                      <Phone className="h-3.5 w-3.5 text-white/50" />
                       Phone Number
                     </span>
                     <input
@@ -12858,8 +13035,8 @@ function ContactPage() {
                 </div>
 
                 <label className="grid gap-2">
-                  <span className="flex items-center gap-1.5 text-xs font-black text-[#07111f]">
-                    <MessageCircle className="h-3.5 w-3.5 text-[#596273]" />
+                  <span className="flex items-center gap-1.5 text-xs font-black text-white">
+                    <MessageCircle className="h-3.5 w-3.5 text-white/50" />
                     Message
                   </span>
                   <textarea
@@ -12873,12 +13050,12 @@ function ContactPage() {
                     placeholder="Tell us how we can help you..."
                     className={`${contactPageInputClass} resize-none`}
                   />
-                  <span className="text-right text-xs text-black/35">{formData.details.length} / 1000</span>
+                  <span className="text-right text-xs text-white/35">{formData.details.length} / 1000</span>
                 </label>
 
-                <div className="flex flex-wrap items-center justify-between gap-4 border-t border-black/8 pt-5">
-                  <span className="inline-flex items-center gap-2 text-xs font-bold text-[#596273]">
-                    <ShieldCheck className="h-4 w-4 text-[#2f6d10]" />
+                <div className="flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-5">
+                  <span className="inline-flex items-center gap-2 text-xs font-bold text-white/62">
+                    <ShieldCheck className="h-4 w-4 text-primary" />
                     Your information is safe with us.
                   </span>
                   <button type="submit" className="btn-primary justify-center" disabled={status === "loading"}>
@@ -12889,7 +13066,7 @@ function ContactPage() {
                 {message && (
                   <p
                     className={`rounded-lg border px-4 py-3 text-sm font-bold ${
-                      status === "success" ? "border-primary/30 bg-primary/10 text-[#2f6d10]" : "border-red-200 bg-red-50 text-red-600"
+                      status === "success" ? "border-primary/30 bg-primary/10 text-primary" : "border-red-500/30 bg-red-500/10 text-red-400"
                     }`}
                   >
                     {message}
@@ -13154,12 +13331,12 @@ function PublicSite() {
       <main>
         <Hero projects={projects} logo={siteContent.brand.logo} />
         <TrustStrip clientLogos={siteContent.clientLogos} />
+        <HostingSection />
         <Services />
+        <Testimonials reviews={siteContent.reviews} />
         <Portfolio projects={projects} />
         <Process />
         <AiBand />
-        <HostingSection />
-        <Testimonials reviews={siteContent.reviews} />
         <Contact logo={siteContent.brand.logo} />
       </main>
       <Footer logo={siteContent.brand.logo} />
