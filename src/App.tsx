@@ -11030,10 +11030,17 @@ function DomainSearchSection({ initialDomain }: { initialDomain?: string } = {})
 
   // Always the real, admin-configured prices — never a hardcoded stand-in,
   // so a TLD only ever appears here once it's actually priced and active.
+  // DOMAIN_TLD_ORDER is a display-order preference only — any TLD not in it
+  // (a newly added one, say) still shows, just sorted after the curated set,
+  // instead of being silently dropped.
   const orderedPricing = (tldPricing ?? []).length
-    ? DOMAIN_TLD_ORDER.map((tld) => tldPricing?.find((row) => row.tld === tld)).filter(
-        (row): row is PublicTldPricingRow => Boolean(row),
-      )
+    ? [...(tldPricing ?? [])].sort((a, b) => {
+        const rankA = DOMAIN_TLD_ORDER.indexOf(a.tld);
+        const rankB = DOMAIN_TLD_ORDER.indexOf(b.tld);
+        const orderA = rankA === -1 ? DOMAIN_TLD_ORDER.length : rankA;
+        const orderB = rankB === -1 ? DOMAIN_TLD_ORDER.length : rankB;
+        return orderA !== orderB ? orderA - orderB : a.tld.localeCompare(b.tld);
+      })
     : [];
 
   return (
