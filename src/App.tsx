@@ -1801,39 +1801,6 @@ function AdminDashboardOverview({
         </div>
       </div>
 
-      <div className="grid gap-6">
-        {adminSectionGroups
-          .filter((group) => group.label !== "Overview")
-          .map((group) => (
-            <div key={group.label} className="admin-quick-group">
-              <p className="admin-quick-group-header">{group.label}</p>
-              <div className="admin-quick-grid">
-                {group.sections.map((section, index) => {
-                  const Icon = section.icon;
-                  const tones = ["", "tone-cyan", "tone-violet", "tone-gold"];
-                  return (
-                    <button
-                      key={section.id}
-                      type="button"
-                      className="admin-quick-card group"
-                      onClick={() => onNavigate?.(section.id)}
-                    >
-                      <span className={`admin-quick-card-icon ${tones[index % tones.length]}`}>
-                        <Icon className="h-5 w-5" />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="admin-quick-card-title block">{section.label}</span>
-                        <span className="admin-quick-card-desc block">{adminSectionDescriptions[section.id] || "Manage this section"}</span>
-                      </span>
-                      <ChevronRight className="admin-quick-card-chevron h-4 w-4" />
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-      </div>
-
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         {dashboardMetrics.map((metric) => {
           const Icon = metric.icon;
@@ -9081,30 +9048,6 @@ const adminSections: AdminSectionDefinition[] = adminSectionGroups.flatMap((grou
 const adminSectionLabels: Record<AdminSectionId, string> = Object.fromEntries(
   adminSections.map((section) => [section.id, section.label]),
 ) as Record<AdminSectionId, string>;
-
-const adminSectionDescriptions: Partial<Record<AdminSectionId, string>> = {
-  logo: "Manage your platform logo",
-  clientLogos: "Showcase client brands",
-  portfolio: "Manage case studies",
-  testimonials: "Client testimonials",
-  pricing: "Pricing & plans",
-  clients: "Manage your clients",
-  products: "Manage products",
-  orders: "View all orders",
-  services: "Manage services",
-  invoices: "All invoices & billing",
-  payments: "Track payments",
-  paymentVerification: "Verify payments",
-  domains: "Manage domains",
-  domainOrders: "View domain orders",
-  domainTransfers: "Manage transfers",
-  domainPricing: "Pricing & markup",
-  support: "Support tickets",
-  provisioning: "Manage provisioning",
-  ispconfigMappings: "Manage servers",
-  ispconfigImport: "Import accounts",
-  auditLogs: "System activity logs",
-};
 
 const adminRecordFilterDefs: Partial<Record<AdminRecordsSectionId, AdminRecordFilterDef[]>> = {
   products: [
