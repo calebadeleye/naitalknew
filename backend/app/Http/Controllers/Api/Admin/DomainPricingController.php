@@ -11,6 +11,7 @@ use App\Services\Billing\Money;
 use App\Services\Domains\DomainPricingService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class DomainPricingController extends Controller
 {
@@ -98,7 +99,7 @@ class DomainPricingController extends Controller
 
     private function validatePayload(Request $request, ?DomainPricing $domainPricing = null): array
     {
-        return $request->validate([
+        $payload = $request->validate([
             'tld' => ['required', 'string', 'max:30', Rule::unique('domain_pricing', 'tld')->ignore($domainPricing)],
             'provider' => ['nullable', 'string', 'max:60'],
             'currency' => ['nullable', 'string', 'max:3'],
@@ -111,6 +112,22 @@ class DomainPricingController extends Controller
             'fixed_customer_price_kobo' => ['nullable', 'integer', 'min:0'],
             'status' => ['required', Rule::in(['needs_review', 'active', 'inactive'])],
         ]);
+
+        // A TLD can silently vanish from every public pricing endpoint if it's
+        // marked active without a usable cost basis (DomainPricingService::priceFor
+        // just returns null for it). Block that combination here instead of
+        // relying on the admin noticing the informational `is_ready` flag.
+        if ($payload['status'] === 'active') {
+            $preview = ($domainPricing ? $domainPricing->replicate() : new DomainPricing)->forceFill($payload);
+
+            if (! $preview->hasUsableCostBasis()) {
+                throw ValidationException::withMessages([
+                    'status' => 'This TLD cannot be marked active without a usable cost basis — set a fixed customer price, or sync/enter an exchange rate first (cost-plus/percentage markup).',
+                ]);
+            }
+        }
+
+        return $payload;
     }
 
     private function serialize(DomainPricing $pricing): array
