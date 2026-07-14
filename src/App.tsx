@@ -731,7 +731,8 @@ function Navbar({ logo }: { logo: LogoImage }) {
   const navGroups = [...staticNavGroups, isAuthenticated ? authenticatedAccountGroup : guestAccountGroup];
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-[#030505]/85 backdrop-blur-xl">
+    <>
+      <header className="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-[#030505]/85 backdrop-blur-xl">
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Logo logo={logo} />
 
@@ -797,15 +798,10 @@ function Navbar({ logo }: { logo: LogoImage }) {
           <Menu className="h-5 w-5" />
         </button>
       </div>
+      </header>
 
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            className="fixed inset-0 z-50 bg-[#030505]/96 px-4 py-5 backdrop-blur-xl lg:hidden"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
+      {isOpen && (
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-[#030505] px-4 py-5 lg:hidden">
             <div className="flex items-center justify-between">
               <Logo logo={logo} />
               <button
@@ -865,10 +861,9 @@ function Navbar({ logo }: { logo: LogoImage }) {
                 <ArrowRight className="h-4 w-4" />
               </a>
             </nav>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </header>
+          </div>
+      )}
+    </>
   );
 }
 
@@ -961,36 +956,6 @@ function DeviceShowcase({ projects, logo }: { projects: Project[]; logo: LogoIma
   );
 }
 
-function HeroDomainSearch() {
-  const [domainInput, setDomainInput] = useState("");
-
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const domain = domainInput.trim().toLowerCase();
-    window.location.href = domain ? `/domains?domain=${encodeURIComponent(domain)}` : "/domains";
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="hero-domain-search mt-8 flex max-w-lg items-center gap-2 rounded-xl border border-white/10 bg-white/5 p-1.5">
-      <label htmlFor="hero-domain-search" className="sr-only">
-        Search for a domain name
-      </label>
-      <Globe2 className="ml-2 h-4 w-4 shrink-0 text-white/40" aria-hidden="true" />
-      <input
-        id="hero-domain-search"
-        value={domainInput}
-        onChange={(event) => setDomainInput(event.target.value)}
-        placeholder="Find your perfect domain e.g. mybusiness.com"
-        className="w-full bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none"
-      />
-      <button type="submit" className="btn-primary shrink-0 !min-h-9 !py-2 !text-xs">
-        Search
-        <ArrowRight className="h-4 w-4" />
-      </button>
-    </form>
-  );
-}
-
 function Hero({ projects, logo }: { projects: Project[]; logo: LogoImage }) {
   return (
     <section id="home" className="hero-grid relative overflow-hidden pb-8 pt-28 sm:pb-10 lg:pt-32">
@@ -1027,7 +992,6 @@ function Hero({ projects, logo }: { projects: Project[]; logo: LogoImage }) {
               Chat on WhatsApp
             </a>
           </div>
-          <HeroDomainSearch />
           <div className="mt-9 grid gap-4 sm:grid-cols-3">
             {[
               ["Reliable hosting", "99.9% uptime, every day"],
