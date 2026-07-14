@@ -6,9 +6,43 @@ import crypto from "crypto";
 import nodemailer from "nodemailer";
 import axios from "axios";
 import dotenv from "dotenv";
-import { getPageSeo } from "./src/seo/pageSeoConfig.mjs";
+import { getPageSeo, DEFAULT_OG_IMAGE } from "./src/seo/pageSeoConfig.mjs";
 
 dotenv.config();
+
+/**
+ * Blog posts have their own title/excerpt/featured image, but pageSeoConfig
+ * is a static path -> copy map that can't know about individual slugs. This
+ * fetches the post's real SEO fields from the Laravel API so a shared blog
+ * link previews with the post's own content instead of the generic site
+ * title/description/image. Returns null (falls back to pageSeoConfig) for
+ * any non-blog path, a missing/unpublished post, or an API error — a broken
+ * preview fetch must never break the page itself.
+ */
+async function getBlogPostSeo(pathname) {
+  const match = pathname.match(/^\/blog\/([^/]+)\/?$/);
+  if (!match) return null;
+
+  const slug = match[1];
+
+  try {
+    const response = await axios.get(`${laravelApiBaseUrl}/api/v1/public/blog/${encodeURIComponent(slug)}`, {
+      headers: { Accept: "application/json" },
+      timeout: 5000,
+    });
+    const post = response.data?.data;
+    if (!post) return null;
+
+    return {
+      title: post.seo_title || post.title,
+      description: post.seo_description || post.excerpt,
+      ogImage: post.og_image || post.featured_image_url || DEFAULT_OG_IMAGE,
+    };
+  } catch (error) {
+    console.error(`Could not fetch blog post SEO for slug "${slug}":`, error.message);
+    return null;
+  }
+}
 
 /**
  * Real crawlers and social-preview scrapers (Google, Facebook, Twitter,
@@ -19,8 +53,8 @@ dotenv.config();
  * response is sent, so each page still gets correct SEO metadata without a
  * full server-rendering rewrite.
  */
-function injectSeoTags(html, pathname) {
-  const seo = getPageSeo(pathname);
+async function injectSeoTags(html, pathname) {
+  const seo = { ...getPageSeo(pathname), ...(await getBlogPostSeo(pathname)) };
   const escape = (value) => String(value).replace(/"/g, "&quot;");
 
   return html
@@ -500,7 +534,7 @@ async function startServer() {
           "utf-8"
         );
         template = await vite.transformIndexHtml(url, template);
-        template = injectSeoTags(template, req.path);
+        template = await injectSeoTags(template, req.path);
         res.status(200).set({ "Content-Type": "text/html" }).end(template);
       } catch (e) {
         vite.ssrFixStacktrace(e);
@@ -509,9 +543,9 @@ async function startServer() {
     });
   } else {
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
+    app.get("*", async (req, res) => {
       const template = fs.readFileSync(path.join(distPath, "index.html"), "utf-8");
-      res.status(200).set({ "Content-Type": "text/html" }).end(injectSeoTags(template, req.path));
+      res.status(200).set({ "Content-Type": "text/html" }).end(await injectSeoTags(template, req.path));
     });
   }
 
