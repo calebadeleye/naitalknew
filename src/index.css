@@ -349,11 +349,7 @@
   }
 
   .domain-landing-topbar {
-    @apply flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between;
-  }
-
-  .domain-landing-logo img {
-    @apply h-12 max-w-[220px] sm:h-14 lg:h-[64px];
+    @apply flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-end;
   }
 
   .domain-promo-badge {
@@ -455,7 +451,7 @@
   }
 
   .domain-bottom-grid {
-    @apply mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-[repeat(5,minmax(140px,1fr))_minmax(330px,1.7fr)] lg:items-start;
+    @apply mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] lg:items-start;
   }
 
   .domain-tld-card {
@@ -475,11 +471,7 @@
   }
 
   .domain-launch-panel {
-    @apply flex items-center gap-4 rounded-[16px] border border-primary/20 bg-primary/10 px-6 py-4;
-  }
-
-  .domain-launch-panel-wide {
-    @apply sm:col-span-2 lg:col-span-6;
+    @apply col-span-full flex items-center gap-4 rounded-[16px] border border-primary/20 bg-primary/10 px-6 py-4;
   }
 
   .domain-launch-panel > span {

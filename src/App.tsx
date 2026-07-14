@@ -11054,7 +11054,6 @@ function DomainSearchSection({ initialDomain }: { initialDomain?: string } = {})
 
       <div className="domain-landing-shell">
         <div className="domain-landing-topbar">
-          <Logo className="domain-landing-logo" />
           <DomainPromoBadge />
         </div>
 
