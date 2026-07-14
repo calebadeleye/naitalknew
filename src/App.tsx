@@ -5161,7 +5161,11 @@ function ClientDomainsPage({
                     {domain.source_label} • {domain.provider_label}
                   </p>
                 </div>
-                <span className={domain.status === "active" ? "status-pill paid" : "status-pill failed"}>{domain.status}</span>
+                <span className={domain.status === "active" ? "status-pill paid" : "status-pill failed"}>
+                  {domain.registration_status === "awaiting_manual_registration"
+                    ? "Provisioning — active within 24 hours"
+                    : domain.status}
+                </span>
               </div>
 
               <div className="mt-4 grid gap-1 text-sm text-white/68 sm:grid-cols-2">
@@ -9268,6 +9272,7 @@ const adminRecordFilterDefs: Partial<Record<AdminRecordsSectionId, AdminRecordFi
       options: [
         { value: "pending_payment", label: "Pending payment" },
         { value: "payment_confirmed", label: "Payment confirmed" },
+        { value: "awaiting_manual_registration", label: "Awaiting manual registration" },
         { value: "processing", label: "Processing" },
         { value: "completed", label: "Completed" },
         { value: "failed", label: "Failed" },
@@ -9494,14 +9499,20 @@ function AdminApp() {
 
   const [domainActionBusyId, setDomainActionBusyId] = useState<number | null>(null);
 
-  const retryDomainRegistration = async (domainOrderId: number) => {
+  const markDomainRegistered = async (domainOrderId: number) => {
+    const expiresAt = window.prompt("Expiry date for this domain (YYYY-MM-DD):");
+    if (!expiresAt) return;
+
     setDomainActionBusyId(domainOrderId);
 
     try {
-      await laravelApi(`/api/v1/admin/domain-orders/${domainOrderId}/retry-registration`, adminToken, { method: "POST" });
+      await laravelApi(`/api/v1/admin/domain-orders/${domainOrderId}/mark-registered`, adminToken, {
+        method: "POST",
+        body: JSON.stringify({ expires_at: expiresAt }),
+      });
       await loadAdminRecords("domainOrders", adminToken);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Retrying domain registration failed");
+      setMessage(error instanceof Error ? error.message : "Marking domain as registered failed");
     } finally {
       setDomainActionBusyId(null);
     }
@@ -10140,7 +10151,7 @@ function AdminApp() {
                       const domainOrderId = Number(row.id);
                       const isBusy = domainActionBusyId === domainOrderId;
 
-                      if (row.status !== "failed") return null;
+                      if (row.status !== "awaiting_manual_registration") return null;
 
                       return (
                         <div className="flex items-center justify-end gap-2">
@@ -10148,9 +10159,9 @@ function AdminApp() {
                             type="button"
                             className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
                             disabled={isBusy}
-                            onClick={() => void retryDomainRegistration(domainOrderId)}
+                            onClick={() => void markDomainRegistered(domainOrderId)}
                           >
-                            {isBusy ? "Retrying..." : "Retry Registration"}
+                            {isBusy ? "Saving..." : "Mark as Registered"}
                           </button>
                         </div>
                       );
