@@ -638,22 +638,6 @@ const adminMetrics = [
   { label: "New Clients", value: "26", delta: "8.4%", icon: Users, tone: "cyan" },
 ];
 
-const adminRenewals = [
-  ["scholarjoint.com", "Hosting + Annual", "in 7 days", "₦25,000"],
-  ["skinologist.org", "Hosting + Annual", "in 12 days", "₦25,000"],
-  ["luminaryfm.com", "Hosting + Annual", "in 15 days", "₦25,000"],
-  ["utme.com.ng", "Hosting + Annual", "in 18 days", "₦25,000"],
-  ["rhm.com.ng", "Hosting + Annual", "in 20 days", "₦25,000"],
-];
-
-const adminPayments = [
-  ["John Adewale", "INV-2026-0321", "Paid", "₦25,000", "Jun 22, 2026"],
-  ["Chioma Okafor", "INV-2026-0320", "Paid", "₦48,000", "Jun 22, 2026"],
-  ["Emeka Nwosu", "INV-2026-0319", "Paid", "₦23,000", "Jun 21, 2026"],
-  ["Abiola Yusuf", "INV-2026-0318", "Failed", "₦25,000", "Jun 21, 2026"],
-  ["Grace Ibukun", "INV-2026-0317", "Paid", "₦15,000", "Jun 20, 2026"],
-];
-
 const clientServices = [
   ["scholarjoint.com", "Business Hosting", "Active", "Jul 14, 2026", "₦25,000"],
   ["scholarjoint.com Email", "Professional Email", "Active", "Jul 14, 2026", "₦10,000"],
@@ -1778,13 +1762,14 @@ function AdminDashboardOverview({
         icon: adminMetrics[index]?.icon || BarChart3,
         tone: adminMetrics[index]?.tone || "lime",
       }))
-    : adminMetrics;
+    : adminMetrics.map((metric) => ({ ...metric, value: "—", delta: "No data yet" }));
   const renewals = data?.upcoming_renewals?.length ? data.upcoming_renewals : null;
   const payments = data?.recent_payments?.length ? data.recent_payments : null;
   const invoices = data?.invoice_overview?.length ? data.invoice_overview : null;
   const topServices = data?.top_services?.length ? data.top_services : null;
   const systemStatus = data?.system_status?.length ? data.system_status : null;
   const recentOrders = data?.recent_orders?.length ? data.recent_orders : null;
+  const totalInvoices = invoices ? invoices.reduce((sum, item) => sum + (item.count || 0), 0) : 0;
 
   return (
     <section className="grid gap-5">
@@ -1869,17 +1854,7 @@ function AdminDashboardOverview({
                 <small>{renewal.renews_at ? formatDate(renewal.renews_at) : "No date"}</small>
                 <strong>{renewal.status}</strong>
               </div>
-            )) : adminRenewals.map(([name, type, due, amount]) => (
-              <div key={name} className="data-row">
-                <div className="row-icon"><Globe2 className="h-4 w-4" /></div>
-                <div className="min-w-0 flex-1">
-                  <p>{name}</p>
-                  <small>{type}</small>
-                </div>
-                <small>{due}</small>
-                <strong>{amount}</strong>
-              </div>
-            ))}
+            )) : <p className="text-sm text-white/40">No upcoming renewals.</p>}
           </div>
         </article>
 
@@ -1902,20 +1877,7 @@ function AdminDashboardOverview({
                   <small className="block">{payment.paid_at ? formatDate(payment.paid_at) : ""}</small>
                 </div>
               </div>
-            )) : adminPayments.map(([name, invoice, status, amount, date]) => (
-              <div key={invoice} className="data-row">
-                <div className="avatar-initial">{name.charAt(0)}</div>
-                <div className="min-w-0 flex-1">
-                  <p>{name}</p>
-                  <small>{invoice}</small>
-                </div>
-                <span className={status === "Paid" ? "status-pill paid" : "status-pill failed"}>{status}</span>
-                <div className="text-right">
-                  <strong>{amount}</strong>
-                  <small className="block">{date}</small>
-                </div>
-              </div>
-            ))}
+            )) : <p className="text-sm text-white/40">No recent payments yet.</p>}
           </div>
         </article>
       </div>
@@ -1924,37 +1886,35 @@ function AdminDashboardOverview({
         <article className="dashboard-card">
           <h3>Invoices Overview</h3>
           <div className="donut-wrap">
-            <div className="donut-chart"><span>342<small>Total</small></span></div>
+            <div className="donut-chart"><span>{totalInvoices}<small>Total</small></span></div>
             <div className="grid gap-2 text-sm text-white/64">
               {invoices ? invoices.map((item) => (
                 <p key={item.status}>{item.status}: {item.count}</p>
-              )) : ["Paid 196 (57%)", "Unpaid 74 (22%)", "Overdue 18 (5%)", "Partially Paid 32 (9%)"].map((item) => (
-                <p key={item}>{item}</p>
-              ))}
+              )) : <p className="text-white/40">No invoice data yet.</p>}
             </div>
           </div>
         </article>
         <article className="dashboard-card">
           <h3>Top Services</h3>
           <div className="mt-5 grid gap-4">
-            {(topServices || ["Web Hosting", "Professional Email", "SSL Certificates", "Website Maintenance", "Dedicated Hosting"].map((name, index) => ({ name, count: 156 - index * 24 }))).map((service, index) => (
+            {topServices ? topServices.map((service, index) => (
               <div key={service.name} className="service-meter">
                 <span>{service.name}</span>
                 <div><i style={{ width: `${Math.max(18, 88 - index * 14)}%` }} /></div>
                 <strong>{service.count}</strong>
               </div>
-            ))}
+            )) : <p className="text-sm text-white/40">No service data yet.</p>}
           </div>
         </article>
         <article className="dashboard-card">
           <h3>System Status</h3>
           <div className="mt-5 grid gap-4">
-            {(systemStatus || ["ISPConfig Connection", "Mail Server", "Queue Workers", "Scheduled Tasks", "Backup Service"].map((name) => ({ name, status: "active" }))).map((item) => (
+            {systemStatus ? systemStatus.map((item) => (
               <div key={item.name} className="system-row">
                 <span>{item.name}</span>
                 <strong>{item.status}</strong>
               </div>
-            ))}
+            )) : <p className="text-sm text-white/40">No system status data yet.</p>}
           </div>
         </article>
       </div>
@@ -1987,17 +1947,11 @@ function AdminDashboardOverview({
                 <td>{formatDate(order.created_at)}</td>
                 <td><MoreVertical className="h-4 w-4" /></td>
               </tr>
-            )) : adminPayments.map(([name, invoice, status, amount, date], index) => (
-              <tr key={invoice}>
-                <td>ORD-2026-0{162 - index}</td>
-                <td>{name}</td>
-                <td>{index % 2 ? "Web Hosting (Starter) + Email" : "Web Hosting (Business)"}</td>
-                <td>{amount}</td>
-                <td><span className={status === "Paid" ? "status-pill paid" : "status-pill pending"}>{status === "Paid" ? "Completed" : "Pending"}</span></td>
-                <td>{date}</td>
-                <td><MoreVertical className="h-4 w-4" /></td>
+            )) : (
+              <tr>
+                <td colSpan={7} className="text-center text-white/40">No recent orders yet.</td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </article>
@@ -4973,6 +4927,13 @@ function DomainTransferPage({
   );
 }
 
+type DomainRenewalHistoryEntry = {
+  date: string | null;
+  amount_kobo: number;
+  status: string;
+  invoice_number: string | null;
+};
+
 type DomainRow = {
   id: number;
   domain_name: string;
@@ -4992,6 +4953,13 @@ type DomainRow = {
   can_add_hosting: boolean;
   shows_dns_instructions: boolean;
   server_hostname: string | null;
+  nameservers: string[] | null;
+  dns_status: string | null;
+  next_invoice_date: string | null;
+  next_renewal_amount_kobo: number | null;
+  payment_status: string | null;
+  registrar_operation_status_label: string | null;
+  renewal_history: DomainRenewalHistoryEntry[];
 };
 
 function ClientDomainsPage({
@@ -5021,10 +4989,13 @@ function ClientDomainsPage({
     setBusyId(domain.id);
 
     try {
-      await laravelApi(`/api/v1/client/domains/${domain.id}/auto-renew`, token, {
+      const data = await laravelApi<{ auto_renew_confirmation_pending?: boolean }>(`/api/v1/client/domains/${domain.id}/auto-renew`, token, {
         method: "PATCH",
         body: JSON.stringify({ auto_renew: !domain.auto_renew }),
       });
+      if (data.auto_renew_confirmation_pending) {
+        toast.push({ type: "info", message: "Auto-renew change requested — this will be confirmed shortly." });
+      }
       load();
     } catch (error) {
       toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not update auto-renew." });
@@ -5115,12 +5086,59 @@ function ClientDomainsPage({
                   <strong className="text-white">Linked hosting:</strong>{" "}
                   {domain.linked_hosting_service ? domain.linked_hosting_service.service_number : "None"}
                 </p>
+                {domain.next_renewal_amount_kobo !== null && (
+                  <p>
+                    <strong className="text-white">Next renewal amount:</strong> {formatKobo(domain.next_renewal_amount_kobo)}
+                  </p>
+                )}
+                {domain.next_invoice_date && (
+                  <p>
+                    <strong className="text-white">Next invoice date:</strong> {domain.next_invoice_date}
+                  </p>
+                )}
+                {domain.payment_status && (
+                  <p>
+                    <strong className="text-white">Payment status:</strong> {domain.payment_status}
+                  </p>
+                )}
+                {domain.registrar_operation_status_label && (
+                  <p>
+                    <strong className="text-white">Renewal status:</strong> {domain.registrar_operation_status_label}
+                  </p>
+                )}
               </div>
+
+              {domain.nameservers && domain.nameservers.length > 0 && (
+                <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3 text-xs text-white/60">
+                  <p>
+                    <strong className="text-white">Nameservers:</strong> {domain.nameservers.join(", ")}
+                  </p>
+                  {domain.dns_status && (
+                    <p className="mt-1">
+                      <strong className="text-white">DNS status:</strong> {domain.dns_status}
+                    </p>
+                  )}
+                </div>
+              )}
 
               {domain.shows_dns_instructions && (
                 <p className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3 text-xs text-white/60">
                   Point this domain's DNS to <strong className="text-white">{domain.server_hostname}</strong> to connect your hosting.
                 </p>
+              )}
+
+              {domain.renewal_history.length > 0 && (
+                <details className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3 text-xs text-white/60">
+                  <summary className="cursor-pointer font-bold text-white">Renewal history</summary>
+                  <div className="mt-2 grid gap-1">
+                    {domain.renewal_history.map((entry, index) => (
+                      <p key={`${entry.invoice_number || index}`}>
+                        {entry.date || "—"} • {formatKobo(entry.amount_kobo)} • {entry.status}
+                        {entry.invoice_number ? ` • ${entry.invoice_number}` : ""}
+                      </p>
+                    ))}
+                  </div>
+                </details>
               )}
 
               <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -8827,7 +8845,7 @@ function AdminDomainPricingPage({ adminToken }: { adminToken: string }) {
                     )}
                   </div>
                   <span className="text-[11px] text-white/40">
-                    {row.last_synced_at ? `Last synced ${formatDateTime(row.last_synced_at)}` : "Never synced from Spaceship"}
+                    {row.last_synced_at ? `Last synced ${formatDateTime(row.last_synced_at)}` : `Never synced from ${row.provider || "provider"}`}
                   </span>
                 </div>
                 {row.last_sync_error && <p className="mt-1 text-xs font-semibold text-red-400">{row.last_sync_error}</p>}
@@ -8856,7 +8874,9 @@ function AdminDomainPricingPage({ adminToken }: { adminToken: string }) {
                 </div>
 
                 <div className="mt-4 rounded-lg border border-white/10 bg-black/20 p-3">
-                  <p className="text-[10px] font-black uppercase tracking-wide text-white/40">Spaceship cost → NGN conversion (read-only, from sync)</p>
+                  <p className="text-[10px] font-black uppercase tracking-wide text-white/40">
+                    {row.provider ? row.provider.charAt(0).toUpperCase() + row.provider.slice(1) : "Provider"} cost → NGN conversion (read-only, from sync)
+                  </p>
                   <div className="mt-2 grid gap-2 text-xs text-white/60 sm:grid-cols-4">
                     <span>Reg. cost: {row.provider_registration_price || "—"}</span>
                     <span>Renewal cost: {row.provider_renewal_price || "—"}</span>
@@ -8993,6 +9013,214 @@ function AdminDomainPricingPage({ adminToken }: { adminToken: string }) {
   );
 }
 
+type UnassignedDomainRow = {
+  id: number;
+  domain_name: string;
+  tld: string;
+  provider: string;
+  provider_status: string | null;
+  expires_at: string | null;
+  auto_renew: boolean;
+  ownership_assignment_status: string;
+  assignment_note: string | null;
+};
+
+function AdminDomainAssignmentPage({ adminToken }: { adminToken: string }) {
+  const [rows, setRows] = useState<UnassignedDomainRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [providerFilter, setProviderFilter] = useState("");
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [notice, setNotice] = useState<{ id: number; text: string; isError: boolean } | null>(null);
+  const [formState, setFormState] = useState<Record<number, { clientId: string; priceKobo: string; invoiceDate: string; note: string }>>({});
+
+  const load = React.useCallback(() => {
+    setIsLoading(true);
+    const params = new URLSearchParams();
+    if (providerFilter) params.set("provider", providerFilter);
+    const query = params.toString();
+
+    laravelApi<{ data: Array<Record<string, unknown>> }>(`/api/v1/admin/domain-assignments${query ? `?${query}` : ""}`, adminToken)
+      .then((response) => {
+        setRows(
+          (response.data || []).map((row) => ({
+            id: Number(row.id),
+            domain_name: String(row.domain_name || ""),
+            tld: String(row.tld || ""),
+            provider: String(row.provider || ""),
+            provider_status: (row.provider_status as string) ?? null,
+            expires_at: (row.expires_at as string) ?? null,
+            auto_renew: Boolean(row.auto_renew),
+            ownership_assignment_status: String(row.ownership_assignment_status || ""),
+            assignment_note: (row.assignment_note as string) ?? null,
+          })),
+        );
+      })
+      .catch(() => undefined)
+      .finally(() => setIsLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminToken, providerFilter]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const fieldsFor = (id: number) => formState[id] || { clientId: "", priceKobo: "", invoiceDate: "", note: "" };
+  const updateField = (id: number, patch: Partial<{ clientId: string; priceKobo: string; invoiceDate: string; note: string }>) => {
+    setFormState((current) => ({ ...current, [id]: { ...fieldsFor(id), ...patch } }));
+  };
+
+  const flashNotice = (id: number, text: string, isError = false) => {
+    setNotice({ id, text, isError });
+    window.setTimeout(() => setNotice((current) => (current?.id === id ? null : current)), 4000);
+  };
+
+  const assign = async (row: UnassignedDomainRow) => {
+    const fields = fieldsFor(row.id);
+    const clientId = Number(fields.clientId);
+
+    if (!Number.isFinite(clientId) || clientId <= 0) {
+      flashNotice(row.id, "Enter a valid client ID before assigning.", true);
+      return;
+    }
+
+    setBusyId(row.id);
+
+    try {
+      await laravelApi(`/api/v1/admin/domain-assignments/${row.id}/assign`, adminToken, {
+        method: "POST",
+        body: JSON.stringify({
+          client_id: clientId,
+          customer_renewal_price_kobo: fields.priceKobo ? Number(fields.priceKobo) : undefined,
+          next_invoice_date: fields.invoiceDate || undefined,
+          assignment_note: fields.note || undefined,
+        }),
+      });
+      flashNotice(row.id, `${row.domain_name} assigned to client #${clientId}.`);
+      load();
+    } catch (error) {
+      flashNotice(row.id, error instanceof Error ? error.message : "Assigning this domain failed.", true);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const markInternal = async (row: UnassignedDomainRow) => {
+    if (!window.confirm(`Mark ${row.domain_name} as a NAITALK-owned internal domain?`)) return;
+    const fields = fieldsFor(row.id);
+    setBusyId(row.id);
+
+    try {
+      await laravelApi(`/api/v1/admin/domain-assignments/${row.id}/mark-internal`, adminToken, {
+        method: "POST",
+        body: JSON.stringify({ assignment_note: fields.note || undefined }),
+      });
+      flashNotice(row.id, `${row.domain_name} marked as an internal domain.`);
+      load();
+    } catch (error) {
+      flashNotice(row.id, error instanceof Error ? error.message : "Marking this domain internal failed.", true);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <section className="admin-panel">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-black">Unassigned Domains</h2>
+          <p className="mt-1 text-sm text-white/55">
+            Domains imported from a registrar sync (e.g. Cloudflare) that still need to be assigned to a client, or
+            marked as a NAITALK-owned internal domain. Nothing here triggers an invoice or notification until you act.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <select value={providerFilter} onChange={(event) => setProviderFilter(event.target.value)}>
+          <option value="">All registrar providers</option>
+          <option value="cloudflare">Cloudflare</option>
+          <option value="spaceship">Spaceship</option>
+          <option value="external">External</option>
+          <option value="manual">Manual</option>
+        </select>
+      </div>
+
+      {isLoading ? (
+        <div className="mt-5 rounded-lg border border-white/10 bg-black/20 p-6 text-sm font-bold text-white/60">Loading...</div>
+      ) : rows.length === 0 ? (
+        <div className="mt-5 rounded-lg border border-white/10 bg-black/20 p-6 text-sm font-bold text-white/60">
+          No unassigned domains need review right now.
+        </div>
+      ) : (
+        <div className="mt-5 grid gap-4">
+          {rows.map((row) => {
+            const fields = fieldsFor(row.id);
+            const isBusy = busyId === row.id;
+
+            return (
+              <article key={row.id} className="rounded-xl border border-white/10 bg-black/20 p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-black text-white">{row.domain_name}</h3>
+                    <p className="mt-1 text-xs text-white/55">
+                      {row.provider} • Registrar status: {row.provider_status || "unknown"} • Expires{" "}
+                      {row.expires_at ? formatDate(row.expires_at) : "unknown"} • Auto-renew {row.auto_renew ? "on" : "off"}
+                    </p>
+                  </div>
+                  <span className="status-pill pending">{row.ownership_assignment_status}</span>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-4">
+                  <label className="admin-field">
+                    <span>Client ID</span>
+                    <input
+                      value={fields.clientId}
+                      onChange={(event) => updateField(row.id, { clientId: event.target.value })}
+                      placeholder="e.g. 42"
+                    />
+                  </label>
+                  <label className="admin-field">
+                    <span>Renewal price (kobo)</span>
+                    <input
+                      value={fields.priceKobo}
+                      onChange={(event) => updateField(row.id, { priceKobo: event.target.value })}
+                      placeholder="Optional override"
+                    />
+                  </label>
+                  <label className="admin-field">
+                    <span>Next invoice date</span>
+                    <input
+                      type="date"
+                      value={fields.invoiceDate}
+                      onChange={(event) => updateField(row.id, { invoiceDate: event.target.value })}
+                    />
+                  </label>
+                  <label className="admin-field">
+                    <span>Internal note</span>
+                    <input value={fields.note} onChange={(event) => updateField(row.id, { note: event.target.value })} placeholder="Optional" />
+                  </label>
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <button type="button" className="btn-primary justify-center" disabled={isBusy} onClick={() => void assign(row)}>
+                    {isBusy ? "Saving..." : "Assign to Client"}
+                  </button>
+                  <button type="button" className="btn-outline justify-center" disabled={isBusy} onClick={() => void markInternal(row)}>
+                    Mark as Internal Domain
+                  </button>
+                  {notice?.id === row.id && (
+                    <span className={`text-xs font-bold ${notice.isError ? "text-red-400" : "text-primary"}`}>{notice.text}</span>
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
 type AdminSectionDefinition = { id: AdminSectionId; label: string; icon: typeof BarChart3 };
 
 const adminSectionGroups: Array<{ label: string; sections: AdminSectionDefinition[] }> = [
@@ -9026,6 +9254,7 @@ const adminSectionGroups: Array<{ label: string; sections: AdminSectionDefinitio
     label: "Domains",
     sections: [
       { id: "domains", label: "Domains", icon: Globe2 },
+      { id: "domainAssignments", label: "Unassigned Domains", icon: Globe2 },
       { id: "domainOrders", label: "Domain Orders", icon: Globe2 },
       { id: "domainTransfers", label: "Domain Transfers", icon: Globe2 },
       { id: "domainPricing", label: "Domain Pricing", icon: Globe2 },
@@ -9048,6 +9277,52 @@ const adminSections: AdminSectionDefinition[] = adminSectionGroups.flatMap((grou
 const adminSectionLabels: Record<AdminSectionId, string> = Object.fromEntries(
   adminSections.map((section) => [section.id, section.label]),
 ) as Record<AdminSectionId, string>;
+
+function adminExpiresBeforeDate(daysFromNow: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() + daysFromNow);
+  return date.toISOString().slice(0, 10);
+}
+
+function domainAdminBadges(row: Record<string, unknown>): Array<{ label: string; tone: string }> {
+  const badges: Array<{ label: string; tone: string }> = [];
+  const provider = row.provider as string | undefined;
+  const dnsProvider = row.dns_provider as string | undefined;
+  const registrationSource = row.registration_source as string | undefined;
+  const ownershipStatus = row.ownership_assignment_status as string | undefined;
+  const paymentStatus = row.payment_status as string | undefined;
+  const registrarOperationStatus = row.registrar_operation_status as string | undefined;
+
+  if (provider === "cloudflare") {
+    badges.push({ label: "Cloudflare Registrar", tone: "pending" });
+  } else if (dnsProvider === "cloudflare") {
+    badges.push({ label: "Cloudflare DNS only", tone: "pending" });
+  }
+
+  if (registrationSource === "imported") badges.push({ label: "Imported", tone: "pending" });
+  if (registrationSource === "transferred") badges.push({ label: "Transferred", tone: "pending" });
+  if (registrationSource === "purchased") badges.push({ label: "Purchased", tone: "pending" });
+
+  if (ownershipStatus === "unassigned" || ownershipStatus === "needs_review") {
+    badges.push({ label: "Unassigned", tone: "failed" });
+  }
+
+  if (paymentStatus === "unpaid" || paymentStatus === "failed") {
+    badges.push({ label: "Payment due", tone: "failed" });
+  }
+
+  if (registrarOperationStatus === "pending" || registrarOperationStatus === "processing") {
+    badges.push({ label: "Renewal pending", tone: "pending" });
+  } else if (registrarOperationStatus === "completed") {
+    badges.push({ label: "Renewed", tone: "paid" });
+  } else if (registrarOperationStatus === "failed") {
+    badges.push({ label: "Sync failed", tone: "failed" });
+  } else if (registrarOperationStatus === "requires_attention") {
+    badges.push({ label: "Requires attention", tone: "failed" });
+  }
+
+  return badges;
+}
 
 const adminRecordFilterDefs: Partial<Record<AdminRecordsSectionId, AdminRecordFilterDef[]>> = {
   products: [
@@ -9167,6 +9442,70 @@ const adminRecordFilterDefs: Partial<Record<AdminRecordsSectionId, AdminRecordFi
         { value: "spaceship_transferred", label: "Transferred" },
         { value: "external", label: "External" },
         { value: "manual", label: "Manual" },
+      ],
+    },
+    {
+      key: "provider",
+      label: "Registrar provider",
+      type: "select",
+      options: [
+        { value: "cloudflare", label: "Cloudflare" },
+        { value: "spaceship", label: "Spaceship" },
+        { value: "external", label: "External" },
+        { value: "manual", label: "Manual" },
+      ],
+    },
+    {
+      key: "ownership_assignment_status",
+      label: "Assignment",
+      type: "select",
+      options: [
+        { value: "assigned", label: "Assigned" },
+        { value: "unassigned", label: "Unassigned" },
+        { value: "needs_review", label: "Needs review" },
+        { value: "internal", label: "Internal" },
+      ],
+    },
+    {
+      key: "payment_status",
+      label: "Payment status",
+      type: "select",
+      options: [
+        { value: "unpaid", label: "Unpaid" },
+        { value: "pending", label: "Pending" },
+        { value: "paid", label: "Paid" },
+        { value: "failed", label: "Failed" },
+        { value: "refunded", label: "Refunded" },
+      ],
+    },
+    {
+      key: "registrar_operation_status",
+      label: "Registrar operation",
+      type: "select",
+      options: [
+        { value: "not_started", label: "Not started" },
+        { value: "pending", label: "Pending" },
+        { value: "processing", label: "Processing" },
+        { value: "completed", label: "Completed" },
+        { value: "failed", label: "Failed" },
+        { value: "requires_attention", label: "Requires attention" },
+      ],
+    },
+    {
+      key: "auto_renew",
+      label: "Auto-renew",
+      type: "select",
+      options: [{ value: "1", label: "Enabled" }, { value: "0", label: "Disabled" }],
+    },
+    {
+      key: "expires_before",
+      label: "Expiring within",
+      type: "select",
+      options: [
+        { value: adminExpiresBeforeDate(7), label: "7 days" },
+        { value: adminExpiresBeforeDate(30), label: "30 days" },
+        { value: adminExpiresBeforeDate(60), label: "60 days" },
+        { value: adminExpiresBeforeDate(90), label: "90 days" },
       ],
     },
     { key: "tld", label: "TLD", type: "text", placeholder: "e.g. .com" },
@@ -9314,9 +9653,9 @@ function AdminApp() {
     provisioning: { title: "Provisioning Logs", description: "ISPConfig provisioning queue and execution history." },
     ispconfigMappings: { title: "ISPConfig Mappings", description: "Stored Laravel-to-ISPConfig client mappings and sync status." },
     auditLogs: { title: "Audit Logs", description: "Staff lifecycle actions, state changes and internal reasons." },
-    domains: { title: "Domains", description: "All domains registered, transferred, or connected across every client." },
+    domains: { title: "Domains", description: "All domains registered, transferred, or connected across every client and registrar." },
     domainOrders: { title: "Domain Orders", description: "Domain registration, transfer, and renewal orders and their payment/registration status." },
-    domainTransfers: { title: "Domain Transfers", description: "Incoming domain transfers and their Spaceship transfer status." },
+    domainTransfers: { title: "Domain Transfers", description: "Incoming domain transfers and their registrar transfer status." },
   };
 
   const isRecordSection = (section: AdminSectionId): section is AdminRecordsSectionId =>
@@ -9520,6 +9859,105 @@ function AdminApp() {
       await loadAdminRecords("domains", adminToken);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Marking domain source failed");
+    } finally {
+      setDomainActionBusyId(null);
+    }
+  };
+
+  const refreshDomainFromCloudflare = async (domainId: number) => {
+    if (!window.confirm("Refresh this domain's registrar status from Cloudflare now?")) return;
+    setDomainActionBusyId(domainId);
+
+    try {
+      await laravelApi(`/api/v1/admin/domains/${domainId}/refresh-from-cloudflare`, adminToken, { method: "POST" });
+      setMessage("A refresh from Cloudflare has been queued — reload shortly to see updated status.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Queuing a Cloudflare refresh failed");
+    } finally {
+      setDomainActionBusyId(null);
+    }
+  };
+
+  const assignOrReassignDomainCustomer = async (domainId: number, currentClientId: number | null) => {
+    const clientIdInput = window.prompt(
+      currentClientId ? "New client ID to reassign this domain to:" : "Client ID to assign this domain to:"
+    );
+    if (!clientIdInput) return;
+
+    const clientId = Number(clientIdInput);
+    if (!Number.isFinite(clientId) || clientId <= 0) {
+      setMessage("Enter a valid numeric client ID.");
+      return;
+    }
+
+    if (!window.confirm(`Confirm ${currentClientId ? "reassigning" : "assigning"} this domain to client #${clientId}?`)) return;
+
+    setDomainActionBusyId(domainId);
+
+    try {
+      const endpoint = currentClientId
+        ? `/api/v1/admin/domain-assignments/${domainId}/reassign`
+        : `/api/v1/admin/domain-assignments/${domainId}/assign`;
+      await laravelApi(endpoint, adminToken, { method: "POST", body: JSON.stringify({ client_id: clientId }) });
+      await loadAdminRecords("domains", adminToken);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Assigning this domain failed");
+    } finally {
+      setDomainActionBusyId(null);
+    }
+  };
+
+  const markDomainInternal = async (domainId: number) => {
+    if (!window.confirm("Mark this domain as a NAITALK-owned internal domain? It will be unassigned from any client.")) return;
+    setDomainActionBusyId(domainId);
+
+    try {
+      await laravelApi(`/api/v1/admin/domain-assignments/${domainId}/mark-internal`, adminToken, { method: "POST" });
+      await loadAdminRecords("domains", adminToken);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Marking this domain internal failed");
+    } finally {
+      setDomainActionBusyId(null);
+    }
+  };
+
+  const addDomainNote = async (domainId: number) => {
+    const note = window.prompt("Administrative note for this domain:");
+    if (!note) return;
+
+    setDomainActionBusyId(domainId);
+
+    try {
+      await laravelApi(`/api/v1/admin/domains/${domainId}/note`, adminToken, {
+        method: "POST",
+        body: JSON.stringify({ assignment_note: note }),
+      });
+      await loadAdminRecords("domains", adminToken);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Saving this note failed");
+    } finally {
+      setDomainActionBusyId(null);
+    }
+  };
+
+  const viewDomainSyncHistory = async (domainId: number) => {
+    setDomainActionBusyId(domainId);
+
+    try {
+      const data = await laravelApi<{ data: Array<{ action: string; status: string; error_message: string | null; created_at: string }> }>(
+        `/api/v1/admin/domains/${domainId}/sync-logs`,
+        adminToken
+      );
+      if (!data.data.length) {
+        window.alert("No sync history recorded for this domain yet.");
+      } else {
+        const summary = data.data
+          .map((log) => `${formatDateTime(log.created_at)} — ${log.action} (${log.status})${log.error_message ? `: ${log.error_message}` : ""}`)
+          .join("\n");
+        window.alert(`Recent sync history:\n\n${summary}`);
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Loading sync history failed");
     } finally {
       setDomainActionBusyId(null);
     }
@@ -10098,9 +10536,22 @@ function AdminApp() {
                           const linkedHostingService = row.linked_hosting_service as { id: number } | null;
                           const isExternal = row.source === "external";
                           const isAutoRenewOn = Boolean(row.auto_renew);
+                          const isCloudflare = row.provider === "cloudflare";
+                          const client = row.client as { id: number } | null;
+                          const badges = domainAdminBadges(row);
 
                           return (
-                            <div className="flex flex-wrap items-center justify-end gap-2">
+                            <div className="flex flex-col items-end gap-2">
+                              {badges.length > 0 && (
+                                <div className="flex flex-wrap justify-end gap-1">
+                                  {badges.map((badge) => (
+                                    <span key={badge.label} className={`status-pill ${badge.tone}`}>
+                                      {badge.label}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              <div className="flex flex-wrap items-center justify-end gap-2">
                               {linkedHostingService ? (
                                 <button
                                   type="button"
@@ -10158,6 +10609,51 @@ function AdminApp() {
                                   Mark External
                                 </button>
                               )}
+                              {isCloudflare && (
+                                <button
+                                  type="button"
+                                  className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                                  disabled={isBusy}
+                                  onClick={() => void refreshDomainFromCloudflare(domainId)}
+                                >
+                                  Refresh from Cloudflare
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                                disabled={isBusy}
+                                onClick={() => void assignOrReassignDomainCustomer(domainId, client?.id ?? null)}
+                              >
+                                {client ? "Change Customer" : "Assign Customer"}
+                              </button>
+                              {!client && (
+                                <button
+                                  type="button"
+                                  className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                                  disabled={isBusy}
+                                  onClick={() => void markDomainInternal(domainId)}
+                                >
+                                  Mark Internal
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                                disabled={isBusy}
+                                onClick={() => void viewDomainSyncHistory(domainId)}
+                              >
+                                Sync History
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                                disabled={isBusy}
+                                onClick={() => void addDomainNote(domainId)}
+                              >
+                                Add Note
+                              </button>
+                              </div>
                             </div>
                           );
                         }
@@ -10173,6 +10669,8 @@ function AdminApp() {
         )}
 
         {activeSection === "domainPricing" && !routeClientId && !routeServiceId && <AdminDomainPricingPage adminToken={adminToken} />}
+
+        {activeSection === "domainAssignments" && !routeClientId && !routeServiceId && <AdminDomainAssignmentPage adminToken={adminToken} />}
 
         {activeSection === "pricing" && (
           <section className="admin-panel">

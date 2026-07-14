@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\Admin\BlogPostController;
 use App\Http\Controllers\Api\Admin\ClientLifecycleController;
 use App\Http\Controllers\Api\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Api\Admin\DomainAssignmentController;
 use App\Http\Controllers\Api\Admin\DomainController as AdminDomainController;
 use App\Http\Controllers\Api\Admin\DomainPricingController;
 use App\Http\Controllers\Api\Admin\DomainPricingSettingsController;
@@ -16,8 +17,8 @@ use App\Http\Controllers\Api\Admin\PageSeoMetadataController;
 use App\Http\Controllers\Api\Admin\ProvisioningController;
 use App\Http\Controllers\Api\Admin\RecordsController;
 use App\Http\Controllers\Api\Admin\ServiceOfferingController as AdminServiceOfferingController;
-use App\Http\Controllers\Api\Admin\ServiceStatusController;
 use App\Http\Controllers\Api\Admin\ServicesDashboardController;
+use App\Http\Controllers\Api\Admin\ServiceStatusController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\Client\CheckoutController;
 use App\Http\Controllers\Api\Client\ClientProfileController;
@@ -243,6 +244,14 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/domains/{domain}/send-dns-instructions', [AdminDomainController::class, 'sendDnsInstructions']);
             Route::post('/domains/{domain}/renew', [AdminDomainController::class, 'renew']);
             Route::post('/domains/{domain}/disable-auto-renew', [AdminDomainController::class, 'disableAutoRenew']);
+            Route::post('/domains/{domain}/note', [AdminDomainController::class, 'addNote']);
+            Route::get('/domains/{domain}/sync-logs', [AdminDomainController::class, 'syncLogs']);
+
+            Route::get('/domain-assignments', [DomainAssignmentController::class, 'index']);
+            Route::post('/domain-assignments/{domain}/assign', [DomainAssignmentController::class, 'assign']);
+            Route::post('/domain-assignments/{domain}/reassign', [DomainAssignmentController::class, 'reassign']);
+            Route::post('/domain-assignments/{domain}/mark-internal', [DomainAssignmentController::class, 'markInternal']);
+            Route::post('/domains/{domain}/refresh-from-cloudflare', [DomainAssignmentController::class, 'refreshFromCloudflare']);
 
             Route::get('/domain-pricing', [DomainPricingController::class, 'index']);
             Route::post('/domain-pricing', [DomainPricingController::class, 'store']);

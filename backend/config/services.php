@@ -1,5 +1,8 @@
 <?php
 
+use App\Services\Domains\Registrars\CloudflareRegistrarService;
+use App\Services\Domains\Registrars\SpaceshipRegistrarAdapter;
+
 return [
 
     /*
@@ -67,6 +70,33 @@ return [
         // never accidentally registers a real domain.
         'sandbox_mode' => (bool) env('SPACESHIP_SANDBOX_MODE', true),
         'webhook_secret' => env('SPACESHIP_WEBHOOK_SECRET'),
+    ],
+
+    'cloudflare' => [
+        'account_id' => env('CLOUDFLARE_ACCOUNT_ID'),
+        // A scoped Registrar-only API token — never the Global API Key.
+        'registrar_api_token' => env('CLOUDFLARE_REGISTRAR_API_TOKEN'),
+        'base_url' => env('CLOUDFLARE_API_BASE_URL', 'https://api.cloudflare.com/client/v4'),
+        // Same rationale as Spaceship's sandbox_mode above — defaults true so
+        // this integration never makes a real registrar-changing call until
+        // explicitly turned off with real credentials in place.
+        'sandbox_mode' => (bool) env('CLOUDFLARE_SANDBOX_MODE', true),
+        // The registrar-scoped token above likely lacks Zones:Read — the
+        // "Cloudflare DNS only" distinction stays disabled until a
+        // Zones-capable token is available. See CloudflareZonesClient.
+        'zones_lookup_enabled' => (bool) env('CLOUDFLARE_ZONES_LOOKUP_ENABLED', false),
+    ],
+
+    'registrars' => [
+        'default' => 'spaceship',
+        'map' => [
+            'spaceship' => SpaceshipRegistrarAdapter::class,
+            'cloudflare' => CloudflareRegistrarService::class,
+        ],
+        // Nigerian domains stay manual/unavailable-for-instant-registration
+        // regardless of provider — no currently configured registrar
+        // supports automated purchase of these.
+        'manual_only_tlds' => ['.ng', '.com.ng', '.org.ng', '.net.ng'],
     ],
 
 ];

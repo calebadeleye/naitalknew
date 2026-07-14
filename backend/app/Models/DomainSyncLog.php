@@ -13,14 +13,21 @@ class DomainSyncLog extends Model
         'action',
         'status',
         'request_reference',
+        'response_code',
         'response_summary',
+        'changes',
         'error_message',
+        'started_at',
+        'completed_at',
     ];
 
     protected function casts(): array
     {
         return [
             'response_summary' => 'array',
+            'changes' => 'array',
+            'started_at' => 'datetime',
+            'completed_at' => 'datetime',
         ];
     }
 

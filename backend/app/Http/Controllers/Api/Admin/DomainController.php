@@ -10,6 +10,7 @@ use App\Models\HostingService;
 use App\Notifications\ExistingDomainDnsInstructions;
 use App\Notifications\NaiTalkDomainRegistrationConfirmed;
 use App\Services\Domains\DomainOrderService;
+use App\Services\Domains\Registrars\AutoRenewToggleService;
 use App\Services\Domains\SpaceshipDomainSyncService;
 use App\Services\Notifications\ClientNotifier;
 use App\Services\Provisioning\IspConfigProvisioningService;
@@ -124,6 +125,7 @@ class DomainController extends Controller
         $service = $domain->linkedHostingService;
 
         abort_if(! $service, 422, 'This domain has no linked hosting service to send DNS instructions for.');
+        abort_if(! $domain->client, 422, 'This domain has no assigned client to notify.');
 
         $domain->client->user?->notify(new ExistingDomainDnsInstructions($service));
 
@@ -145,10 +147,30 @@ class DomainController extends Controller
         return response()->json(['invoice_number' => $domainOrder?->invoice?->invoice_number]);
     }
 
-    public function disableAutoRenew(Domain $domain)
+    public function disableAutoRenew(Domain $domain, AutoRenewToggleService $autoRenewToggle)
     {
-        $domain->forceFill(['auto_renew' => false])->save();
+        $autoRenewToggle->toggle($domain, false);
 
         return response()->json(['data' => $domain->fresh()]);
+    }
+
+    public function addNote(Request $request, Domain $domain)
+    {
+        $payload = $request->validate([
+            'assignment_note' => ['required', 'string', 'max:2000'],
+        ]);
+
+        $domain->forceFill(['assignment_note' => $payload['assignment_note']])->save();
+
+        return response()->json(['data' => $domain->fresh()]);
+    }
+
+    public function syncLogs(Domain $domain)
+    {
+        $logs = $domain->syncLogs()->latest()->limit(20)->get([
+            'id', 'provider', 'action', 'status', 'response_code', 'error_message', 'started_at', 'completed_at', 'created_at',
+        ]);
+
+        return response()->json(['data' => $logs]);
     }
 }

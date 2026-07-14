@@ -4,6 +4,7 @@ namespace App\Services\Domains;
 
 use App\Models\Client;
 use App\Models\Domain;
+use App\Models\DomainFinancialSnapshot;
 use App\Models\DomainOrder;
 use App\Models\DomainTransfer;
 use App\Models\HostingAddOn;
@@ -29,8 +30,7 @@ class DomainOrderService
     public function __construct(
         private readonly VatCalculator $vatCalculator = new VatCalculator,
         private readonly DomainPricingService $pricing = new DomainPricingService,
-    ) {
-    }
+    ) {}
 
     /**
      * Flow 1: Domain Only.
@@ -285,7 +285,17 @@ class DomainOrderService
      */
     public function createRenewalOrder(Domain $domain): array
     {
-        $breakdown = $this->pricing->breakdownFor($domain->tld, 'renewal');
+        if (! $domain->client_id) {
+            throw new RuntimeException('Cannot create a renewal order for a domain with no assigned client — assign it to a client first.');
+        }
+
+        // A per-domain retail price override always wins over the TLD-level
+        // default — an admin may have set this during assignment, or to
+        // honor a promotional/negotiated rate that differs from the
+        // standard TLD renewal price.
+        $breakdown = $domain->customer_renewal_price_kobo !== null
+            ? $this->vatCalculator->calculate((int) $domain->customer_renewal_price_kobo)
+            : $this->pricing->breakdownFor($domain->tld, 'renewal');
 
         if (! $breakdown) {
             throw new RuntimeException("Renewal pricing for {$domain->tld} is not configured yet.");
@@ -321,13 +331,15 @@ class DomainOrderService
                 'hosting_service_id' => null,
                 'domain_name' => $domain->domain_name,
                 'order_type' => 'renewal',
-                'provider' => 'spaceship',
+                'provider' => $domain->provider,
                 'invoice_id' => $invoice->id,
                 'status' => 'pending_payment',
                 'price_kobo' => $breakdown['taxable_kobo'],
                 'vat_amount_kobo' => $breakdown['vat_amount_kobo'],
                 'total_amount_kobo' => $breakdown['total_kobo'],
             ]);
+
+            $this->recordFinancialSnapshot($domain, $domainOrder, $invoice, $breakdown, 'renewal');
 
             return compact('invoice', 'domainOrder');
         });
@@ -493,5 +505,44 @@ class DomainOrderService
         array_shift($parts);
 
         return '.'.implode('.', $parts);
+    }
+
+    /**
+     * Permanently records the cost/FX/markup/tax/profit figures at the
+     * moment of this registration/transfer/renewal — never recalculated
+     * later using a current exchange rate or current TLD price. Idempotent
+     * on `transaction_reference` (keyed off the DomainOrder id), so a retry
+     * of the same order never creates a duplicate snapshot.
+     *
+     * @param  array{taxable_kobo:int,vat_amount_kobo:int,vat_rate:float,total_kobo:int}  $breakdown
+     */
+    private function recordFinancialSnapshot(Domain $domain, DomainOrder $domainOrder, Invoice $invoice, array $breakdown, string $eventType): void
+    {
+        $pricing = $this->pricing->findActive($domain->tld);
+        $providerCostMinor = $pricing?->provider_renewal_price_minor;
+        $exchangeRate = $pricing?->exchange_rate_to_ngn;
+        $convertedCostKobo = ($providerCostMinor !== null && $exchangeRate !== null)
+            ? (int) round($providerCostMinor * (float) $exchangeRate)
+            : null;
+
+        DomainFinancialSnapshot::query()->firstOrCreate(
+            ['transaction_reference' => "domain-{$eventType}-{$domainOrder->id}"],
+            [
+                'domain_id' => $domain->id,
+                'domain_order_id' => $domainOrder->id,
+                'event_type' => $eventType,
+                'provider' => $domain->provider,
+                'provider_cost_minor' => $providerCostMinor,
+                'provider_currency' => $pricing?->provider_currency,
+                'exchange_rate_to_ngn' => $exchangeRate,
+                'converted_cost_kobo' => $convertedCostKobo,
+                'markup_type' => $pricing?->markup_type,
+                'markup_amount_kobo' => $convertedCostKobo !== null ? max($breakdown['taxable_kobo'] - $convertedCostKobo, 0) : null,
+                'tax_kobo' => $breakdown['vat_amount_kobo'],
+                'customer_amount_kobo' => $breakdown['total_kobo'],
+                'gross_profit_estimate_kobo' => $convertedCostKobo !== null ? $breakdown['taxable_kobo'] - $convertedCostKobo : null,
+                'invoice_id' => $invoice->id,
+            ]
+        );
     }
 }

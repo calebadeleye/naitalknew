@@ -23,7 +23,8 @@ export type AdminSectionId =
   | "domains"
   | "domainOrders"
   | "domainTransfers"
-  | "domainPricing";
+  | "domainPricing"
+  | "domainAssignments";
 
 const SECTION_PATHS: Record<AdminSectionId, string> = {
   dashboard: "",
@@ -48,6 +49,7 @@ const SECTION_PATHS: Record<AdminSectionId, string> = {
   domainOrders: "domain-orders",
   domainTransfers: "domain-transfers",
   domainPricing: "domain-pricing",
+  domainAssignments: "domain-assignments",
 };
 
 const PATH_TO_SECTION: Record<string, AdminSectionId> = Object.fromEntries(

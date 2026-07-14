@@ -4,28 +4,49 @@ namespace App\Http\Controllers\Api\Client;
 
 use App\Http\Controllers\Controller;
 use App\Models\Domain;
+use App\Models\DomainOrder;
 use App\Services\Domains\DomainOrderService;
+use App\Services\Domains\DomainPricingService;
+use App\Services\Domains\Registrars\AutoRenewToggleService;
 use Illuminate\Http\Request;
 use RuntimeException;
 
 /**
  * Client-facing Domains dashboard (spec §6). Presents customer-friendly
- * labels — never raw Spaceship API data.
+ * labels — never raw Spaceship/Cloudflare API data, provider costs, markup,
+ * internal notes, or registrar credentials.
  */
 class DomainController extends Controller
 {
     private const SOURCE_LABELS = [
         'spaceship_registered' => 'Registered with NAI TALK',
         'spaceship_transferred' => 'Transferred to NAI TALK',
+        'cloudflare_imported' => 'Registered with NAI TALK',
+        'cloudflare_transferred' => 'Transferred to NAI TALK',
         'external' => 'External domain',
         'manual' => 'Manually managed',
     ];
 
+    /**
+     * Deliberately NOT "Cloudflare" for the cloudflare provider — the client
+     * must never see which registrar NAI TALK actually uses under the hood.
+     */
     private const PROVIDER_LABELS = [
         'spaceship' => 'Spaceship',
+        'cloudflare' => 'Managed by NAI TALK',
         'external' => 'External',
         'manual' => 'Manual',
     ];
+
+    private const REGISTRAR_OPERATION_LABELS = [
+        'pending' => 'Renewal in progress',
+        'processing' => 'Renewal in progress',
+        'completed' => 'Up to date',
+        'failed' => 'Renewal issue — contact support',
+        'requires_attention' => 'Requires attention — contact support',
+    ];
+
+    public function __construct(private readonly DomainPricingService $pricing = new DomainPricingService) {}
 
     public function index(Request $request)
     {
@@ -50,15 +71,18 @@ class DomainController extends Controller
         return response()->json($this->present($domain->load('linkedHostingService')));
     }
 
-    public function updateAutoRenew(Request $request, Domain $domain)
+    public function updateAutoRenew(Request $request, Domain $domain, AutoRenewToggleService $autoRenewToggle)
     {
         $this->authorizeDomain($request, $domain);
 
         $payload = $request->validate(['auto_renew' => ['required', 'boolean']]);
 
-        $domain->forceFill(['auto_renew' => $payload['auto_renew']])->save();
+        $result = $autoRenewToggle->toggle($domain, $payload['auto_renew']);
 
-        return response()->json($this->present($domain->fresh('linkedHostingService')));
+        return response()->json([
+            ...$this->present($domain->fresh('linkedHostingService')),
+            'auto_renew_confirmation_pending' => $result['pending'],
+        ]);
     }
 
     /**
@@ -122,6 +146,10 @@ class DomainController extends Controller
     {
         $hostingService = $domain->linkedHostingService;
         $daysToExpiry = $domain->expires_at ? now()->startOfDay()->diffInDays($domain->expires_at, false) : null;
+        $metadata = $domain->provider_metadata ?? [];
+        $nextRenewalPriceKobo = $domain->customer_renewal_price_kobo
+            ?? $this->pricing->priceFor($domain->tld)['renewal_kobo']
+            ?? null;
 
         return [
             'id' => $domain->id,
@@ -146,6 +174,34 @@ class DomainController extends Controller
             'can_add_hosting' => $hostingService === null && $domain->status === 'active',
             'shows_dns_instructions' => $domain->source === 'external',
             'server_hostname' => $domain->source === 'external' ? config('ispconfig.public_hostname') : null,
+            'nameservers' => $metadata['nameservers'] ?? null,
+            'dns_status' => $metadata['dns_status'] ?? ($domain->dns_provider ? 'cloudflare_dns' : null),
+            'next_invoice_date' => $domain->next_invoice_date?->toDateString(),
+            'next_renewal_amount_kobo' => $nextRenewalPriceKobo,
+            'payment_status' => $domain->payment_status,
+            'registrar_operation_status_label' => self::REGISTRAR_OPERATION_LABELS[$domain->registrar_operation_status] ?? null,
+            'renewal_history' => $this->renewalHistory($domain),
         ];
+    }
+
+    /**
+     * @return array<int, array{date: ?string, amount_kobo: int, status: string, invoice_number: ?string}>
+     */
+    private function renewalHistory(Domain $domain): array
+    {
+        return DomainOrder::query()
+            ->where('domain_id', $domain->id)
+            ->where('order_type', 'renewal')
+            ->with('invoice')
+            ->latest()
+            ->limit(10)
+            ->get()
+            ->map(fn (DomainOrder $order) => [
+                'date' => $order->created_at?->toDateString(),
+                'amount_kobo' => $order->total_amount_kobo,
+                'status' => $order->status,
+                'invoice_number' => $order->invoice?->invoice_number,
+            ])
+            ->all();
     }
 }

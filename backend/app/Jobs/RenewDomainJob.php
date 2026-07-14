@@ -15,9 +15,11 @@ use App\Models\User;
 use App\Notifications\ClientNotificationFailed;
 use App\Notifications\NaiTalkDomainAutoRenewalFailed;
 use App\Notifications\NaiTalkDomainAutoRenewalSuccess;
+use App\Notifications\NaiTalkDomainRegistrarRenewalPending;
 use App\Notifications\NaiTalkDomainRenewalReminder;
 use App\Services\Domains\DomainOrderService;
-use App\Services\Domains\SpaceshipDomainRenewalService;
+use App\Services\Domains\Registrars\Data\DomainOperationStatus;
+use App\Services\Domains\Registrars\RegistrarResolver;
 use App\Services\Notifications\ClientNotifier;
 use App\Services\Payments\ChargeSavedCardService;
 use App\Services\Payments\ReconcileInvoicePaymentService;
@@ -46,7 +48,7 @@ class RenewDomainJob implements ShouldQueue
         SavedPaymentMethodService $savedMethods,
         ChargeSavedCardService $chargeService,
         ReconcileInvoicePaymentService $reconciler,
-        SpaceshipDomainRenewalService $renewalService,
+        RegistrarResolver $registrars,
         ClientNotifier $notifier,
     ): void {
         $leadDays = (int) config('hosting_lifecycle.domain_renewal_lead_days', 14);
@@ -55,12 +57,15 @@ class RenewDomainJob implements ShouldQueue
         Domain::query()
             ->where('auto_renew', true)
             ->where('status', 'active')
+            // Unassigned/internal domains (client_id null) must never be
+            // auto-invoiced — there's no client to bill.
+            ->whereNotNull('client_id')
             ->whereNotNull('expires_at')
             ->whereDate('expires_at', '<=', $targetDate)
             ->whereDate('expires_at', '>=', now()->toDateString())
             ->get()
             ->each(fn (Domain $domain) => $this->attempt(
-                $domain, $domainOrders, $walletService, $savedMethods, $chargeService, $reconciler, $renewalService, $notifier
+                $domain, $domainOrders, $walletService, $savedMethods, $chargeService, $reconciler, $registrars, $notifier
             ));
     }
 
@@ -71,7 +76,7 @@ class RenewDomainJob implements ShouldQueue
         SavedPaymentMethodService $savedMethods,
         ChargeSavedCardService $chargeService,
         ReconcileInvoicePaymentService $reconciler,
-        SpaceshipDomainRenewalService $renewalService,
+        RegistrarResolver $registrars,
         ClientNotifier $notifier,
     ): void {
         if (! $domainOrders->hasPendingRenewalOrder($domain)) {
@@ -146,26 +151,67 @@ class RenewDomainJob implements ShouldQueue
             return;
         }
 
-        $domainOrder->forceFill(['status' => 'completed'])->save();
+        $registrar = $registrars->resolve($domain);
 
         try {
-            $renewalService->renew($domain, 1);
+            $result = $registrar->renew($domain->domain_name, 1);
         } catch (Throwable $exception) {
-            // Payment succeeded but the Spaceship renew call itself failed —
-            // never silently drop this: log it and let admin retry manually.
+            // Payment succeeded but the registrar renew call itself failed —
+            // never silently drop this: keep the DomainOrder pending-payment
+            // status as-is (it's already paid; this is a provider-side
+            // failure, not a billing one) and let admin retry manually.
             AuditLog::query()->create([
                 'client_id' => $domain->client_id,
                 'action' => 'domain_renewal_provider_call_failed',
-                'reason' => "Domain {$domain->domain_name} renewal payment succeeded but the Spaceship renew call failed: {$exception->getMessage()}",
+                'reason' => "Domain {$domain->domain_name} renewal payment succeeded but the {$domain->provider} renew call failed: {$exception->getMessage()}",
                 'source' => 'queue',
                 'notify_client' => false,
                 'error_details' => $exception->getMessage(),
             ]);
-
-            $this->notifyAdminsOfRepeatedFailure($domain, "Renewal payment succeeded but the Spaceship renew call failed: {$exception->getMessage()}");
+            $domain->forceFill(['registrar_operation_status' => 'failed'])->save();
+            $this->notifyAdminsOfRepeatedFailure($domain, "Renewal payment succeeded but the {$domain->provider} renew call failed: {$exception->getMessage()}");
 
             return;
         }
+
+        if (! $result->successful && $result->status === DomainOperationStatus::Failed) {
+            AuditLog::query()->create([
+                'client_id' => $domain->client_id,
+                'action' => 'domain_renewal_provider_call_failed',
+                'reason' => "Domain {$domain->domain_name} renewal payment succeeded but the {$domain->provider} renew call reported failure: {$result->errorMessage}",
+                'source' => 'queue',
+                'notify_client' => false,
+                'error_details' => $result->errorMessage,
+            ]);
+            $domain->forceFill(['registrar_operation_status' => 'failed'])->save();
+            $this->notifyAdminsOfRepeatedFailure($domain, "Renewal payment succeeded but the {$domain->provider} renew call reported failure: {$result->errorMessage}");
+
+            return;
+        }
+
+        // The order itself is marked completed only once the registrar has
+        // actually confirmed the renewal (Completed) — for a provider whose
+        // renew() is asynchronous (Pending/Processing), the order and
+        // domain stay in their current state and a follow-up sync finalizes
+        // things once the registrar confirms (see CloudflareDomainSyncApplier).
+        if ($result->status !== DomainOperationStatus::Completed) {
+            $domain->forceFill(['registrar_operation_status' => 'pending'])->save();
+
+            // Only reached once per renewal cycle — subsequent runs hit the
+            // "$invoice->status === 'paid'" early return above before ever
+            // getting here again, so no extra dedup is needed.
+            $notifier->notify(
+                client: $client,
+                notification: new NaiTalkDomainRegistrarRenewalPending($domain),
+                template: 'domain_registrar_renewal_pending',
+                subject: "Your domain {$domain->domain_name} renewal payment was received",
+            );
+
+            return;
+        }
+
+        $domainOrder->forceFill(['status' => 'completed'])->save();
+        $domain->forceFill(['registrar_operation_status' => 'completed'])->save();
 
         $method = $walletBalanceKobo >= $outstandingKobo ? 'wallet' : ($walletBalanceKobo > 0 && $card ? 'wallet_and_card' : 'card');
 

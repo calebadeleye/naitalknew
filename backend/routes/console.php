@@ -1,5 +1,6 @@
 <?php
 
+use App\Console\Commands\SyncCloudflareDomainsCommand;
 use App\Jobs\CheckExpiredHostingServicesJob;
 use App\Jobs\DeleteExpiredIspconfigWebsiteJob;
 use App\Jobs\DetectMissingIspConfigResourcesJob;
@@ -53,6 +54,13 @@ Schedule::job(new DeleteExpiredIspconfigWebsiteJob)->dailyAt('03:45');
 Schedule::job(new SyncDomainStatusJob)->everySixHours();
 Schedule::job(new RenewDomainJob)->dailyAt('02:35');
 Schedule::job(new SendDomainExpiryReminderJob)->dailyAt('03:50');
+
+// Cloudflare Registrar import/sync — off by default (auto_sync_enabled
+// defaults false, same safety posture as the Spaceship TLD price sync
+// below) until an admin explicitly turns it on for the cloudflare provider.
+Schedule::command(SyncCloudflareDomainsCommand::class)
+    ->dailyAt('05:15')
+    ->when(fn (): bool => (bool) DomainPricingSettings::forProvider('cloudflare')->auto_sync_enabled);
 
 // TLD price sync — checked daily but only actually dispatches on the day
 // matching the admin's configured cadence, so switching between weekly and

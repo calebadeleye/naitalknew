@@ -46,7 +46,12 @@ class PaystackGateway
 
         return [
             'successful' => ($data['status'] ?? null) === 'success',
-            'amount_kobo' => (int) ($data['amount'] ?? 0),
+            // Paystack's `amount` is the fee-inclusive amount actually charged to the
+            // card when the account is set to pass its transaction fee to the customer;
+            // `requested_amount` is what we asked to be charged (i.e. the invoice total).
+            // Reconciliation must compare against what we invoiced, not what Paystack's
+            // fee markup inflated the charge to, so prefer `requested_amount` when present.
+            'amount_kobo' => (int) ($data['requested_amount'] ?? $data['amount'] ?? 0),
             'currency' => $data['currency'] ?? 'NGN',
             'reference' => $data['reference'] ?? $reference,
             'raw' => $data,
@@ -78,7 +83,7 @@ class PaystackGateway
 
         return [
             'successful' => ($data['status'] ?? null) === 'success',
-            'amount_kobo' => (int) ($data['amount'] ?? $amountKobo),
+            'amount_kobo' => (int) ($data['requested_amount'] ?? $data['amount'] ?? $amountKobo),
             'currency' => $data['currency'] ?? 'NGN',
             'reference' => $data['reference'] ?? $reference,
             'raw' => $data,
