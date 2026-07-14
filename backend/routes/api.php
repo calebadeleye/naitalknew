@@ -235,7 +235,7 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/domains', [RecordsController::class, 'domains']);
             Route::get('/domain-orders', [RecordsController::class, 'domainOrders']);
             Route::get('/domain-transfers', [RecordsController::class, 'domainTransfers']);
-            Route::post('/domain-orders/{domainOrder}/retry-registration', [AdminDomainController::class, 'retryRegistration']);
+            Route::post('/domain-orders/{domainOrder}/mark-registered', [AdminDomainController::class, 'markRegistered']);
             Route::post('/domain-transfers/{transfer}/retry-sync', [AdminDomainController::class, 'retryTransferSync']);
             Route::post('/domains/{domain}/mark-source', [AdminDomainController::class, 'markSource']);
             Route::post('/domains/{domain}/link-hosting', [AdminDomainController::class, 'linkHosting']);

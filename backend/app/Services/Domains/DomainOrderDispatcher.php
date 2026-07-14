@@ -3,12 +3,16 @@
 namespace App\Services\Domains;
 
 use App\Jobs\InitiateDomainTransferJob;
-use App\Jobs\RegisterDomainWithSpaceshipJob;
 use App\Models\DomainOrder;
 use App\Models\DomainTransfer;
 use App\Models\Invoice;
+use App\Models\User;
+use App\Notifications\AdminDomainAwaitingManualRegistration;
+use App\Notifications\NaiTalkDomainOrderAwaitingRegistration;
+use App\Services\Notifications\ClientNotifier;
 use App\Services\Provisioning\IspConfigProvisioningService;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Notification as NotificationFacade;
 
 /**
  * The one seam between payment reconciliation and domain registration/
@@ -18,12 +22,20 @@ use Illuminate\Support\Collection;
  * provisioning directly — so every pre-existing hosting-only order behaves
  * identically to today. For one *with* a DomainOrder, the domain is
  * registered/transferred first; hosting is only ever provisioned after
- * that succeeds (see RegisterDomainWithSpaceshipJob).
+ * that succeeds.
+ *
+ * Registration is manual: Spaceship is used only to check availability, not
+ * to register domains. A registration order is flipped to
+ * awaiting_manual_registration here and an admin completes it later via
+ * Admin\DomainController::markRegistered(). Transfers are unaffected — those
+ * still go through Spaceship automatically via InitiateDomainTransferJob.
  */
 class DomainOrderDispatcher
 {
-    public function __construct(private readonly IspConfigProvisioningService $provisioning)
-    {
+    public function __construct(
+        private readonly IspConfigProvisioningService $provisioning,
+        private readonly ClientNotifier $notifier = new ClientNotifier,
+    ) {
     }
 
     /**
@@ -92,6 +104,32 @@ class DomainOrderDispatcher
             return;
         }
 
-        RegisterDomainWithSpaceshipJob::dispatch($domainOrder->id);
+        $this->markAwaitingManualRegistration($domainOrder);
+    }
+
+    private function markAwaitingManualRegistration(DomainOrder $domainOrder): void
+    {
+        $domainOrder->forceFill(['status' => 'awaiting_manual_registration'])->save();
+
+        $domain = $domainOrder->domain;
+        $domain?->forceFill(['registration_status' => 'awaiting_manual_registration'])->save();
+
+        $client = $domainOrder->client;
+
+        if ($client && $domain) {
+            $this->notifier->notify(
+                client: $client,
+                notification: new NaiTalkDomainOrderAwaitingRegistration($domain),
+                template: 'domain_order_awaiting_registration',
+                subject: "Payment received for {$domainOrder->domain_name}",
+                domain: $domainOrder->domain_name,
+            );
+        }
+
+        $admins = User::query()->whereIn('role', ['super_admin', 'admin_staff'])->get();
+
+        if ($admins->isNotEmpty()) {
+            NotificationFacade::send($admins, new AdminDomainAwaitingManualRegistration($domainOrder));
+        }
     }
 }

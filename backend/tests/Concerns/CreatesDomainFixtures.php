@@ -28,6 +28,11 @@ trait CreatesDomainFixtures
     {
         $this->app['auth']->forgetGuards();
 
+        // DatabaseSeeder seeds admin@naitalk.com with a real production
+        // password, not this test's fixed one — force it to a known value
+        // so login is deterministic regardless of what the seeder sets.
+        User::query()->where('email', 'admin@naitalk.com')->first()?->forceFill(['password' => 'password'])->save();
+
         return $this->postJson('/api/v1/auth/login', [
             'email' => 'admin@naitalk.com',
             'password' => 'password',

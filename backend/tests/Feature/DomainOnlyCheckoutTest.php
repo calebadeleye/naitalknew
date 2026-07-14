@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\Domain;
 use App\Models\DomainOrder;
-use App\Models\DomainSyncLog;
 use App\Services\Payments\ReconcileInvoicePaymentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\CreatesDomainFixtures;
@@ -71,7 +70,7 @@ class DomainOnlyCheckoutTest extends TestCase
         $this->assertNotSame('registered', $domain->registration_status);
     }
 
-    public function test_domain_registration_is_queued_and_completed_after_full_payment(): void
+    public function test_domain_order_is_marked_awaiting_manual_registration_after_full_payment(): void
     {
         $this->seed();
         $this->activateDomainPricing('.com');
@@ -89,17 +88,19 @@ class DomainOnlyCheckoutTest extends TestCase
             ->postJson("/api/v1/admin/invoices/{$invoiceNumber}/mark-paid", ['amount_kobo' => $checkout->json('invoice.total_kobo')])
             ->assertOk();
 
-        // QUEUE_CONNECTION=sync in phpunit.xml, so the registration job runs inline.
+        // Registration is manual now — payment confirmation never calls
+        // Spaceship to register the domain, it just flags the order for an
+        // admin to finish by hand.
         $domain = Domain::where('domain_name', 'nowregistered.com')->firstOrFail();
-        $this->assertSame('registered', $domain->registration_status);
-        $this->assertSame('active', $domain->status);
-        $this->assertNotNull($domain->expires_at);
+        $this->assertSame('awaiting_manual_registration', $domain->registration_status);
+        $this->assertSame('pending', $domain->status);
+        $this->assertNull($domain->expires_at);
 
         $domainOrder = DomainOrder::where('domain_id', $domain->id)->firstOrFail();
-        $this->assertSame('completed', $domainOrder->status);
+        $this->assertSame('awaiting_manual_registration', $domainOrder->status);
     }
 
-    public function test_duplicate_reconciliation_of_the_same_paid_invoice_does_not_register_domain_twice(): void
+    public function test_duplicate_reconciliation_of_the_same_paid_invoice_does_not_redispatch_the_domain_order(): void
     {
         $this->seed();
         $this->activateDomainPricing('.com');
@@ -118,8 +119,7 @@ class DomainOnlyCheckoutTest extends TestCase
             ->assertOk();
 
         $domain = Domain::where('domain_name', 'noduplicate.com')->firstOrFail();
-        $this->assertSame('registered', $domain->registration_status);
-        $this->assertSame(1, DomainSyncLog::where('action', 'register_domain')->count());
+        $this->assertSame('awaiting_manual_registration', $domain->registration_status);
 
         // Simulate a repeated webhook/dispatcher call for the same already-paid invoice.
         $invoice = $domain->orders()->firstOrFail()->invoice;
@@ -127,10 +127,67 @@ class DomainOnlyCheckoutTest extends TestCase
         app(ReconcileInvoicePaymentService::class)->reconcile($invoice->fresh(), $payment->fresh(), $payment->amount_kobo, $payment->gateway);
 
         $domain->refresh();
+        // The dispatcher's idempotency guard (only re-dispatch orders still
+        // at pending_payment) must leave an already-flagged order alone.
+        $this->assertSame('awaiting_manual_registration', $domain->registration_status);
+        $domainOrder = DomainOrder::where('domain_id', $domain->id)->firstOrFail();
+        $this->assertSame('awaiting_manual_registration', $domainOrder->status);
+    }
+
+    public function test_admin_can_mark_a_domain_order_as_registered(): void
+    {
+        $this->seed();
+        $this->activateDomainPricing('.com');
+        ['token' => $token, 'client' => $client] = $this->registerVerifiedDomainClient('domain-mark@example.test');
+        $this->completeDomainContact($client);
+        $this->verifyDomainAvailable($token, 'markmeregistered.com');
+
+        $checkout = $this->withToken($token)->postJson('/api/v1/client/domains/orders', [
+            'domain_name' => 'markmeregistered.com',
+        ])->assertCreated();
+
+        $invoiceNumber = $checkout->json('invoice.invoice_number');
+        $adminToken = $this->domainAdminToken();
+
+        $this->withToken($adminToken)
+            ->postJson("/api/v1/admin/invoices/{$invoiceNumber}/mark-paid", ['amount_kobo' => $checkout->json('invoice.total_kobo')])
+            ->assertOk();
+
+        $domainOrder = DomainOrder::where('domain_name', 'markmeregistered.com')->firstOrFail();
+
+        $this->withToken($adminToken)
+            ->postJson("/api/v1/admin/domain-orders/{$domainOrder->id}/mark-registered", [
+                'expires_at' => now()->addYear()->toDateString(),
+            ])
+            ->assertOk();
+
+        $domain = Domain::where('domain_name', 'markmeregistered.com')->firstOrFail();
         $this->assertSame('registered', $domain->registration_status);
-        // The registration call itself must never be repeated for an
-        // already-registered domain (idempotency guard inside
-        // SpaceshipDomainRegistrationService::register()).
-        $this->assertSame(1, DomainSyncLog::where('action', 'register_domain')->count());
+        $this->assertSame('active', $domain->status);
+        $this->assertNotNull($domain->registered_at);
+        $this->assertNotNull($domain->expires_at);
+        $this->assertSame('completed', $domainOrder->fresh()->status);
+    }
+
+    public function test_marking_a_domain_order_registered_is_rejected_when_not_awaiting_manual_registration(): void
+    {
+        $this->seed();
+        $this->activateDomainPricing('.com');
+        ['token' => $token, 'client' => $client] = $this->registerVerifiedDomainClient('domain-mark-reject@example.test');
+        $this->completeDomainContact($client);
+        $this->verifyDomainAvailable($token, 'notyetpaid.com');
+
+        $this->withToken($token)->postJson('/api/v1/client/domains/orders', [
+            'domain_name' => 'notyetpaid.com',
+        ])->assertCreated();
+
+        $domainOrder = DomainOrder::where('domain_name', 'notyetpaid.com')->firstOrFail();
+        $this->assertSame('pending_payment', $domainOrder->status);
+
+        $this->withToken($this->domainAdminToken())
+            ->postJson("/api/v1/admin/domain-orders/{$domainOrder->id}/mark-registered", [
+                'expires_at' => now()->addYear()->toDateString(),
+            ])
+            ->assertStatus(422);
     }
 }

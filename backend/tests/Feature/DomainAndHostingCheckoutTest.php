@@ -47,7 +47,7 @@ class DomainAndHostingCheckoutTest extends TestCase
         $this->assertDatabaseHas('domain_orders', ['domain_name' => 'newbizsite.com', 'order_type' => 'registration']);
     }
 
-    public function test_domain_is_registered_before_hosting_is_provisioned_after_payment(): void
+    public function test_hosting_stays_unprovisioned_until_admin_marks_the_domain_registered(): void
     {
         $this->seed();
         $this->activateDomainPricing('.com');
@@ -64,54 +64,31 @@ class DomainAndHostingCheckoutTest extends TestCase
         ])->assertCreated();
 
         $invoiceNumber = $checkout->json('invoice.invoice_number');
+        $adminToken = $this->domainAdminToken();
 
-        $this->withToken($this->domainAdminToken())
+        $this->withToken($adminToken)
             ->postJson("/api/v1/admin/invoices/{$invoiceNumber}/mark-paid", ['amount_kobo' => $checkout->json('invoice.total_kobo')])
             ->assertOk();
 
+        // Registration is manual now — payment alone must never provision
+        // hosting for a domain that hasn't been confirmed registered yet.
         $domain = Domain::where('domain_name', 'liveonnaitalk.com')->firstOrFail();
-        $this->assertSame('registered', $domain->registration_status);
+        $this->assertSame('awaiting_manual_registration', $domain->registration_status);
 
         $service = HostingService::where('id', $checkout->json('service.id'))->firstOrFail();
-        $this->assertSame('provisioned', $service->provisioning_status);
-        $this->assertSame($service->id, $domain->fresh()->linked_hosting_service_id);
-    }
+        $this->assertSame('awaiting_provisioning', $service->provisioning_status);
+        $this->assertSame($service->id, $domain->linked_hosting_service_id);
 
-    public function test_hosting_is_never_provisioned_if_domain_registration_fails(): void
-    {
-        $this->seed();
-        $this->activateDomainPricing('.com');
-        ['token' => $token, 'client' => $client] = $this->registerVerifiedDomainClient('domain-hosting-fail@example.test');
-        $this->completeDomainContact($client);
-        $this->verifyDomainAvailable($token, 'racecondition.com');
+        $domainOrder = $domain->orders()->where('order_type', 'registration')->firstOrFail();
 
-        $checkout = $this->withToken($token)->postJson('/api/v1/client/orders/hosting', [
-            'plan_slug' => 'business-website-care',
-            'billing_cycle' => 'annual',
-            'primary_domain' => 'racecondition.com',
-            'terms_accepted' => true,
-            'register_domain' => true,
-        ])->assertCreated();
-
-        // Simulate the domain becoming unavailable to someone else between
-        // checkout and registration — the dry-run availability heuristic
-        // treats any domain name containing "taken" as unavailable.
-        Domain::where('domain_name', 'racecondition.com')->update(['domain_name' => 'racecondition-taken.com']);
-
-        $invoiceNumber = $checkout->json('invoice.invoice_number');
-
-        $this->withToken($this->domainAdminToken())
-            ->postJson("/api/v1/admin/invoices/{$invoiceNumber}/mark-paid", ['amount_kobo' => $checkout->json('invoice.total_kobo')])
+        $this->withToken($adminToken)
+            ->postJson("/api/v1/admin/domain-orders/{$domainOrder->id}/mark-registered", [
+                'expires_at' => now()->addYear()->toDateString(),
+            ])
             ->assertOk();
 
-        $domain = Domain::where('domain_name', 'racecondition-taken.com')->firstOrFail();
-        $this->assertSame('registration_failed', $domain->registration_status);
-
-        // Payment reconciliation always flips a paid order's hosting service to
-        // "awaiting_provisioning" first; the important guarantee is that it
-        // never advances past that to "provisioned" when domain registration failed.
-        $service = HostingService::where('id', $checkout->json('service.id'))->firstOrFail();
-        $this->assertNotSame('provisioned', $service->provisioning_status);
-        $this->assertSame('awaiting_provisioning', $service->provisioning_status);
+        $domain->refresh();
+        $this->assertSame('registered', $domain->registration_status);
+        $this->assertSame('provisioned', $service->fresh()->provisioning_status);
     }
 }

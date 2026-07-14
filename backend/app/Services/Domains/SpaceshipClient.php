@@ -117,24 +117,6 @@ class SpaceshipClient
     }
 
     /**
-     * @param  array<string, mixed>  $payload  {autoRenew, years, privacyProtection, contacts}
-     * @return array{operation_id: ?string, raw: array}
-     */
-    public function registerDomain(string $domain, array $payload): array
-    {
-        $response = $this->request('POST', "/domains/{$domain}", $payload, action: 'register_domain', dryRun: fn () => [
-            'operationId' => 'dryrun-op-'.Str::upper(Str::random(10)),
-            'domainId' => 'dryrun-domain-'.Str::upper(Str::random(10)),
-            'expirationDate' => now()->addYear()->toIso8601String(),
-        ]);
-
-        return [
-            'operation_id' => $response['operationId'] ?? null,
-            'raw' => $response,
-        ];
-    }
-
-    /**
      * @param  array<string, mixed>  $contacts
      */
     public function initiateTransfer(string $domain, string $eppCode, array $contacts): array
@@ -157,13 +139,6 @@ class SpaceshipClient
     {
         return $this->request('GET', "/domains/{$domain}/transfer", [], action: 'transfer_status', dryRun: fn () => [
             'status' => 'pending',
-        ]);
-    }
-
-    public function getAsyncOperation(string $operationId): array
-    {
-        return $this->request('GET', "/async-operations/{$operationId}", [], action: 'async_operation_status', dryRun: fn () => [
-            'status' => 'success',
         ]);
     }
 

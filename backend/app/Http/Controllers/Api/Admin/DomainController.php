@@ -3,15 +3,18 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Jobs\RetryFailedDomainRegistrationJob;
 use App\Models\Domain;
 use App\Models\DomainOrder;
 use App\Models\DomainTransfer;
 use App\Models\HostingService;
 use App\Notifications\ExistingDomainDnsInstructions;
+use App\Notifications\NaiTalkDomainRegistrationConfirmed;
 use App\Services\Domains\DomainOrderService;
 use App\Services\Domains\SpaceshipDomainSyncService;
+use App\Services\Notifications\ClientNotifier;
+use App\Services\Provisioning\IspConfigProvisioningService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use RuntimeException;
 
@@ -22,13 +25,53 @@ use RuntimeException;
  */
 class DomainController extends Controller
 {
-    public function retryRegistration(DomainOrder $domainOrder)
+    /**
+     * Domain registration is manual (Spaceship is availability-check only) —
+     * an admin registers the domain elsewhere, then calls this to flip the
+     * order/domain to active and notify the customer.
+     */
+    public function markRegistered(Request $request, DomainOrder $domainOrder, ClientNotifier $notifier, IspConfigProvisioningService $provisioning)
     {
-        abort_if($domainOrder->status !== 'failed', 422, 'Only a failed domain order can be retried.');
+        abort_if($domainOrder->status !== 'awaiting_manual_registration', 422, 'Only a domain order awaiting manual registration can be marked registered.');
 
-        RetryFailedDomainRegistrationJob::dispatch($domainOrder->id);
+        $payload = $request->validate([
+            'expires_at' => ['required', 'date', 'after:today'],
+        ]);
 
-        return response()->json(['message' => 'Domain registration retry has been queued.']);
+        $domain = $domainOrder->domain;
+
+        abort_if(! $domain, 422, 'This domain order has no associated domain record.');
+
+        $domain->forceFill([
+            'status' => 'active',
+            'registration_status' => 'registered',
+            'registered_at' => now()->toDateString(),
+            'expires_at' => Carbon::parse($payload['expires_at'])->toDateString(),
+        ])->save();
+
+        $domainOrder->forceFill(['status' => 'completed'])->save();
+
+        // A domain+hosting combo order links its hosting service at checkout
+        // time but never provisions it until the domain is confirmed
+        // registered — that gate now happens here instead of in the deleted
+        // auto-registration job.
+        if ($domainOrder->hosting_service_id && $domainOrder->hostingService) {
+            $provisioning->queueProvisioning($domainOrder->hostingService);
+        }
+
+        $client = $domainOrder->client;
+
+        if ($client) {
+            $notifier->notify(
+                client: $client,
+                notification: new NaiTalkDomainRegistrationConfirmed($domain),
+                template: 'domain_registration_confirmed',
+                subject: "Your domain {$domainOrder->domain_name} is registered",
+                domain: $domainOrder->domain_name,
+            );
+        }
+
+        return response()->json(['data' => $domainOrder->fresh(['domain'])]);
     }
 
     public function retryTransferSync(DomainTransfer $transfer, SpaceshipDomainSyncService $syncService)
