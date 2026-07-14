@@ -1053,22 +1053,25 @@ function Hero({ projects, logo }: { projects: Project[]; logo: LogoImage }) {
 }
 
 function TrustStrip({ clientLogos }: { clientLogos: ClientLogo[] }) {
+  if (!clientLogos.length) return null;
+
   return (
-    <section className="border-y border-white/8 bg-white/[0.025] py-5">
+    <section className="border-y border-white/8 bg-white/[0.025] py-7">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <p className="text-center text-[10px] font-black uppercase text-primary">
           Trusted by businesses, organisations & institutions
         </p>
-        <div className="mt-5 grid grid-cols-2 items-center gap-5 text-center sm:grid-cols-3 lg:grid-cols-6">
-          {clientLogos.map((logo) => (
-            <div key={`${logo.name}-${logo.src}`} className="flex h-16 items-center justify-center rounded-lg border border-white/8 bg-white/[0.02] px-4">
-              {logo.src ? (
-                <img src={logo.src} alt={logo.alt || logo.name} className="max-h-10 w-full object-contain opacity-70" />
-              ) : (
-                <span className="text-xl font-black text-white/50 sm:text-2xl">{logo.name}</span>
-              )}
-            </div>
-          ))}
+        <div className="mt-6 trust-marquee">
+          <div className="trust-marquee-track">
+            {[...clientLogos, ...clientLogos].map((logo, index) => (
+              <div key={`${logo.name}-${index}`} className="trust-card" aria-hidden={index >= clientLogos.length}>
+                <div className="trust-card-logo">
+                  {logo.src ? <img src={logo.src} alt={logo.alt || logo.name} /> : <span className="trust-card-fallback">{logo.name}</span>}
+                </div>
+                {logo.src && <span className="trust-card-name">{logo.name}</span>}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </section>

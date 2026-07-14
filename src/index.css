@@ -1520,6 +1520,56 @@
     }
   }
 
+  .trust-marquee {
+    @apply relative overflow-hidden;
+    mask-image: linear-gradient(90deg, transparent, black 4%, black 96%, transparent);
+    -webkit-mask-image: linear-gradient(90deg, transparent, black 4%, black 96%, transparent);
+  }
+
+  .trust-marquee-track {
+    @apply flex w-max gap-4;
+    animation: trust-marquee-scroll 32s linear infinite;
+  }
+
+  .trust-marquee:hover .trust-marquee-track {
+    animation-play-state: paused;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .trust-marquee-track {
+      animation: none;
+    }
+  }
+
+  @keyframes trust-marquee-scroll {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  .trust-card {
+    @apply flex w-40 flex-shrink-0 flex-col items-center gap-3 rounded-lg border border-white/8 bg-white/[0.02] px-4 py-5 sm:w-48;
+  }
+
+  .trust-card-logo {
+    @apply flex h-20 w-full items-center justify-center;
+  }
+
+  .trust-card-logo img {
+    @apply max-h-20 max-w-full object-contain opacity-80;
+  }
+
+  .trust-card-fallback {
+    @apply text-lg font-black text-white/50;
+  }
+
+  .trust-card-name {
+    @apply truncate text-center text-[11px] font-bold uppercase tracking-wide text-white/45;
+  }
+
   .project-slide {
     @apply relative h-72 w-80 flex-shrink-0 overflow-hidden rounded-lg border border-white/10 bg-[#071014] transition hover:-translate-y-1 hover:border-accent-cyan/40 sm:h-80 sm:w-96 lg:h-96 lg:w-[28rem];
   }
