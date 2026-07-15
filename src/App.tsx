@@ -1508,10 +1508,19 @@ function ReasonFormModal({
 }
 
 type ManualInvoiceLineItemInput = {
+  catalogKey: string;
   description: string;
   quantity: string;
   unitPriceNaira: string;
 };
+
+type ManualInvoiceCatalogItem = {
+  key: string;
+  label: string;
+  unitPriceKobo: number | null;
+};
+
+const MANUAL_INVOICE_OTHER_KEY = "other";
 
 function CreateManualInvoiceModal({
   adminToken,
@@ -1527,17 +1536,60 @@ function CreateManualInvoiceModal({
   const [discountNaira, setDiscountNaira] = useState("");
   const [notes, setNotes] = useState("");
   const [lineItems, setLineItems] = useState<ManualInvoiceLineItemInput[]>([
-    { description: "", quantity: "1", unitPriceNaira: "" },
+    { catalogKey: "", description: "", quantity: "1", unitPriceNaira: "" },
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [catalogPlans, setCatalogPlans] = useState<ManualInvoiceCatalogItem[]>([]);
+  const [catalogOfferings, setCatalogOfferings] = useState<ManualInvoiceCatalogItem[]>([]);
+
+  useEffect(() => {
+    Promise.all([
+      laravelApi<{ data: Array<{ id: number; name: string; monthly_price_kobo: number; is_active: boolean }> }>(
+        "/api/v1/admin/pricing-packages",
+        adminToken
+      ).catch(() => ({ data: [] })),
+      laravelApi<{ data: Array<{ id: number; name: string; price_kobo: number | null; is_active: boolean }> }>(
+        "/api/v1/admin/service-offerings",
+        adminToken
+      ).catch(() => ({ data: [] })),
+    ]).then(([plansResponse, offeringsResponse]) => {
+      setCatalogPlans(
+        (plansResponse.data || [])
+          .filter((plan) => plan.is_active)
+          .map((plan) => ({ key: `plan:${plan.id}`, label: plan.name, unitPriceKobo: plan.monthly_price_kobo }))
+      );
+      setCatalogOfferings(
+        (offeringsResponse.data || [])
+          .filter((offering) => offering.is_active)
+          .map((offering) => ({ key: `offering:${offering.id}`, label: offering.name, unitPriceKobo: offering.price_kobo }))
+      );
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminToken]);
+
+  const catalogItems = [...catalogPlans, ...catalogOfferings];
 
   const updateLineItem = (index: number, patch: Partial<ManualInvoiceLineItemInput>) => {
     setLineItems((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)));
   };
 
+  const selectCatalogItem = (index: number, key: string) => {
+    if (key === MANUAL_INVOICE_OTHER_KEY) {
+      updateLineItem(index, { catalogKey: key, description: "" });
+      return;
+    }
+
+    const catalogItem = catalogItems.find((entry) => entry.key === key);
+    updateLineItem(index, {
+      catalogKey: key,
+      description: catalogItem?.label ?? "",
+      unitPriceNaira: catalogItem?.unitPriceKobo != null ? String(catalogItem.unitPriceKobo / 100) : "",
+    });
+  };
+
   const addLineItem = () => {
-    setLineItems((current) => [...current, { description: "", quantity: "1", unitPriceNaira: "" }]);
+    setLineItems((current) => [...current, { catalogKey: "", description: "", quantity: "1", unitPriceNaira: "" }]);
   };
 
   const removeLineItem = (index: number) => {
@@ -1607,13 +1659,39 @@ function CreateManualInvoiceModal({
             <span className="text-sm font-bold text-white/80">Line items</span>
             {lineItems.map((item, index) => (
               <div key={index} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto_auto]">
-                <input
-                  required
-                  type="text"
-                  placeholder="Description"
-                  value={item.description}
-                  onChange={(event) => updateLineItem(index, { description: event.target.value })}
-                />
+                <div className="grid gap-2">
+                  <select
+                    required
+                    value={item.catalogKey}
+                    onChange={(event) => selectCatalogItem(index, event.target.value)}
+                  >
+                    <option value="" disabled>Select a service...</option>
+                    {catalogPlans.length > 0 && (
+                      <optgroup label="Hosting Plans">
+                        {catalogPlans.map((entry) => (
+                          <option key={entry.key} value={entry.key}>{entry.label}</option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {catalogOfferings.length > 0 && (
+                      <optgroup label="Other Services">
+                        {catalogOfferings.map((entry) => (
+                          <option key={entry.key} value={entry.key}>{entry.label}</option>
+                        ))}
+                      </optgroup>
+                    )}
+                    <option value={MANUAL_INVOICE_OTHER_KEY}>Other (type manually)</option>
+                  </select>
+                  {item.catalogKey === MANUAL_INVOICE_OTHER_KEY && (
+                    <input
+                      required
+                      type="text"
+                      placeholder="Description"
+                      value={item.description}
+                      onChange={(event) => updateLineItem(index, { description: event.target.value })}
+                    />
+                  )}
+                </div>
                 <input
                   required
                   type="number"
