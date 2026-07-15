@@ -59,9 +59,10 @@ class AdminManualInvoiceTest extends TestCase
         $this->assertNull($invoice->hosting_service_id);
         $this->assertSame('unpaid', $invoice->status);
         $this->assertSame(10_000_00, $invoice->subtotal_kobo);
-        // 7.5% VAT default.
-        $this->assertSame((int) round(10_000_00 * 0.075), $invoice->tax_kobo);
-        $this->assertSame($invoice->subtotal_kobo + $invoice->tax_kobo, $invoice->total_kobo);
+        // No VAT unless the admin explicitly opts in via apply_vat.
+        $this->assertSame(0, $invoice->tax_kobo);
+        $this->assertSame(0.0, $invoice->vat_rate);
+        $this->assertSame($invoice->subtotal_kobo, $invoice->total_kobo);
         $this->assertSame($invoice->total_kobo, $invoice->outstanding_amount_kobo);
 
         $this->assertDatabaseHas('audit_logs', [
@@ -72,6 +73,26 @@ class AdminManualInvoiceTest extends TestCase
         ]);
 
         Notification::assertSentTo($client->user, NaiTalkInvoiceCreated::class);
+    }
+
+    public function test_admin_can_opt_in_to_vat_on_a_manual_invoice(): void
+    {
+        $this->actingAsAdmin();
+        $client = $this->makeClient();
+
+        $response = $this->postJson('/api/v1/admin/invoices', [
+            'client_id' => $client->id,
+            'line_items' => [
+                ['description' => 'Custom project fee', 'quantity' => 1, 'unit_price_kobo' => 10_000_00],
+            ],
+            'due_at' => now()->addDays(14)->toDateString(),
+            'apply_vat' => true,
+        ])->assertCreated();
+
+        $invoice = Invoice::where('invoice_number', $response->json('data.invoice_number'))->firstOrFail();
+
+        $this->assertSame((int) round(10_000_00 * 0.075), $invoice->tax_kobo);
+        $this->assertSame($invoice->subtotal_kobo + $invoice->tax_kobo, $invoice->total_kobo);
     }
 
     public function test_manual_invoice_notification_never_throws_for_an_order_less_invoice(): void

@@ -1763,7 +1763,7 @@
   }
 
   .hosting-modal {
-    @apply w-full max-w-md rounded-lg border border-white/10 bg-surface p-6;
+    @apply max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg border border-white/10 bg-surface p-6;
   }
 }
 

@@ -1537,6 +1537,7 @@ function CreateManualInvoiceModal({
   const [isSearchingClients, setIsSearchingClients] = useState(false);
   const [dueAt, setDueAt] = useState("");
   const [discountNaira, setDiscountNaira] = useState("");
+  const [applyVat, setApplyVat] = useState(false);
   const [notes, setNotes] = useState("");
   const [lineItems, setLineItems] = useState<ManualInvoiceLineItemInput[]>([
     { catalogKey: "", description: "", quantity: "1", unitPriceNaira: "" },
@@ -1545,6 +1546,13 @@ function CreateManualInvoiceModal({
   const [error, setError] = useState<string | null>(null);
   const [catalogPlans, setCatalogPlans] = useState<ManualInvoiceCatalogItem[]>([]);
   const [catalogOfferings, setCatalogOfferings] = useState<ManualInvoiceCatalogItem[]>([]);
+  const [vatRate, setVatRate] = useState(0.075);
+
+  useEffect(() => {
+    laravelApi<{ vat_rate: number }>("/api/v1/public/billing-config")
+      .then((config) => setVatRate(config.vat_rate))
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -1634,6 +1642,9 @@ function CreateManualInvoiceModal({
     const unitPrice = Number(item.unitPriceNaira) || 0;
     return sum + quantity * unitPrice;
   }, 0);
+  const taxableNaira = Math.max(subtotalNaira - (Number(discountNaira) || 0), 0);
+  const vatNaira = applyVat ? taxableNaira * vatRate : 0;
+  const totalNaira = taxableNaira + vatNaira;
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -1657,6 +1668,7 @@ function CreateManualInvoiceModal({
           })),
           due_at: dueAt,
           discount_kobo: discountNaira ? Math.round(Number(discountNaira) * 100) : undefined,
+          apply_vat: applyVat,
           notes: notes || undefined,
         }),
       });
@@ -1696,6 +1708,7 @@ function CreateManualInvoiceModal({
                 <input
                   required
                   type="text"
+                  className="w-full rounded-lg border border-white/10 bg-[#041015] px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/32 focus:border-accent-cyan/55"
                   placeholder="Search by name, email, or client code..."
                   value={clientQuery}
                   onChange={(event) => setClientQuery(event.target.value)}
@@ -1787,7 +1800,6 @@ function CreateManualInvoiceModal({
               </div>
             ))}
             <button type="button" className="btn-outline self-start" onClick={addLineItem}>+ Add line item</button>
-            <p className="text-sm text-white/60">Subtotal: <strong className="text-white">₦{subtotalNaira.toLocaleString()}</strong> (excluding VAT)</p>
           </div>
 
           <label className="admin-field">
@@ -1799,6 +1811,22 @@ function CreateManualInvoiceModal({
             <span>Discount (₦, optional)</span>
             <input type="number" min={0} step="0.01" value={discountNaira} onChange={(event) => setDiscountNaira(event.target.value)} />
           </label>
+
+          <label className="flex items-center gap-2 text-sm text-white/70">
+            <input type="checkbox" checked={applyVat} onChange={(event) => setApplyVat(event.target.checked)} />
+            Apply VAT ({(vatRate * 100).toFixed(vatRate * 100 % 1 === 0 ? 0 : 1)}%)
+          </label>
+
+          <div className="grid gap-1 rounded-md border border-white/10 bg-black/20 p-3 text-sm text-white/70">
+            <p className="flex justify-between"><span>Subtotal</span><span>₦{subtotalNaira.toLocaleString()}</span></p>
+            {Number(discountNaira) > 0 && (
+              <p className="flex justify-between"><span>Discount</span><span>-₦{Number(discountNaira).toLocaleString()}</span></p>
+            )}
+            {applyVat && (
+              <p className="flex justify-between"><span>VAT</span><span>₦{vatNaira.toLocaleString()}</span></p>
+            )}
+            <p className="flex justify-between font-bold text-white"><span>Total</span><span>₦{totalNaira.toLocaleString()}</span></p>
+          </div>
 
           <label className="admin-field">
             <span>Internal note (optional)</span>
@@ -10743,7 +10771,11 @@ function AdminApp() {
         </header>
 
       <main className="admin-content">
-        {message && <p className={message.includes("saved") || message.includes("uploaded") ? "form-message success" : "form-message error"}>{message}</p>}
+        {message && (
+          <p className={/fail|could not|invalid|expired|must be|enter a valid/i.test(message) ? "form-message error" : "form-message success"}>
+            {message}
+          </p>
+        )}
 
         {activeSection !== "dashboard" && !routeClientId && !routeServiceId && (
           <AdminBreadcrumbs

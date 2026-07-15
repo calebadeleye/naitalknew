@@ -22,9 +22,7 @@ use Illuminate\Support\Str;
  */
 class InvoiceController extends Controller
 {
-    public function __construct(private readonly VatCalculator $vatCalculator = new VatCalculator)
-    {
-    }
+    public function __construct(private readonly VatCalculator $vatCalculator = new VatCalculator) {}
 
     public function store(Request $request)
     {
@@ -36,6 +34,7 @@ class InvoiceController extends Controller
             'line_items.*.unit_price_kobo' => ['required', 'integer', 'min:0'],
             'due_at' => ['required', 'date'],
             'discount_kobo' => ['nullable', 'integer', 'min:0'],
+            'apply_vat' => ['sometimes', 'boolean'],
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
 
@@ -49,7 +48,12 @@ class InvoiceController extends Controller
         ])->all();
 
         $subtotalKobo = array_sum(array_column($lineItems, 'total_kobo'));
-        $breakdown = $this->vatCalculator->calculate($subtotalKobo, (int) ($payload['discount_kobo'] ?? 0));
+        // Manual invoices don't apply VAT unless the admin explicitly opts in
+        // — unlike checkout/renewal totals (always taxable), a one-off manual
+        // charge might already be VAT-inclusive, non-taxable, or agreed as a
+        // flat figure with the client.
+        $vatRate = ($payload['apply_vat'] ?? false) ? null : 0.0;
+        $breakdown = $this->vatCalculator->calculate($subtotalKobo, (int) ($payload['discount_kobo'] ?? 0), $vatRate);
 
         $invoice = Invoice::query()->create([
             'client_id' => $client->id,
