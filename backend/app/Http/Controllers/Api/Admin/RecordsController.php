@@ -38,6 +38,15 @@ class RecordsController extends Controller
             ], 'total_kobo')
             ->withSum(['invoices as total_revenue_kobo' => fn ($query) => $query], 'amount_paid_kobo')
             ->withMin(['hostingServices as next_renewal_due' => fn ($query) => $query->where('status', 'active')->whereNotNull('renews_at')], 'renews_at')
+            ->when($request->filled('search'), function ($query) use ($request): void {
+                $term = '%'.$request->string('search')->trim().'%';
+                $query->where(function ($inner) use ($term): void {
+                    $inner->where('company_name', 'like', $term)
+                        ->orWhere('billing_email', 'like', $term)
+                        ->orWhere('client_code', 'like', $term)
+                        ->orWhereHas('user', fn ($userQuery) => $userQuery->where('name', 'like', $term)->orWhere('email', 'like', $term));
+                });
+            })
             ->when($request->filled('account_type'), fn ($query) => $query->where('account_type', $request->string('account_type')))
             ->when($request->filled('client_status'), fn ($query) => $query->where('client_status', $request->string('client_status')))
             ->when($request->boolean('has_hosting_service'), fn ($query) => $query->has('hostingServices'))

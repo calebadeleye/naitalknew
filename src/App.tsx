@@ -1531,7 +1531,10 @@ function CreateManualInvoiceModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const [clientId, setClientId] = useState("");
+  const [clientQuery, setClientQuery] = useState("");
+  const [clientResults, setClientResults] = useState<Array<{ id: number; name: string; email: string; client_code: string }>>([]);
+  const [selectedClient, setSelectedClient] = useState<{ id: number; name: string; email: string; client_code: string } | null>(null);
+  const [isSearchingClients, setIsSearchingClients] = useState(false);
   const [dueAt, setDueAt] = useState("");
   const [discountNaira, setDiscountNaira] = useState("");
   const [notes, setNotes] = useState("");
@@ -1567,6 +1570,36 @@ function CreateManualInvoiceModal({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminToken]);
+
+  useEffect(() => {
+    if (selectedClient || clientQuery.trim().length < 2) {
+      setClientResults([]);
+      return;
+    }
+
+    setIsSearchingClients(true);
+    const handle = setTimeout(() => {
+      laravelApi<{ data: Array<Record<string, any>> }>(
+        `/api/v1/admin/clients?search=${encodeURIComponent(clientQuery.trim())}`,
+        adminToken
+      )
+        .then((response) => {
+          setClientResults(
+            (response.data || []).map((row) => ({
+              id: Number(row.id),
+              name: row.company_name || row.user?.name || "Unnamed client",
+              email: row.user?.email || row.billing_email || "",
+              client_code: row.client_code,
+            }))
+          );
+        })
+        .catch(() => setClientResults([]))
+        .finally(() => setIsSearchingClients(false));
+    }, 300);
+
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientQuery, selectedClient, adminToken]);
 
   const catalogItems = [...catalogPlans, ...catalogOfferings];
 
@@ -1606,9 +1639,8 @@ function CreateManualInvoiceModal({
     event.preventDefault();
     setError(null);
 
-    const clientIdNumber = Number(clientId);
-    if (!Number.isFinite(clientIdNumber) || clientIdNumber <= 0) {
-      setError("Enter a valid numeric client ID.");
+    if (!selectedClient) {
+      setError("Search for and select a client first.");
       return;
     }
 
@@ -1617,7 +1649,7 @@ function CreateManualInvoiceModal({
       await laravelApi("/api/v1/admin/invoices", adminToken, {
         method: "POST",
         body: JSON.stringify({
-          client_id: clientIdNumber,
+          client_id: selectedClient.id,
           line_items: lineItems.map((item) => ({
             description: item.description,
             quantity: Number(item.quantity) || 1,
@@ -1643,17 +1675,50 @@ function CreateManualInvoiceModal({
           <h3 className="text-lg font-black text-white">Create a manual invoice</h3>
           {error && <p className="form-message error">{error}</p>}
 
-          <label className="admin-field">
-            <span>Client ID</span>
-            <input
-              required
-              type="number"
-              min={1}
-              placeholder="e.g. 12"
-              value={clientId}
-              onChange={(event) => setClientId(event.target.value)}
-            />
-          </label>
+          <div className="grid gap-2">
+            <span className="text-sm font-bold text-white/80">Client</span>
+            {selectedClient ? (
+              <div className="flex items-center justify-between gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold text-white">{selectedClient.name}</p>
+                  <p className="truncate text-xs text-white/60">{selectedClient.email} · {selectedClient.client_code}</p>
+                </div>
+                <button
+                  type="button"
+                  className="btn-outline !min-h-8 shrink-0 !px-3 !py-1 !text-[10px]"
+                  onClick={() => { setSelectedClient(null); setClientQuery(""); }}
+                >
+                  Change
+                </button>
+              </div>
+            ) : (
+              <div className="relative">
+                <input
+                  required
+                  type="text"
+                  placeholder="Search by name, email, or client code..."
+                  value={clientQuery}
+                  onChange={(event) => setClientQuery(event.target.value)}
+                />
+                {isSearchingClients && <p className="mt-1 text-xs text-white/50">Searching...</p>}
+                {clientResults.length > 0 && (
+                  <div className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-white/10 bg-black/95">
+                    {clientResults.map((client) => (
+                      <button
+                        key={client.id}
+                        type="button"
+                        className="block w-full px-3 py-2 text-left hover:bg-white/10"
+                        onClick={() => { setSelectedClient(client); setClientResults([]); }}
+                      >
+                        <p className="truncate text-sm font-bold text-white">{client.name}</p>
+                        <p className="truncate text-xs text-white/60">{client.email} · {client.client_code}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           <div className="grid gap-3">
             <span className="text-sm font-bold text-white/80">Line items</span>

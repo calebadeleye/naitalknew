@@ -212,4 +212,37 @@ class AdminManualInvoiceTest extends TestCase
             ->assertOk()
             ->assertJsonFragment(['invoice_number' => $invoiceNumber]);
     }
+
+    public function test_admin_can_search_clients_by_name_email_or_client_code_when_picking_who_to_invoice(): void
+    {
+        $this->actingAsAdmin();
+
+        $target = Client::query()->create([
+            'user_id' => User::factory()->create(['name' => 'Ada Lovelace', 'email' => 'ada@example.test'])->id,
+            'client_code' => 'CLT-ADA-1',
+            'account_type' => 'registered_user',
+            'client_status' => 'active',
+            'billing_email' => 'ada@example.test',
+        ]);
+
+        Client::query()->create([
+            'user_id' => User::factory()->create(['name' => 'Someone Else', 'email' => 'someone-else@example.test'])->id,
+            'client_code' => 'CLT-OTHER-1',
+            'account_type' => 'registered_user',
+            'client_status' => 'active',
+            'billing_email' => 'someone-else@example.test',
+        ]);
+
+        $byName = $this->getJson('/api/v1/admin/clients?search=Lovelace')->assertOk()->json('data');
+        $this->assertCount(1, $byName);
+        $this->assertSame($target->id, $byName[0]['id']);
+
+        $byEmail = $this->getJson('/api/v1/admin/clients?search=ada@example.test')->assertOk()->json('data');
+        $this->assertCount(1, $byEmail);
+        $this->assertSame($target->id, $byEmail[0]['id']);
+
+        $byCode = $this->getJson('/api/v1/admin/clients?search=CLT-ADA')->assertOk()->json('data');
+        $this->assertCount(1, $byCode);
+        $this->assertSame($target->id, $byCode[0]['id']);
+    }
 }
