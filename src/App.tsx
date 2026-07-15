@@ -2470,6 +2470,8 @@ type LegacyImportClientResult = {
   websites?: string[];
   email_accounts_count?: number;
   databases_count?: number;
+  ssh_accounts_count?: number;
+  ftp_accounts_count?: number;
   ispconfig_created_at?: string | null;
   suggested_renewal_date?: string | null;
   renewal_amount?: string;
@@ -2517,7 +2519,7 @@ function AdminIspConfigImportPanel({ adminToken }: { adminToken: string }) {
   };
 
   const runImport = async () => {
-    if (!window.confirm("This will import ISPConfig clients, websites, mailboxes and databases into NAITALK. Continue?")) return;
+    if (!window.confirm("This will import ISPConfig clients, websites, mailboxes, databases, SSH accounts and FTP accounts into NAITALK. Continue?")) return;
 
     setIsRunning(true);
     setError(null);
@@ -2546,6 +2548,8 @@ function AdminIspConfigImportPanel({ adminToken }: { adminToken: string }) {
       websites: clients.reduce((sum, client) => sum + (client.websites?.length || 0), 0),
       mailboxes: clients.reduce((sum, client) => sum + (client.email_accounts_count || 0), 0),
       databases: clients.reduce((sum, client) => sum + (client.databases_count || 0), 0),
+      sshAccounts: clients.reduce((sum, client) => sum + (client.ssh_accounts_count || 0), 0),
+      ftpAccounts: clients.reduce((sum, client) => sum + (client.ftp_accounts_count || 0), 0),
       manualRenewalNeeded: clients.filter((client) => client.manual_renewal_date_required).length,
     };
   }, [result]);
@@ -2556,8 +2560,9 @@ function AdminIspConfigImportPanel({ adminToken }: { adminToken: string }) {
         <div>
           <h2 className="text-2xl font-black">ISPConfig Legacy Import</h2>
           <p className="mt-1 text-sm text-white/55">
-            Pulls existing clients, websites, mailboxes and databases out of ISPConfig and mirrors them into
-            NAITALK under the hidden "Legacy Hosting + SSL" package. Never writes back to ISPConfig.
+            Pulls existing clients, websites, mailboxes, databases, SSH accounts and FTP accounts out of ISPConfig
+            and mirrors them into NAITALK under the hidden "Legacy Hosting + SSL" package. Never writes back to
+            ISPConfig.
           </p>
         </div>
         <div className="flex gap-2">
@@ -2578,7 +2583,7 @@ function AdminIspConfigImportPanel({ adminToken }: { adminToken: string }) {
             {hasRunImport ? "Import completed — changes were written to the NAITALK database." : "Preview only — nothing has been written yet. Run the import when this looks right."}
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-9">
             {[
               ["Clients", totals.total],
               ["New", totals.imported],
@@ -2586,6 +2591,9 @@ function AdminIspConfigImportPanel({ adminToken }: { adminToken: string }) {
               ["Failed", totals.failed],
               ["Websites", totals.websites],
               ["Mailboxes", totals.mailboxes],
+              ["Databases", totals.databases],
+              ["SSH accounts", totals.sshAccounts],
+              ["FTP accounts", totals.ftpAccounts],
               ["Manual renewal", totals.manualRenewalNeeded],
             ].map(([label, value]) => (
               <div key={label} className="rounded-lg border border-white/10 bg-black/20 p-3">
@@ -2605,6 +2613,8 @@ function AdminIspConfigImportPanel({ adminToken }: { adminToken: string }) {
                   <th>Websites</th>
                   <th>Emails</th>
                   <th>Databases</th>
+                  <th>SSH Accounts</th>
+                  <th>FTP Accounts</th>
                   <th>Renewal date</th>
                 </tr>
               </thead>
@@ -2620,6 +2630,8 @@ function AdminIspConfigImportPanel({ adminToken }: { adminToken: string }) {
                     <td>{client.websites?.length ?? 0}</td>
                     <td>{client.email_accounts_count ?? 0}</td>
                     <td>{client.databases_count ?? 0}</td>
+                    <td>{client.ssh_accounts_count ?? 0}</td>
+                    <td>{client.ftp_accounts_count ?? 0}</td>
                     <td>
                       {client.suggested_renewal_date ? (
                         formatDate(client.suggested_renewal_date)

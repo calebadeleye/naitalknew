@@ -5,6 +5,7 @@ namespace App\Services\Ispconfig;
 use App\Models\Client;
 use App\Models\DatabaseRecord;
 use App\Models\EmailDomainRecord;
+use App\Models\FtpAccountRecord;
 use App\Models\HostingPlan;
 use App\Models\HostingService;
 use App\Models\IspConfigClientMapping;
@@ -20,7 +21,7 @@ use RuntimeException;
 use Throwable;
 
 /**
- * Reads existing clients/websites/mailboxes/databases out of ISPConfig and
+ * Reads existing clients/websites/mailboxes/databases/SSH accounts/FTP accounts out of ISPConfig and
  * mirrors them into the NAI TALK database under the hidden "Legacy Hosting +
  * SSL" package, so old manually-provisioned customers can be billed and
  * tracked from this application without touching ISPConfig itself.
@@ -33,9 +34,7 @@ use Throwable;
  */
 class LegacyImportService
 {
-    public function __construct(private readonly IspConfigClient $ispConfig)
-    {
-    }
+    public function __construct(private readonly IspConfigClient $ispConfig) {}
 
     /**
      * @return array{clients: array<int, array<string, mixed>>, dry_run: bool}
@@ -144,8 +143,10 @@ class LegacyImportService
             $remoteMailUsers = $this->ispConfig->mailUserList($sessionId, $groupFilter);
             $remoteMailDomains = $this->ispConfig->mailDomainList($sessionId, $groupFilter);
             $remoteDatabases = $this->ispConfig->databasesDatabaseList($sessionId, $groupFilter);
+            $remoteShellUsers = $this->ispConfig->shellUserList($sessionId, $groupFilter);
+            $remoteFtpUsers = $this->ispConfig->ftpUserList($sessionId, $groupFilter);
         } catch (Throwable $exception) {
-            $this->log($client, null, 'import_failed', "Failed to fetch websites/mailboxes/databases for client {$ispClientId}: ".$exception->getMessage(), ['ispconfig_client_id' => $ispClientId]);
+            $this->log($client, null, 'import_failed', "Failed to fetch websites/mailboxes/databases/ssh accounts/ftp accounts for client {$ispClientId}: ".$exception->getMessage(), ['ispconfig_client_id' => $ispClientId]);
 
             return [
                 'ispconfig_client_id' => $ispClientId,
@@ -155,6 +156,8 @@ class LegacyImportService
                 'websites' => [],
                 'email_accounts_count' => 0,
                 'databases_count' => 0,
+                'ssh_accounts_count' => 0,
+                'ftp_accounts_count' => 0,
                 'ispconfig_created_at' => $clientCreatedAt?->toDateString(),
                 'suggested_renewal_date' => null,
                 'renewal_amount' => '₦40,000/year',
@@ -185,13 +188,17 @@ class LegacyImportService
 
         $mailboxCount = 0;
         $databaseCount = 0;
+        $shellAccountCount = 0;
+        $ftpAccountCount = 0;
 
         if ($primaryService !== null || $dryRun) {
             $mailboxCount = $this->importMailboxes($remoteMailUsers, $siteResults, $primaryService, $client, $dryRun);
             $databaseCount = $this->importDatabases($remoteDatabases, $primaryService, $client, $dryRun);
+            $shellAccountCount = $this->importShellAccounts($remoteShellUsers, $primaryService, $client, $dryRun);
+            $ftpAccountCount = $this->importFtpAccounts($remoteFtpUsers, $primaryService, $client, $dryRun);
             $this->importMailDomains($remoteMailDomains, $siteResults, $primaryService, $client, $dryRun);
-        } elseif (($remoteMailUsers !== [] || $remoteDatabases !== []) && $client !== null) {
-            $this->log($client, null, 'manual_renewal_date_required', 'Client has mailboxes/databases in ISPConfig but no website — assign a website before importing them.', []);
+        } elseif (($remoteMailUsers !== [] || $remoteDatabases !== [] || $remoteShellUsers !== [] || $remoteFtpUsers !== []) && $client !== null) {
+            $this->log($client, null, 'manual_renewal_date_required', 'Client has mailboxes/databases/ssh accounts/ftp accounts in ISPConfig but no website — assign a website before importing them.', []);
         }
 
         $suggestedRenewalDate = collect($siteResults)->pluck('suggested_renewal_date')->filter()->sort()->first();
@@ -205,6 +212,8 @@ class LegacyImportService
             'websites' => collect($siteResults)->pluck('domain')->all(),
             'email_accounts_count' => $mailboxCount,
             'databases_count' => $databaseCount,
+            'ssh_accounts_count' => $shellAccountCount,
+            'ftp_accounts_count' => $ftpAccountCount,
             'ispconfig_created_at' => $clientCreatedAt?->toDateString(),
             'suggested_renewal_date' => $suggestedRenewalDate,
             'renewal_amount' => '₦40,000/year',
@@ -316,7 +325,7 @@ class LegacyImportService
         $action = $existingService ? 'linked_existing_website' : 'imported_website';
 
         if ($dryRun) {
-            $this->log($client, $existingService, $action, "Would ".($action === 'imported_website' ? 'import' : 'link')." website {$domain}.", ['domain' => $domain]);
+            $this->log($client, $existingService, $action, 'Would '.($action === 'imported_website' ? 'import' : 'link')." website {$domain}.", ['domain' => $domain]);
 
             return ['domain' => $domain, 'hosting_service' => $existingService, 'action' => $action, 'suggested_renewal_date' => $renewalDate?->toDateString(), 'manual_renewal_date_required' => $renewalStatus !== null];
         }
@@ -506,6 +515,124 @@ class LegacyImportService
                 $this->log($client, $primaryService, $isNew ? 'imported_database' : 'linked_existing_database', "Database {$name}. Password not available. Reset if needed.", ['database_name' => $name]);
             } catch (Throwable $exception) {
                 $this->log($client, $primaryService, 'import_failed', "Failed to import database {$name}: ".$exception->getMessage(), ['database_name' => $name]);
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * ISPConfig's shell users are SSH/SFTP accounts — stored in the same
+     * ftp_account_records table the app already uses for its own self-service
+     * SFTP accounts (see FtpAccountController), distinguished only by
+     * access_type ('sftp' here vs 'ftp' in importFtpAccounts below). This
+     * mirrors FtpAccountProvisioningActionJob's own create()/sync logic,
+     * which already branches on access_type to call shellUser* vs ftpUser*.
+     *
+     * @param  array<int, array<string, mixed>>  $remoteShellUsers
+     */
+    private function importShellAccounts(array $remoteShellUsers, ?HostingService $primaryService, ?Client $client, bool $dryRun): int
+    {
+        $count = 0;
+
+        foreach ($remoteShellUsers as $remoteShellUser) {
+            $username = trim((string) ($remoteShellUser['username'] ?? ''));
+
+            if ($username === '') {
+                continue;
+            }
+
+            $count++;
+
+            if ($dryRun) {
+                $this->log($client, $primaryService, 'imported_shell_account', "Would import SSH account {$username}. Password not available. Reset if needed.", ['username' => $username]);
+
+                continue;
+            }
+
+            if (! $primaryService) {
+                $this->log($client, null, 'manual_renewal_date_required', "SSH account {$username} has no destination website — skipped.", ['username' => $username]);
+
+                continue;
+            }
+
+            try {
+                $ispShellUserId = isset($remoteShellUser['shell_user_id']) ? (string) $remoteShellUser['shell_user_id'] : null;
+
+                $shellAccount = FtpAccountRecord::withTrashed()->firstOrNew(['hosting_service_id' => $primaryService->id, 'username' => $username]);
+                $isNew = ! $shellAccount->exists;
+
+                $shellAccount->fill([
+                    'hosting_service_id' => $primaryService->id,
+                    'ispconfig_ftp_user_id' => $ispShellUserId,
+                    'access_type' => 'sftp',
+                    'status' => 'active',
+                    'source' => 'ispconfig_import',
+                    'imported_at' => $shellAccount->imported_at ?? now(),
+                    'last_synced_at' => now(),
+                    'metadata_json' => ['import_source' => 'ispconfig_import', 'password_note' => 'Password not available. Reset if needed.'],
+                ])->save();
+
+                $this->log($client, $primaryService, $isNew ? 'imported_shell_account' : 'linked_existing_shell_account', "SSH account {$username}. Password not available. Reset if needed.", ['username' => $username]);
+            } catch (Throwable $exception) {
+                $this->log($client, $primaryService, 'import_failed', "Failed to import SSH account {$username}: ".$exception->getMessage(), ['username' => $username]);
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * Legacy PureFTPd ('ftp') accounts — the counterpart to importShellAccounts
+     * above, which handles the 'sftp' access_type in this same table.
+     *
+     * @param  array<int, array<string, mixed>>  $remoteFtpUsers
+     */
+    private function importFtpAccounts(array $remoteFtpUsers, ?HostingService $primaryService, ?Client $client, bool $dryRun): int
+    {
+        $count = 0;
+
+        foreach ($remoteFtpUsers as $remoteFtpUser) {
+            $username = trim((string) ($remoteFtpUser['username'] ?? ''));
+
+            if ($username === '') {
+                continue;
+            }
+
+            $count++;
+
+            if ($dryRun) {
+                $this->log($client, $primaryService, 'imported_ftp_account', "Would import FTP account {$username}. Password not available. Reset if needed.", ['username' => $username]);
+
+                continue;
+            }
+
+            if (! $primaryService) {
+                $this->log($client, null, 'manual_renewal_date_required', "FTP account {$username} has no destination website — skipped.", ['username' => $username]);
+
+                continue;
+            }
+
+            try {
+                $ispFtpUserId = isset($remoteFtpUser['ftp_user_id']) ? (string) $remoteFtpUser['ftp_user_id'] : null;
+
+                $ftpAccount = FtpAccountRecord::withTrashed()->firstOrNew(['hosting_service_id' => $primaryService->id, 'username' => $username]);
+                $isNew = ! $ftpAccount->exists;
+
+                $ftpAccount->fill([
+                    'hosting_service_id' => $primaryService->id,
+                    'ispconfig_ftp_user_id' => $ispFtpUserId,
+                    'access_type' => 'ftp',
+                    'status' => 'active',
+                    'source' => 'ispconfig_import',
+                    'imported_at' => $ftpAccount->imported_at ?? now(),
+                    'last_synced_at' => now(),
+                    'metadata_json' => ['import_source' => 'ispconfig_import', 'password_note' => 'Password not available. Reset if needed.'],
+                ])->save();
+
+                $this->log($client, $primaryService, $isNew ? 'imported_ftp_account' : 'linked_existing_ftp_account', "FTP account {$username}. Password not available. Reset if needed.", ['username' => $username]);
+            } catch (Throwable $exception) {
+                $this->log($client, $primaryService, 'import_failed', "Failed to import FTP account {$username}: ".$exception->getMessage(), ['username' => $username]);
             }
         }
 

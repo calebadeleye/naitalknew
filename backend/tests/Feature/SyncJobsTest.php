@@ -89,7 +89,7 @@ class SyncJobsTest extends TestCase
         $this->assertDatabaseHas('provisioning_logs', ['action' => 'detect_orphaned_ispconfig_clients', 'status' => 'review_required']);
     }
 
-    public function test_mailbox_database_and_ftp_sync_mark_missing_remote_records(): void
+    public function test_mailbox_database_ftp_and_shell_account_sync_mark_missing_remote_records(): void
     {
         $fake = $this->fakeIspConfig();
         $service = $this->createProvisionableHostingService();
@@ -114,6 +114,18 @@ class SyncJobsTest extends TestCase
             'hosting_service_id' => $service->id,
             'ispconfig_ftp_user_id' => '999999',
             'username' => 'ghost_ftp',
+            'access_type' => 'ftp',
+            'status' => 'active',
+        ]);
+
+        // Shell/SSH accounts share this same table, distinguished only by
+        // access_type — SyncFtpAccountsJob already branches on it to call
+        // shellUserGet instead of ftpUserGet.
+        $shellAccount = FtpAccountRecord::query()->create([
+            'hosting_service_id' => $service->id,
+            'ispconfig_ftp_user_id' => '888888',
+            'username' => 'ghost_shell',
+            'access_type' => 'sftp',
             'status' => 'active',
         ]);
 
@@ -124,6 +136,7 @@ class SyncJobsTest extends TestCase
         $this->assertSame('missing_remote', $mailbox->fresh()->status);
         $this->assertSame('missing_remote', $database->fresh()->status);
         $this->assertSame('missing_remote', $ftpAccount->fresh()->status);
+        $this->assertSame('missing_remote', $shellAccount->fresh()->status);
     }
 
     public function test_creating_a_mailbox_database_or_ftp_account_dispatches_a_usage_snapshot_sync(): void

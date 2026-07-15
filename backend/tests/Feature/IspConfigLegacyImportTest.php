@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Client;
 use App\Models\DatabaseRecord;
+use App\Models\FtpAccountRecord;
 use App\Models\HostingPlan;
 use App\Models\HostingService;
 use App\Models\IspConfigClientMapping;
@@ -62,7 +63,7 @@ class IspConfigLegacyImportTest extends TestCase
 
     public function test_legacy_package_is_seeded_correctly_and_hidden_from_public_pricing_page(): void
     {
-        (new HostingPlanSeeder())->run();
+        (new HostingPlanSeeder)->run();
 
         $plan = HostingPlan::query()->where('slug', 'legacy-hosting-ssl')->firstOrFail();
 
@@ -77,7 +78,7 @@ class IspConfigLegacyImportTest extends TestCase
         $this->assertSame('active_internal', $plan->status);
 
         // Running it twice must not create a second row (idempotent seeder).
-        (new HostingPlanSeeder())->run();
+        (new HostingPlanSeeder)->run();
         $this->assertSame(1, HostingPlan::query()->where('slug', 'legacy-hosting-ssl')->count());
 
         $response = $this->getJson('/api/v1/public/hosting-plans')->assertOk();
@@ -105,7 +106,7 @@ class IspConfigLegacyImportTest extends TestCase
 
     public function test_import_assigns_new_clients_and_websites_to_the_legacy_package(): void
     {
-        (new HostingPlanSeeder())->run();
+        (new HostingPlanSeeder)->run();
         $fake = $this->fakeIspConfig();
         $this->seedRemoteClient($fake, ['created_at' => '2024-03-15 09:00:00'], ['created_at' => '2024-03-15 09:00:00']);
 
@@ -125,7 +126,7 @@ class IspConfigLegacyImportTest extends TestCase
 
     public function test_import_never_calls_ispconfig_create_update_or_delete_methods(): void
     {
-        (new HostingPlanSeeder())->run();
+        (new HostingPlanSeeder)->run();
         $fake = $this->fakeIspConfig();
         $this->seedRemoteClient($fake, ['created_at' => '2024-03-15'], ['created_at' => '2024-03-15']);
 
@@ -140,6 +141,7 @@ class IspConfigLegacyImportTest extends TestCase
             'databasesDatabaseAdd', 'databasesDatabaseUserAdd', 'databasesDatabaseUserUpdate',
             'databasesDatabaseDelete', 'databasesDatabaseUserDelete',
             'ftpUserAdd', 'ftpUserUpdate', 'ftpUserDelete',
+            'shellUserAdd', 'shellUserUpdate', 'shellUserDelete',
         ];
 
         $calledMethods = collect($fake->calls)->pluck('method')->unique()->all();
@@ -151,7 +153,7 @@ class IspConfigLegacyImportTest extends TestCase
 
     public function test_ispconfig_creation_date_is_stored_when_available(): void
     {
-        (new HostingPlanSeeder())->run();
+        (new HostingPlanSeeder)->run();
         $fake = $this->fakeIspConfig();
         $this->seedRemoteClient($fake, [], ['created_at' => '2024-03-15 08:00:00']);
 
@@ -179,7 +181,7 @@ class IspConfigLegacyImportTest extends TestCase
     {
         Carbon::setTestNow(Carbon::parse('2026-07-08'));
 
-        (new HostingPlanSeeder())->run();
+        (new HostingPlanSeeder)->run();
         $fake = $this->fakeIspConfig();
         $this->seedRemoteClient($fake, [], ['created_at' => '2024-03-15']);
 
@@ -196,7 +198,7 @@ class IspConfigLegacyImportTest extends TestCase
 
     public function test_manual_renewal_date_is_required_when_creation_date_is_missing(): void
     {
-        (new HostingPlanSeeder())->run();
+        (new HostingPlanSeeder)->run();
         $fake = $this->fakeIspConfig();
         // No created_at anywhere — ISPConfig gives us nothing to calculate from.
         $this->seedRemoteClient($fake);
@@ -214,7 +216,7 @@ class IspConfigLegacyImportTest extends TestCase
     public function test_admin_can_override_the_calculated_renewal_date(): void
     {
         $token = $this->adminToken();
-        (new HostingPlanSeeder())->run();
+        (new HostingPlanSeeder)->run();
         $fake = $this->fakeIspConfig();
         $this->seedRemoteClient($fake);
         (new LegacyImportService($fake))->run(dryRun: false);
@@ -236,14 +238,14 @@ class IspConfigLegacyImportTest extends TestCase
 
     public function test_legacy_invoice_line_items_subtotal_forty_thousand_naira_plus_vat(): void
     {
-        (new HostingPlanSeeder())->run();
+        (new HostingPlanSeeder)->run();
         $fake = $this->fakeIspConfig();
         $this->seedRemoteClient($fake, ['created_at' => '2024-03-15'], ['created_at' => '2024-03-15']);
         (new LegacyImportService($fake))->run(dryRun: false);
 
         $service = HostingService::query()->where('source', 'ispconfig_import')->firstOrFail();
 
-        $invoice = (new LegacyRenewalInvoiceService())->generate($service);
+        $invoice = (new LegacyRenewalInvoiceService)->generate($service);
 
         // Legacy renewal invoices now apply VAT the same as every other
         // invoice (previously hardcoded to tax_kobo = 0 — see VatCalculator).
@@ -262,15 +264,17 @@ class IspConfigLegacyImportTest extends TestCase
         );
     }
 
-    public function test_rerunning_the_import_does_not_duplicate_clients_websites_mailboxes_or_databases(): void
+    public function test_rerunning_the_import_does_not_duplicate_clients_websites_mailboxes_databases_ssh_or_ftp_accounts(): void
     {
-        (new HostingPlanSeeder())->run();
+        (new HostingPlanSeeder)->run();
         $fake = $this->fakeIspConfig();
         $seeded = $this->seedRemoteClient($fake, ['created_at' => '2024-03-15'], ['created_at' => '2024-03-15']);
 
         $sessionId = $fake->login();
         $fake->mailUserAdd($sessionId, $seeded['client_id'], ['email' => 'info@'.$seeded['domain']]);
         $fake->databasesDatabaseAdd($sessionId, $seeded['client_id'], ['database_name' => 'acme_db', 'database_user' => 'acme_user']);
+        $fake->shellUserAdd($sessionId, $seeded['client_id'], ['username' => 'acmeuser']);
+        $fake->ftpUserAdd($sessionId, $seeded['client_id'], ['username' => 'acmeftp']);
         $fake->logout($sessionId);
 
         $importer = new LegacyImportService($fake);
@@ -283,11 +287,57 @@ class IspConfigLegacyImportTest extends TestCase
         $this->assertSame(1, IspConfigClientMapping::query()->count());
         $this->assertSame(1, MailboxRecord::query()->count());
         $this->assertSame(1, DatabaseRecord::query()->count());
+        $this->assertSame(1, FtpAccountRecord::query()->where('access_type', 'sftp')->count());
+        $this->assertSame(1, FtpAccountRecord::query()->where('access_type', 'ftp')->count());
+    }
+
+    public function test_ssh_accounts_are_imported_and_reported_in_the_result(): void
+    {
+        (new HostingPlanSeeder)->run();
+        $fake = $this->fakeIspConfig();
+        $seeded = $this->seedRemoteClient($fake, ['created_at' => '2024-03-15'], ['created_at' => '2024-03-15']);
+
+        $sessionId = $fake->login();
+        $fake->shellUserAdd($sessionId, $seeded['client_id'], ['username' => 'acmeuser', 'shell' => '/bin/bash']);
+        $fake->logout($sessionId);
+
+        $result = (new LegacyImportService($fake))->run(dryRun: false);
+
+        $this->assertSame(1, $result['clients'][0]['ssh_accounts_count']);
+
+        $service = HostingService::query()->where('source', 'ispconfig_import')->firstOrFail();
+        $shellAccount = FtpAccountRecord::query()->where('hosting_service_id', $service->id)->where('access_type', 'sftp')->firstOrFail();
+
+        $this->assertSame('acmeuser', $shellAccount->username);
+        $this->assertSame('ispconfig_import', $shellAccount->source);
+        $this->assertArrayNotHasKey('password', $shellAccount->getAttributes());
+    }
+
+    public function test_ftp_accounts_are_imported_and_reported_in_the_result(): void
+    {
+        (new HostingPlanSeeder)->run();
+        $fake = $this->fakeIspConfig();
+        $seeded = $this->seedRemoteClient($fake, ['created_at' => '2024-03-15'], ['created_at' => '2024-03-15']);
+
+        $sessionId = $fake->login();
+        $fake->ftpUserAdd($sessionId, $seeded['client_id'], ['username' => 'acmeftp']);
+        $fake->logout($sessionId);
+
+        $result = (new LegacyImportService($fake))->run(dryRun: false);
+
+        $this->assertSame(1, $result['clients'][0]['ftp_accounts_count']);
+
+        $service = HostingService::query()->where('source', 'ispconfig_import')->firstOrFail();
+        $ftpAccount = FtpAccountRecord::query()->where('hosting_service_id', $service->id)->where('access_type', 'ftp')->firstOrFail();
+
+        $this->assertSame('acmeftp', $ftpAccount->username);
+        $this->assertSame('ispconfig_import', $ftpAccount->source);
+        $this->assertArrayNotHasKey('password', $ftpAccount->getAttributes());
     }
 
     public function test_existing_local_client_is_linked_instead_of_duplicated(): void
     {
-        (new HostingPlanSeeder())->run();
+        (new HostingPlanSeeder)->run();
         $fake = $this->fakeIspConfig();
         $seeded = $this->seedRemoteClient($fake);
 
@@ -319,9 +369,9 @@ class IspConfigLegacyImportTest extends TestCase
         $this->assertSame($existingClient->id, $service->client_id);
     }
 
-    public function test_imported_mailboxes_and_databases_do_not_store_passwords(): void
+    public function test_imported_mailboxes_databases_ssh_and_ftp_accounts_do_not_store_passwords(): void
     {
-        (new HostingPlanSeeder())->run();
+        (new HostingPlanSeeder)->run();
         $fake = $this->fakeIspConfig();
         $seeded = $this->seedRemoteClient($fake, ['created_at' => '2024-03-15'], ['created_at' => '2024-03-15']);
 
@@ -335,25 +385,41 @@ class IspConfigLegacyImportTest extends TestCase
             'database_user' => 'acme_user',
             'password' => 'super-secret-db-password',
         ]);
+        $fake->shellUserAdd($sessionId, $seeded['client_id'], [
+            'username' => 'acmeuser',
+            'password' => 'super-secret-shell-password',
+        ]);
+        $fake->ftpUserAdd($sessionId, $seeded['client_id'], [
+            'username' => 'acmeftp',
+            'password' => 'super-secret-ftp-password',
+        ]);
         $fake->logout($sessionId);
 
         (new LegacyImportService($fake))->run(dryRun: false);
 
         $mailbox = MailboxRecord::query()->firstOrFail();
         $database = DatabaseRecord::query()->firstOrFail();
+        $shellAccount = FtpAccountRecord::query()->where('access_type', 'sftp')->firstOrFail();
+        $ftpAccount = FtpAccountRecord::query()->where('access_type', 'ftp')->firstOrFail();
 
         $this->assertArrayNotHasKey('password', $mailbox->getAttributes());
         $this->assertArrayNotHasKey('password', $database->getAttributes());
+        $this->assertArrayNotHasKey('password', $shellAccount->getAttributes());
+        $this->assertArrayNotHasKey('password', $ftpAccount->getAttributes());
         $this->assertSame('Password not available. Reset if needed.', $mailbox->metadata_json['password_note']);
         $this->assertSame('Password not available. Reset if needed.', $database->metadata_json['password_note']);
+        $this->assertSame('Password not available. Reset if needed.', $shellAccount->metadata_json['password_note']);
+        $this->assertSame('Password not available. Reset if needed.', $ftpAccount->metadata_json['password_note']);
         $this->assertStringNotContainsString('super-secret', json_encode($mailbox->metadata_json));
         $this->assertStringNotContainsString('super-secret', json_encode($database->metadata_json));
+        $this->assertStringNotContainsString('super-secret', json_encode($shellAccount->metadata_json));
+        $this->assertStringNotContainsString('super-secret', json_encode($ftpAccount->metadata_json));
     }
 
     public function test_legacy_service_can_later_be_migrated_to_a_website_care_package(): void
     {
         $token = $this->adminToken();
-        (new HostingPlanSeeder())->run();
+        (new HostingPlanSeeder)->run();
         $fake = $this->fakeIspConfig();
         $this->seedRemoteClient($fake, ['created_at' => '2024-03-15'], ['created_at' => '2024-03-15']);
         (new LegacyImportService($fake))->run(dryRun: false);
@@ -382,7 +448,7 @@ class IspConfigLegacyImportTest extends TestCase
 
     public function test_dry_run_preview_does_not_write_anything_to_the_database(): void
     {
-        (new HostingPlanSeeder())->run();
+        (new HostingPlanSeeder)->run();
         $fake = $this->fakeIspConfig();
         $this->seedRemoteClient($fake, ['created_at' => '2024-03-15'], ['created_at' => '2024-03-15']);
 

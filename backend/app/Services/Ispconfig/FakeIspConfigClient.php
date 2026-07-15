@@ -309,7 +309,7 @@ class FakeIspConfigClient implements IspConfigClient
         $this->maybeFail('ftpUserAdd', $params);
 
         $id = $this->nextId++;
-        $this->ftpUsers[(string) $id] = array_merge($params, ['ftp_user_id' => $id, 'client_id' => $clientId]);
+        $this->ftpUsers[(string) $id] = array_merge($params, ['ftp_user_id' => $id, 'client_id' => $clientId, 'sys_groupid' => $clientId + 1]);
 
         return $id;
     }
@@ -343,12 +343,19 @@ class FakeIspConfigClient implements IspConfigClient
         return $this->ftpUsers[(string) $ftpUserId] ?? null;
     }
 
+    public function ftpUserList(string $sessionId, array $filter = []): array
+    {
+        $this->maybeFail('ftpUserList', $filter);
+
+        return $this->filtered($this->ftpUsers, $filter);
+    }
+
     public function shellUserAdd(string $sessionId, int $clientId, array $params): int
     {
         $this->maybeFail('shellUserAdd', $params);
 
         $id = $this->nextId++;
-        $this->shellUsers[(string) $id] = array_merge($params, ['shell_user_id' => $id, 'client_id' => $clientId]);
+        $this->shellUsers[(string) $id] = array_merge($params, ['shell_user_id' => $id, 'client_id' => $clientId, 'sys_groupid' => $clientId + 1]);
 
         return $id;
     }
@@ -380,6 +387,13 @@ class FakeIspConfigClient implements IspConfigClient
         $this->maybeFail('shellUserGet', ['shell_user_id' => $shellUserId]);
 
         return $this->shellUsers[(string) $shellUserId] ?? null;
+    }
+
+    public function shellUserList(string $sessionId, array $filter = []): array
+    {
+        $this->maybeFail('shellUserList', $filter);
+
+        return $this->filtered($this->shellUsers, $filter);
     }
 
     public function clientGetTrafficUsage(string $sessionId, int $clientId): array

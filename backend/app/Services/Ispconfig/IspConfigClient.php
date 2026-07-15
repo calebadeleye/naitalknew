@@ -176,6 +176,12 @@ interface IspConfigClient
     public function ftpUserGet(string $sessionId, int $ftpUserId): ?array;
 
     /**
+     * @param  array<string, mixed>  $filter
+     * @return array<int, array<string, mixed>>
+     */
+    public function ftpUserList(string $sessionId, array $filter = []): array;
+
+    /**
      * Shell users are ISPConfig's real SSH/SFTP accounts (a system user with
      * an actual login shell, confined to the website's document root) — the
      * mechanism confirmed working on our server, unlike PureFTPd FTP users.
@@ -195,6 +201,12 @@ interface IspConfigClient
      * @return array<string, mixed>|null
      */
     public function shellUserGet(string $sessionId, int $shellUserId): ?array;
+
+    /**
+     * @param  array<string, mixed>  $filter
+     * @return array<int, array<string, mixed>>
+     */
+    public function shellUserList(string $sessionId, array $filter = []): array;
 
     /**
      * @return array<string, mixed>

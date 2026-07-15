@@ -73,6 +73,12 @@ class ProvisioningController extends Controller
         return DatabaseRecord::query()->with('hostingService.client.user')->latest()->paginate(20);
     }
 
+    /**
+     * Covers both ISPConfig access types this app provisions under one
+     * table: legacy 'ftp' (PureFTPd, no longer created) and 'sftp' (real
+     * ISPConfig shell users — SSH + SFTP, jailkit-chrooted), distinguished
+     * by FtpAccountRecord::access_type.
+     */
     public function ftpAccountRecords()
     {
         return FtpAccountRecord::query()->with('hostingService.client.user')->latest()->paginate(20);

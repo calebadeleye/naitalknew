@@ -26,8 +26,7 @@ class SoapIspConfigClient implements IspConfigClient
         private readonly ?string $remoteUser,
         private readonly ?string $remotePassword,
         private readonly bool $verifySsl = true,
-    ) {
-    }
+    ) {}
 
     private function client(): SoapClient
     {
@@ -308,6 +307,16 @@ class SoapIspConfigClient implements IspConfigClient
         return is_array($result) ? $result : null;
     }
 
+    /**
+     * @param  array<string, mixed>  $filter
+     */
+    public function ftpUserList(string $sessionId, array $filter = []): array
+    {
+        $result = $this->call('sites_ftp_user_get', [$sessionId, $filter]);
+
+        return is_array($result) ? $result : [];
+    }
+
     public function shellUserAdd(string $sessionId, int $clientId, array $params): int
     {
         return (int) $this->call('sites_shell_user_add', [$sessionId, $clientId, $params]);
@@ -328,6 +337,16 @@ class SoapIspConfigClient implements IspConfigClient
         $result = $this->call('sites_shell_user_get', [$sessionId, $shellUserId]);
 
         return is_array($result) ? $result : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $filter
+     */
+    public function shellUserList(string $sessionId, array $filter = []): array
+    {
+        $result = $this->call('sites_shell_user_get', [$sessionId, $filter]);
+
+        return is_array($result) ? $result : [];
     }
 
     public function clientGetTrafficUsage(string $sessionId, int $clientId): array
