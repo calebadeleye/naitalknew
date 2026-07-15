@@ -199,6 +199,12 @@ type ClientDashboardSnapshot = {
     total: string;
     due_at: string | null;
   } | null;
+  invoices: Array<{
+    invoice_number: string;
+    status: string;
+    total: string;
+    due_at: string | null;
+  }>;
   tickets: Array<Record<string, unknown>>;
   empty_state: {
     title: string;
@@ -1493,6 +1499,173 @@ function ReasonFormModal({
             <button type="button" className="btn-outline flex-1 justify-center" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn-primary flex-1 justify-center" disabled={isSubmitting || !reasonCategory || !reasonNote}>
               {isSubmitting ? "Working..." : actionLabel}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+type ManualInvoiceLineItemInput = {
+  description: string;
+  quantity: string;
+  unitPriceNaira: string;
+};
+
+function CreateManualInvoiceModal({
+  adminToken,
+  onClose,
+  onCreated,
+}: {
+  adminToken: string;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const [clientId, setClientId] = useState("");
+  const [dueAt, setDueAt] = useState("");
+  const [discountNaira, setDiscountNaira] = useState("");
+  const [notes, setNotes] = useState("");
+  const [lineItems, setLineItems] = useState<ManualInvoiceLineItemInput[]>([
+    { description: "", quantity: "1", unitPriceNaira: "" },
+  ]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const updateLineItem = (index: number, patch: Partial<ManualInvoiceLineItemInput>) => {
+    setLineItems((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)));
+  };
+
+  const addLineItem = () => {
+    setLineItems((current) => [...current, { description: "", quantity: "1", unitPriceNaira: "" }]);
+  };
+
+  const removeLineItem = (index: number) => {
+    setLineItems((current) => (current.length > 1 ? current.filter((_, itemIndex) => itemIndex !== index) : current));
+  };
+
+  const subtotalNaira = lineItems.reduce((sum, item) => {
+    const quantity = Number(item.quantity) || 0;
+    const unitPrice = Number(item.unitPriceNaira) || 0;
+    return sum + quantity * unitPrice;
+  }, 0);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError(null);
+
+    const clientIdNumber = Number(clientId);
+    if (!Number.isFinite(clientIdNumber) || clientIdNumber <= 0) {
+      setError("Enter a valid numeric client ID.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await laravelApi("/api/v1/admin/invoices", adminToken, {
+        method: "POST",
+        body: JSON.stringify({
+          client_id: clientIdNumber,
+          line_items: lineItems.map((item) => ({
+            description: item.description,
+            quantity: Number(item.quantity) || 1,
+            unit_price_kobo: Math.round((Number(item.unitPriceNaira) || 0) * 100),
+          })),
+          due_at: dueAt,
+          discount_kobo: discountNaira ? Math.round(Number(discountNaira) * 100) : undefined,
+          notes: notes || undefined,
+        }),
+      });
+      onCreated();
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Creating the invoice failed");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="hosting-modal-backdrop" role="presentation" onClick={onClose}>
+      <div className="hosting-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+        <form className="grid gap-4" onSubmit={(event) => void handleSubmit(event)}>
+          <h3 className="text-lg font-black text-white">Create a manual invoice</h3>
+          {error && <p className="form-message error">{error}</p>}
+
+          <label className="admin-field">
+            <span>Client ID</span>
+            <input
+              required
+              type="number"
+              min={1}
+              placeholder="e.g. 12"
+              value={clientId}
+              onChange={(event) => setClientId(event.target.value)}
+            />
+          </label>
+
+          <div className="grid gap-3">
+            <span className="text-sm font-bold text-white/80">Line items</span>
+            {lineItems.map((item, index) => (
+              <div key={index} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto_auto]">
+                <input
+                  required
+                  type="text"
+                  placeholder="Description"
+                  value={item.description}
+                  onChange={(event) => updateLineItem(index, { description: event.target.value })}
+                />
+                <input
+                  required
+                  type="number"
+                  min={1}
+                  className="w-full sm:w-20"
+                  placeholder="Qty"
+                  value={item.quantity}
+                  onChange={(event) => updateLineItem(index, { quantity: event.target.value })}
+                />
+                <input
+                  required
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  className="w-full sm:w-32"
+                  placeholder="Unit price (₦)"
+                  value={item.unitPriceNaira}
+                  onChange={(event) => updateLineItem(index, { unitPriceNaira: event.target.value })}
+                />
+                <button
+                  type="button"
+                  className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                  disabled={lineItems.length <= 1}
+                  onClick={() => removeLineItem(index)}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            <button type="button" className="btn-outline self-start" onClick={addLineItem}>+ Add line item</button>
+            <p className="text-sm text-white/60">Subtotal: <strong className="text-white">₦{subtotalNaira.toLocaleString()}</strong> (excluding VAT)</p>
+          </div>
+
+          <label className="admin-field">
+            <span>Due date</span>
+            <input required type="date" value={dueAt} onChange={(event) => setDueAt(event.target.value)} />
+          </label>
+
+          <label className="admin-field">
+            <span>Discount (₦, optional)</span>
+            <input type="number" min={0} step="0.01" value={discountNaira} onChange={(event) => setDiscountNaira(event.target.value)} />
+          </label>
+
+          <label className="admin-field">
+            <span>Internal note (optional)</span>
+            <textarea rows={2} placeholder="e.g. Agreed one-off project fee" value={notes} onChange={(event) => setNotes(event.target.value)} />
+          </label>
+
+          <div className="mt-2 flex gap-3">
+            <button type="button" className="btn-outline flex-1 justify-center" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn-primary flex-1 justify-center" disabled={isSubmitting}>
+              {isSubmitting ? "Creating..." : "Create Invoice"}
             </button>
           </div>
         </form>
@@ -3916,6 +4089,7 @@ function PaymentOptionsPanel({
 
 function ClientInvoicePage({
   orderNumber,
+  invoiceNumber,
   token,
   navigate,
   toast,
@@ -3925,7 +4099,8 @@ function ClientInvoicePage({
   onPayByBankTransfer,
   onResetBankTransfer,
 }: {
-  orderNumber: string;
+  orderNumber?: string;
+  invoiceNumber?: string;
   token: string;
   navigate: (path: string) => void;
   toast: ReturnType<typeof useToast>;
@@ -3942,14 +4117,16 @@ function ClientInvoicePage({
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [isUploadingProof, setIsUploadingProof] = useState(false);
 
+  const invoiceApiPath = orderNumber ? `/api/v1/client/orders/${orderNumber}/invoice` : `/api/v1/client/invoices/${invoiceNumber}`;
+
   const loadInvoice = React.useCallback(() => {
     setIsLoading(true);
-    return laravelApi<ClientInvoiceDetail>(`/api/v1/client/orders/${orderNumber}/invoice`, token)
+    return laravelApi<ClientInvoiceDetail>(invoiceApiPath, token)
       .then(setInvoice)
       .catch((error) => toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not load this invoice." }))
       .finally(() => setIsLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderNumber, token]);
+  }, [invoiceApiPath, token]);
 
   useEffect(() => {
     void loadInvoice();
@@ -3986,7 +4163,10 @@ function ClientInvoicePage({
     setIsDownloading(true);
 
     try {
-      const response = await fetch(`${LARAVEL_API_BASE_URL}/api/v1/client/orders/${orderNumber}/invoice/download`, {
+      const downloadPath = orderNumber
+        ? `/api/v1/client/orders/${orderNumber}/invoice/download`
+        : `/api/v1/client/invoices/${invoiceNumber}/download`;
+      const response = await fetch(`${LARAVEL_API_BASE_URL}${downloadPath}`, {
         headers: { Authorization: `Bearer ${token}`, Accept: "application/pdf" },
       });
 
@@ -3996,10 +4176,10 @@ function ClientInvoicePage({
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `invoice-${invoice?.invoice_number || orderNumber}.pdf`;
+      link.download = `invoice-${invoice?.invoice_number || orderNumber || invoiceNumber}.pdf`;
       link.click();
       URL.revokeObjectURL(url);
-      trackEvent("file_download", { content_title: "invoice_pdf", transaction_id: invoice?.invoice_number || orderNumber });
+      trackEvent("file_download", { content_title: "invoice_pdf", transaction_id: invoice?.invoice_number || orderNumber || invoiceNumber });
     } catch (error) {
       toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not download this invoice." });
     } finally {
@@ -6158,7 +6338,7 @@ function HostingModalContent({
 
 function ClientPortal() {
   const toast = useToast();
-  const { route, search, hostingServiceId, orderNumber, domainId, navigate } = useClientRoute();
+  const { route, search, hostingServiceId, orderNumber, invoiceNumber, domainId, navigate } = useClientRoute();
   const [clientToken, setClientToken] = useState(() => sessionStorage.getItem("naitalk_laravel_client_token") || "");
   const [login, setLogin] = useState(INITIAL_LOGIN);
   const [registerForm, setRegisterForm] = useState(INITIAL_REGISTER);
@@ -7578,6 +7758,38 @@ function ClientPortal() {
     );
   }
 
+  if (route === "invoice-by-number") {
+    if (!invoiceNumber) {
+      navigate("/client/dashboard");
+
+      return null;
+    }
+
+    return (
+      <ClientPortalShell
+        dashboard={dashboard}
+        route={route}
+        isVerified={isVerified}
+        navigate={navigate}
+        onLogout={() => void handleClientLogout()}
+        onProfileClick={() => navigate("/client/profile")}
+        hideWelcomeHeader
+      >
+        <ClientInvoicePage
+          invoiceNumber={invoiceNumber}
+          token={clientToken}
+          navigate={navigate}
+          toast={toast}
+          isInitiatingPayment={isInitiatingPayment}
+          bankTransferInfo={bankTransferInfo}
+          onPayWithGateway={handlePayWithGateway}
+          onPayByBankTransfer={handlePayByBankTransfer}
+          onResetBankTransfer={() => setBankTransferInfo(null)}
+        />
+      </ClientPortalShell>
+    );
+  }
+
   if (route === "orders") {
     return (
       <ClientPortalShell
@@ -7704,6 +7916,32 @@ function ClientPortal() {
               ))}
             </div>
           </section>
+
+          {dashboard.invoices.length > 0 && (
+            <section className="portal-card">
+              <div className="flex items-center justify-between">
+                <h2>Invoices</h2>
+              </div>
+              <div className="mt-5 grid gap-3">
+                {dashboard.invoices.map((invoice) => (
+                  <button
+                    key={invoice.invoice_number}
+                    type="button"
+                    className="client-service-row cursor-pointer text-left"
+                    onClick={() => navigate(`/client/invoices/${invoice.invoice_number}`)}
+                  >
+                    <div className="row-icon"><CreditCard className="h-4 w-4" /></div>
+                    <div className="min-w-0 flex-1">
+                      <p>{invoice.invoice_number}</p>
+                      <small>Due {invoice.due_at ? formatDate(invoice.due_at) : "—"}</small>
+                    </div>
+                    <span className={invoice.status === "paid" ? "status-pill paid" : "status-pill failed"}>{invoice.status}</span>
+                    <strong>{invoice.total}</strong>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       )}
 
@@ -9571,6 +9809,7 @@ function AdminApp() {
   const [isPricingLoading, setIsPricingLoading] = useState(false);
   const [retryingServiceId, setRetryingServiceId] = useState<number | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
 
   const adminRequest = async <T,>(url: string, options: RequestInit = {}): Promise<T> => {
     const headers = new Headers(options.headers);
@@ -10446,6 +10685,28 @@ function AdminApp() {
 
         {activeSection === "ispconfigImport" && !routeClientId && !routeServiceId && (
           <AdminIspConfigImportPanel adminToken={adminToken} />
+        )}
+
+        {activeSection === "invoices" && !routeClientId && !routeServiceId && (
+          <div className="admin-panel flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-lg font-black text-white">Create a manual invoice</h3>
+              <p className="mt-1 text-sm text-white/55">Bill a client for something outside the normal checkout or renewal flow.</p>
+            </div>
+            <button type="button" className="btn-primary" onClick={() => setIsCreatingInvoice(true)}>+ Create Invoice</button>
+          </div>
+        )}
+
+        {isCreatingInvoice && (
+          <CreateManualInvoiceModal
+            adminToken={adminToken}
+            onClose={() => setIsCreatingInvoice(false)}
+            onCreated={() => {
+              setIsCreatingInvoice(false);
+              setMessage("Invoice created and emailed to the client.");
+              void loadAdminRecords("invoices", adminToken);
+            }}
+          />
         )}
 
         {isRecordSection(activeSection) && !routeClientId && !routeServiceId && (

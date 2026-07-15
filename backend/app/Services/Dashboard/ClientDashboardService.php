@@ -8,9 +8,7 @@ use App\Services\Wallet\WalletService;
 
 class ClientDashboardService
 {
-    public function __construct(private readonly WalletService $walletService = new WalletService)
-    {
-    }
+    public function __construct(private readonly WalletService $walletService = new WalletService) {}
 
     public function snapshot(Client $client): array
     {
@@ -61,6 +59,12 @@ class ClientDashboardService
                 'total' => Money::naira($invoice->total_kobo),
                 'due_at' => $invoice->due_at?->toDateString(),
             ]),
+            'invoices' => $client->invoices->sortByDesc('created_at')->take(10)->map(fn ($invoice) => [
+                'invoice_number' => $invoice->invoice_number,
+                'status' => $invoice->status,
+                'total' => Money::naira($invoice->total_kobo),
+                'due_at' => $invoice->due_at?->toDateString(),
+            ])->values(),
             'tickets' => $client->supportTickets->sortByDesc('created_at')->take(5)->values(),
         ];
     }

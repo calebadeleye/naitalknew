@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Api\Admin;
 
-use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\Admin\Concerns\RequiresReasonForm;
+use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Client;
 use App\Models\HostingService;
@@ -112,7 +112,7 @@ class ClientLifecycleController extends Controller
 
         $this->audit($request, 'restore_client', $clientModel, null, $before, $clientModel->only(['client_status']), $payload['reason'] ?? null);
 
-        $notifier->notify($clientModel, new ClientAccountRestored(), 'client_restored', 'Your NAI TALK account has been restored');
+        $notifier->notify($clientModel, new ClientAccountRestored, 'client_restored', 'Your NAI TALK account has been restored');
 
         return response()->json($clientModel->fresh('user'));
     }
@@ -246,6 +246,14 @@ class ClientLifecycleController extends Controller
             abort(422, 'This client has no linked user account to impersonate.');
         }
 
+        // The literal token name below is what lets
+        // EnsureEmailIsVerifiedOrImpersonating recognize this as an
+        // admin-driven session and skip the client's own email-verification
+        // gate. This can't be done via Sanctum abilities instead: both this
+        // token and a normal login token get the default '*' ability, and
+        // '*' satisfies every can($ability) check regardless of what else is
+        // in the array — so an ability-based signal can't distinguish them,
+        // only the token's name can.
         $token = $client->user->createToken('admin-impersonation')->plainTextToken;
 
         $this->audit(

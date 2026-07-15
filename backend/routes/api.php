@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\Admin\DomainPricingSettingsController;
 use App\Http\Controllers\Api\Admin\FaqController;
 use App\Http\Controllers\Api\Admin\HostingPlanController;
 use App\Http\Controllers\Api\Admin\HostingServiceLifecycleController;
+use App\Http\Controllers\Api\Admin\InvoiceController as AdminInvoiceController;
 use App\Http\Controllers\Api\Admin\InvoicePaymentController as AdminInvoicePaymentController;
 use App\Http\Controllers\Api\Admin\IspConfigLegacyImportController;
 use App\Http\Controllers\Api\Admin\KnowledgeBaseController;
@@ -86,6 +87,8 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/orders', [OrderController::class, 'index']);
             Route::get('/orders/{order:order_number}/invoice', [InvoiceController::class, 'show']);
             Route::get('/orders/{order:order_number}/invoice/download', [InvoiceController::class, 'downloadPdf']);
+            Route::get('/invoices/{invoice:invoice_number}', [InvoiceController::class, 'showByNumber']);
+            Route::get('/invoices/{invoice:invoice_number}/download', [InvoiceController::class, 'downloadByNumberPdf']);
             Route::get('/services', [ServicesController::class, 'index']);
             Route::get('/wallet', [WalletController::class, 'show']);
             Route::get('/wallet/transactions', [WalletController::class, 'transactions']);
@@ -170,6 +173,7 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/services/grouped', [ServicesDashboardController::class, 'grouped']);
             Route::get('/services/{service}', [RecordsController::class, 'serviceDetail']);
             Route::get('/invoices', [RecordsController::class, 'invoices']);
+            Route::post('/invoices', [AdminInvoiceController::class, 'store']);
             Route::post('/invoices/{invoice:invoice_number}/mark-paid', [AdminInvoicePaymentController::class, 'markPaid']);
             Route::post('/invoices/{invoice:invoice_number}/reject-bank-transfer', [AdminInvoicePaymentController::class, 'rejectBankTransfer']);
             Route::get('/payments/{payment}/receipt', [AdminInvoicePaymentController::class, 'downloadReceipt']);

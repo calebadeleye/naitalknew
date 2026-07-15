@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Client;
 
 use App\Http\Controllers\Controller;
+use App\Models\Invoice;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Services\Billing\InvoiceBreakdown;
@@ -14,35 +15,53 @@ class InvoiceController extends Controller
 {
     public function show(Request $request, Order $order)
     {
-        return response()->json($this->buildInvoiceData($request, $order));
+        $invoice = $order->invoice()->latest()->first();
+
+        abort_if(! $invoice, 404, 'No invoice found for this order.');
+
+        return response()->json($this->buildInvoiceData($request, $invoice, $order));
     }
 
     public function downloadPdf(Request $request, Order $order)
     {
-        $invoice = $this->buildInvoiceData($request, $order);
+        $invoice = $order->invoice()->latest()->first();
 
-        $pdf = Pdf::loadView('invoices.pdf', ['invoice' => $invoice]);
+        abort_if(! $invoice, 404, 'No invoice found for this order.');
 
-        return $pdf->download("invoice-{$invoice['invoice_number']}.pdf");
+        $data = $this->buildInvoiceData($request, $invoice, $order);
+
+        $pdf = Pdf::loadView('invoices.pdf', ['invoice' => $data]);
+
+        return $pdf->download("invoice-{$data['invoice_number']}.pdf");
     }
 
-    private function buildInvoiceData(Request $request, Order $order): array
+    public function showByNumber(Request $request, Invoice $invoice)
+    {
+        return response()->json($this->buildInvoiceData($request, $invoice, $invoice->order));
+    }
+
+    public function downloadByNumberPdf(Request $request, Invoice $invoice)
+    {
+        $data = $this->buildInvoiceData($request, $invoice, $invoice->order);
+
+        $pdf = Pdf::loadView('invoices.pdf', ['invoice' => $data]);
+
+        return $pdf->download("invoice-{$data['invoice_number']}.pdf");
+    }
+
+    private function buildInvoiceData(Request $request, Invoice $invoice, ?Order $order): array
     {
         $client = $request->user()->client;
 
         abort_if(! $client, 404, 'Client profile not found.');
-        abort_if($order->client_id !== $client->id, 404);
-
-        $invoice = $order->invoice()->latest()->first();
-
-        abort_if(! $invoice, 404, 'No invoice found for this order.');
+        abort_if($invoice->client_id !== $client->id, 404);
 
         $bankTransferPayment = Payment::query()->where('invoice_id', $invoice->id)->where('gateway', 'bank_transfer')->first();
         $breakdown = (new InvoiceBreakdown)->build($invoice);
 
         return [
             'invoice_number' => $invoice->invoice_number,
-            'order_number' => $order->order_number,
+            'order_number' => $order?->order_number,
             'status' => $invoice->status,
             'reconciliation_status' => $invoice->reconciliation_status,
             'issued_at' => $invoice->issued_at?->toDateString(),

@@ -3,9 +3,12 @@
 namespace Tests\Feature;
 
 use App\Jobs\ProvisionHostingServiceJob;
+use App\Models\Invoice;
 use App\Models\User;
+use App\Notifications\NaiTalkInvoiceCreated;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
 use Tests\Concerns\FakesIspConfig;
 use Tests\TestCase;
@@ -72,7 +75,7 @@ class HostingPlatformApiTest extends TestCase
             ->getJson('/api/v1/client/dashboard')
             ->assertOk()
             ->assertJsonPath('client.email', 'john@naitalk.test')
-            ->assertJsonStructure(['metrics', 'services', 'recent_invoice']);
+            ->assertJsonStructure(['metrics', 'services', 'recent_invoice', 'invoices']);
     }
 
     public function test_registered_user_can_exist_without_ispconfig_mapping(): void
@@ -140,7 +143,7 @@ class HostingPlatformApiTest extends TestCase
 
     public function test_invoice_created_email_is_queued_so_the_client_can_pay_later(): void
     {
-        \Illuminate\Support\Facades\Notification::fake();
+        Notification::fake();
         $this->seed();
 
         $token = $this->registerVerifiedClient('pay-later-client@example.test');
@@ -152,11 +155,11 @@ class HostingPlatformApiTest extends TestCase
             'terms_accepted' => true,
         ])->assertCreated();
 
-        $user = \App\Models\User::query()->where('email', 'pay-later-client@example.test')->firstOrFail();
+        $user = User::query()->where('email', 'pay-later-client@example.test')->firstOrFail();
 
-        \Illuminate\Support\Facades\Notification::assertSentTo(
+        Notification::assertSentTo(
             $user,
-            \App\Notifications\NaiTalkInvoiceCreated::class,
+            NaiTalkInvoiceCreated::class,
             fn ($notification) => $notification->invoice->invoice_number === $checkout->json('invoice.invoice_number'),
         );
 
@@ -189,7 +192,7 @@ class HostingPlatformApiTest extends TestCase
             ->assertJsonPath('message', 'Invalid Email Address Passed');
 
         // No dangling "pending" payment row should be left behind for a failed initialization.
-        $invoiceId = \App\Models\Invoice::where('invoice_number', $checkout->json('invoice.invoice_number'))->firstOrFail()->id;
+        $invoiceId = Invoice::where('invoice_number', $checkout->json('invoice.invoice_number'))->firstOrFail()->id;
         $this->assertDatabaseMissing('payments', ['invoice_id' => $invoiceId]);
     }
 
@@ -201,7 +204,7 @@ class HostingPlatformApiTest extends TestCase
         // the `verified` middleware gate is evaluated; John's seeded invoice works
         // fine here since the unverified client should never even reach the
         // ownership check.
-        $existingInvoice = \App\Models\Invoice::query()->first();
+        $existingInvoice = Invoice::query()->first();
 
         $token = $this->postJson('/api/v1/auth/register', [
             'name' => 'Unverified Client',

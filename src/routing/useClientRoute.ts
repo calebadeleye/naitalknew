@@ -15,6 +15,7 @@ export type ClientRouteName =
   | "orders"
   | "hosting-manage"
   | "invoice-detail"
+  | "invoice-by-number"
   | "wallet"
   | "payment-methods"
   | "domain-search"
@@ -49,6 +50,7 @@ const ROUTE_SEGMENTS: Record<string, ClientRouteName> = {
 
 const HOSTING_MANAGE_PATTERN = /^services\/(\d+)\/manage$/;
 const ORDER_NUMBER_PATTERN = /^orders\/([A-Za-z0-9-]+)$/;
+const INVOICE_NUMBER_PATTERN = /^invoices\/([A-Za-z0-9-]+)$/;
 const DOMAIN_DETAIL_PATTERN = /^domains\/(\d+)$/;
 
 function parseRoute(pathname: string): ClientRouteName {
@@ -56,6 +58,7 @@ function parseRoute(pathname: string): ClientRouteName {
 
   if (HOSTING_MANAGE_PATTERN.test(segment)) return "hosting-manage";
   if (ORDER_NUMBER_PATTERN.test(segment)) return "invoice-detail";
+  if (INVOICE_NUMBER_PATTERN.test(segment)) return "invoice-by-number";
   if (DOMAIN_DETAIL_PATTERN.test(segment)) return "domain-detail";
 
   for (const [prefix, route] of Object.entries(ROUTE_SEGMENTS)) {
@@ -79,6 +82,13 @@ function parseOrderNumber(pathname: string): string | null {
   return match ? match[1] : null;
 }
 
+function parseInvoiceNumber(pathname: string): string | null {
+  const segment = pathname.replace(/^\/client\/?/, "").replace(/\/$/, "");
+  const match = segment.match(INVOICE_NUMBER_PATTERN);
+
+  return match ? match[1] : null;
+}
+
 function parseDomainId(pathname: string): number | null {
   const segment = pathname.replace(/^\/client\/?/, "").replace(/\/$/, "");
   const match = segment.match(DOMAIN_DETAIL_PATTERN);
@@ -96,6 +106,7 @@ export function useClientRoute() {
   const [search, setSearch] = useState<URLSearchParams>(() => new URLSearchParams(window.location.search));
   const [hostingServiceId, setHostingServiceId] = useState<number | null>(() => parseHostingServiceId(window.location.pathname));
   const [orderNumber, setOrderNumber] = useState<string | null>(() => parseOrderNumber(window.location.pathname));
+  const [invoiceNumber, setInvoiceNumber] = useState<string | null>(() => parseInvoiceNumber(window.location.pathname));
   const [domainId, setDomainId] = useState<number | null>(() => parseDomainId(window.location.pathname));
 
   const sync = useCallback(() => {
@@ -103,6 +114,7 @@ export function useClientRoute() {
     setSearch(new URLSearchParams(window.location.search));
     setHostingServiceId(parseHostingServiceId(window.location.pathname));
     setOrderNumber(parseOrderNumber(window.location.pathname));
+    setInvoiceNumber(parseInvoiceNumber(window.location.pathname));
     setDomainId(parseDomainId(window.location.pathname));
   }, []);
 
@@ -126,5 +138,5 @@ export function useClientRoute() {
     navigateClient(path);
   }, []);
 
-  return { route, search, hostingServiceId, orderNumber, domainId, navigate };
+  return { route, search, hostingServiceId, orderNumber, invoiceNumber, domainId, navigate };
 }
