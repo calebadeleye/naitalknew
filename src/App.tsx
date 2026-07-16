@@ -93,6 +93,7 @@ import {
   trackPageView,
   trackEvent,
   trackViewOnce,
+  trackGoogleAdsConversion,
   trackCtaClick,
   trackFormSubmission,
   trackDomainSearch,
@@ -13811,6 +13812,8 @@ type WebsiteQuoteConversionMeta = {
   campaign?: string;
 };
 
+const firedGoogleAdsQuoteConversionKeys = new Set<string>();
+
 function WebsiteQuoteThankYouPage() {
   useSeo();
 
@@ -13841,6 +13844,16 @@ function WebsiteQuoteThankYouPage() {
         estimated_budget: meta.estimated_budget,
         campaign: meta.campaign,
       });
+
+      // Google Ads "Submit lead form" conversion — fires once per reference,
+      // only on this real thank-you page load (not on every route).
+      if (!firedGoogleAdsQuoteConversionKeys.has(eventReference)) {
+        firedGoogleAdsQuoteConversionKeys.add(eventReference);
+        trackGoogleAdsConversion("AW-18326410611/aBJTCPvXntEcEPOq26JE", {
+          value: 1.0,
+          currency: "USD",
+        });
+      }
     }
   }, []);
 

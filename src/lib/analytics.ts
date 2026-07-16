@@ -14,6 +14,23 @@
 declare global {
   interface Window {
     dataLayer: Record<string, unknown>[];
+    gtag?: (...args: unknown[]) => void;
+  }
+}
+
+/**
+ * Fires a Google Ads conversion directly via gtag.js (index.html), not
+ * through the GTM dataLayer above — Google Ads conversion tracking needs
+ * its own gtag.js include, separate from the GTM/GA4 pipeline this file
+ * otherwise routes everything through.
+ */
+export function trackGoogleAdsConversion(sendTo: string, params: EventParams = {}): void {
+  if (typeof window === "undefined" || typeof window.gtag !== "function") return;
+
+  try {
+    window.gtag("event", "conversion", { send_to: sendTo, ...params });
+  } catch {
+    // Analytics must never break the app.
   }
 }
 
