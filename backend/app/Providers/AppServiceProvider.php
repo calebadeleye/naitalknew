@@ -61,6 +61,8 @@ class AppServiceProvider extends ServiceProvider
 
         RateLimiter::for('hosting-manual-sync', fn ($request) => Limit::perMinute(3)->by($request->user()?->id ?: $request->ip()));
 
+        RateLimiter::for('website-quote', fn ($request) => Limit::perMinute(5)->by($request->ip()));
+
         Gate::policy(HostingService::class, HostingServicePolicy::class);
         Gate::policy(MailboxRecord::class, MailboxRecordPolicy::class);
         Gate::policy(DatabaseRecord::class, DatabaseRecordPolicy::class);

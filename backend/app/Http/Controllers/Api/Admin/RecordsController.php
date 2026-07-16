@@ -21,6 +21,7 @@ use App\Models\Order;
 use App\Models\Payment;
 use App\Models\ProvisioningLog;
 use App\Models\SupportTicket;
+use App\Models\WebsiteQuoteRequest;
 use Illuminate\Http\Request;
 
 class RecordsController extends Controller
@@ -213,6 +214,22 @@ class RecordsController extends Controller
         return AuditLog::query()
             ->with(['client.user', 'hostingService', 'invoice'])
             ->when($request->filled('action'), fn ($query) => $query->where('action', 'like', '%'.$request->string('action').'%'))
+            ->latest()
+            ->paginate(20)
+            ->withQueryString();
+    }
+
+    public function websiteQuotes(Request $request)
+    {
+        $search = trim((string) $request->query('search', ''));
+
+        return WebsiteQuoteRequest::query()
+            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
+            ->when($search !== '', fn ($query) => $query->where(fn ($inner) => $inner
+                ->where('name', 'like', "%{$search}%")
+                ->orWhere('email', 'like', "%{$search}%")
+                ->orWhere('phone', 'like', "%{$search}%")
+                ->orWhere('reference', 'like', "%{$search}%")))
             ->latest()
             ->paginate(20)
             ->withQueryString();

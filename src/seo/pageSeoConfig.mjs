@@ -85,6 +85,14 @@ export const pageSeoConfig = {
     title: "Portfolio | NAI TALK",
     description: "A selection of websites and projects NAI TALK has designed and built for businesses, schools, churches and NGOs.",
   },
+  "/get-a-website": {
+    title: "Professional Website Design in Nigeria | NAITALK",
+    description: "Get a professional website designed, hosted and managed by NAITALK. Website design, domain, hosting, SSL and ongoing support for Nigerian businesses.",
+  },
+  "/get-a-website/thank-you": {
+    title: "Request Received | NAITALK",
+    description: "Thank you for requesting a website quote from NAITALK. Our team will be in touch shortly.",
+  },
 };
 
 export function getPageSeo(pathname) {

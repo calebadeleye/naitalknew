@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\Admin\RecordsController;
 use App\Http\Controllers\Api\Admin\ServiceOfferingController as AdminServiceOfferingController;
 use App\Http\Controllers\Api\Admin\ServicesDashboardController;
 use App\Http\Controllers\Api\Admin\ServiceStatusController;
+use App\Http\Controllers\Api\Admin\WebsiteQuoteController as AdminWebsiteQuoteController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\Client\CheckoutController;
 use App\Http\Controllers\Api\Client\ClientProfileController;
@@ -46,6 +47,7 @@ use App\Http\Controllers\Api\Public\CatalogController;
 use App\Http\Controllers\Api\Public\ContentController;
 use App\Http\Controllers\Api\Public\DomainSearchController;
 use App\Http\Controllers\Api\Public\PaymentGatewayController;
+use App\Http\Controllers\Api\Public\WebsiteQuoteController as PublicWebsiteQuoteController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
@@ -69,6 +71,7 @@ Route::prefix('v1')->group(function (): void {
     Route::get('/public/service-status', [ContentController::class, 'serviceStatus']);
     Route::get('/public/seo-metadata', [ContentController::class, 'seoMetadata']);
     Route::get('/public/images/search', [ContentController::class, 'image'])->middleware('throttle:60,1');
+    Route::post('/public/website-quote', [PublicWebsiteQuoteController::class, 'store'])->middleware('throttle:website-quote');
 
     Route::get('/payments/paystack/callback', [PaymentGatewayController::class, 'paystackCallback']);
     Route::post('/payments/paystack/webhook', [PaymentGatewayController::class, 'paystackWebhook']);
@@ -182,6 +185,8 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/provisioning-logs', [RecordsController::class, 'provisioningLogs']);
             Route::get('/ispconfig-client-mappings', [RecordsController::class, 'ispConfigClientMappings']);
             Route::get('/audit-logs', [RecordsController::class, 'auditLogs']);
+            Route::get('/website-quotes', [RecordsController::class, 'websiteQuotes']);
+            Route::patch('/website-quotes/{websiteQuoteRequest}/status', [AdminWebsiteQuoteController::class, 'updateStatus']);
 
             Route::get('/blog-posts', [BlogPostController::class, 'index']);
             Route::post('/blog-posts', [BlogPostController::class, 'store']);

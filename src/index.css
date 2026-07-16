@@ -77,6 +77,25 @@
     background-size: 92px 92px, 92px 92px, auto, auto, auto, auto;
   }
 
+  /* Distinct dark-grey treatment for the /get-a-website landing page's
+     hero, header, final CTA and footer — a flat neutral charcoal-grey per
+     the approved mockup, not the main site's near-black body gradient. */
+  .wq-dark-panel {
+    position: relative;
+    background: #1a1e24;
+  }
+
+  .wq-dark-panel::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+    background-size: 28px 28px;
+    mask-image: radial-gradient(ellipse 50% 55% at 88% 12%, black, transparent 70%);
+    -webkit-mask-image: radial-gradient(ellipse 50% 55% at 88% 12%, black, transparent 70%);
+  }
+
   .hero-grid::after {
     content: "";
     position: absolute;
