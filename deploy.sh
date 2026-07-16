@@ -3,12 +3,15 @@
 # Exit on any error
 set -e
 
+# Always run from the repo root, regardless of where this script is invoked from
+cd "$(dirname "$0")"
+
 echo "🚀 Starting deployment..."
 
 # Pull latest changes from git
 git pull origin main
 
-echo "📦 Installing dependencies..."
+echo "📦 Installing frontend dependencies..."
 # It's better to use npm ci for production, but we'll stick to their request with clean
 rm -rf node_modules package-lock.json
 npm install
@@ -23,6 +26,27 @@ if [ ! -d "dist" ]; then
     echo "❌ Build failed: dist folder not found"
     exit 1
 fi
+
+# -----------------------------
+# ✅ Deploy the Laravel backend
+# -----------------------------
+echo "🐘 Installing backend dependencies..."
+cd backend
+
+composer install --no-dev --optimize-autoloader --no-interaction
+
+echo "🗄️ Running database migrations..."
+php artisan migrate --force
+
+echo "⚙️ Caching backend config..."
+php artisan config:cache
+
+echo "🔁 Restarting queue workers..."
+# Signals the supervisor-managed queue:work processes to restart so they
+# pick up the new code. Supervisor's autorestart=true brings them back up.
+php artisan queue:restart
+
+cd ..
 
 # -----------------------------
 # ✅ Start the Production Server with PM2
