@@ -68,6 +68,12 @@ class WebsiteQuoteController extends Controller
             if ($admins->isNotEmpty()) {
                 NotificationFacade::send($admins, new NaiTalkWebsiteQuoteSubmitted($quote));
             }
+
+            $companyEmail = config('company.email');
+
+            if ($companyEmail && ! $admins->contains('email', $companyEmail)) {
+                NotificationFacade::route('mail', $companyEmail)->notify(new NaiTalkWebsiteQuoteSubmitted($quote));
+            }
         } catch (Throwable $exception) {
             Log::error('Failed to send website quote staff notification', [
                 'reference' => $quote->reference,

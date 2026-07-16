@@ -28,10 +28,11 @@ class NaiTalkWebsiteQuoteSubmitted extends Notification implements ShouldQueue
     public function toMail(object $notifiable): MailMessage
     {
         $adminUrl = rtrim(config('app.frontend_url'), '/').'/admin/website-quotes';
+        $name = $notifiable instanceof \App\Models\User ? $notifiable->name : 'there';
 
         return (new MailMessage)
             ->subject('New website quote request: '.$this->quote->reference)
-            ->greeting('Hi '.$notifiable->name.',')
+            ->greeting('Hi '.$name.',')
             ->line('A new website quote request was submitted.')
             ->line('**Reference:** '.$this->quote->reference)
             ->line('**Name:** '.$this->quote->name)
