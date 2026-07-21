@@ -179,17 +179,6 @@
     @apply text-primary;
   }
 
-  .project-card {
-    @apply rounded-lg border border-white/10 bg-white/[0.035] p-4 transition hover:-translate-y-1 hover:border-accent-cyan/35 hover:bg-white/[0.055];
-    background:
-      linear-gradient(150deg, rgba(0, 216, 255, 0.055), rgba(255, 255, 255, 0.02) 42%, rgba(185, 92, 255, 0.045)),
-      #071014;
-  }
-
-  .project-card:focus-visible {
-    @apply outline-none ring-2 ring-accent-cyan/55 ring-offset-2 ring-offset-background;
-  }
-
   .project-tag {
     @apply border-primary/30 bg-primary/10 text-primary;
   }
@@ -322,6 +311,29 @@
 
   .toast-error {
     @apply border-red-400/30 bg-[#1a0606]/95 text-red-200;
+  }
+
+  .toast-enter {
+    animation: naitalk-toast-in 0.18s ease-out both;
+  }
+
+  @keyframes naitalk-toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(-12px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .toast-enter {
+      animation: none;
+      opacity: 1;
+      transform: none;
+    }
   }
 
   .auth-link {
@@ -757,18 +769,6 @@
     @apply cursor-not-allowed opacity-50;
   }
 
-  .admin-section-nav {
-    @apply grid gap-3 rounded-lg border border-white/10 bg-white/[0.035] p-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6;
-  }
-
-  .admin-section-tab {
-    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-white/10 bg-black/20 px-4 py-3 text-xs font-black uppercase text-white/62 transition hover:border-accent-cyan/40 hover:text-white;
-  }
-
-  .admin-section-tab.active {
-    @apply border-primary/45 bg-primary/10 text-primary shadow-[0_0_28px_rgba(155,234,22,0.12)];
-  }
-
   /* Admin sidebar shell */
   .admin-shell {
     @apply flex min-h-screen bg-background text-white;
@@ -872,51 +872,6 @@
 
   .admin-content {
     @apply mx-auto flex w-full max-w-7xl flex-1 flex-col items-stretch gap-6 px-4 py-8 sm:px-6 lg:px-8;
-  }
-
-  /* Dashboard quick-access nav cards, grouped like the sidebar */
-  .admin-quick-group {
-    @apply mb-1;
-  }
-
-  .admin-quick-group-header {
-    @apply mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-wide text-white/45;
-  }
-
-  .admin-quick-grid {
-    @apply grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5;
-  }
-
-  .admin-quick-card {
-    @apply flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-3.5 text-left transition hover:-translate-y-0.5 hover:border-primary/35 hover:bg-white/[0.05];
-  }
-
-  .admin-quick-card-icon {
-    @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary;
-  }
-
-  .admin-quick-card-icon.tone-cyan {
-    @apply border-accent-cyan/30 bg-accent-cyan/10 text-accent-cyan;
-  }
-
-  .admin-quick-card-icon.tone-violet {
-    @apply border-accent-violet/30 bg-accent-violet/10 text-accent-violet;
-  }
-
-  .admin-quick-card-icon.tone-gold {
-    @apply border-accent-gold/30 bg-accent-gold/10 text-accent-gold;
-  }
-
-  .admin-quick-card-title {
-    @apply truncate text-sm font-black text-white;
-  }
-
-  .admin-quick-card-desc {
-    @apply truncate text-xs text-white/48;
-  }
-
-  .admin-quick-card-chevron {
-    @apply ml-auto shrink-0 text-white/25 transition group-hover:text-white/50;
   }
 
   .hosting-hero {
@@ -1179,10 +1134,6 @@
 
   .portal-nav.disabled {
     @apply cursor-default opacity-50 hover:bg-transparent hover:text-white/62;
-  }
-
-  .portal-nav-soon {
-    @apply ml-auto rounded-full bg-white/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-white/50;
   }
 
   .portal-main {
@@ -1507,6 +1458,79 @@
     @apply border-accent-orange/40 text-accent-orange hover:border-accent-orange/60 hover:bg-accent-orange/10;
   }
 
+  /* Lightweight CSS replacements for the homepage's former framer-motion
+     entrance animations (Hero/DeviceShowcase/Portfolio modal) -- keeps the
+     public bundle from paying ~60KB gzip for a JS animation library that
+     only ever ran a handful of one-shot fades on mount. */
+  .reveal-up {
+    animation: naitalk-reveal-up 0.7s ease-out both;
+  }
+
+  .reveal-up-left {
+    animation: naitalk-reveal-up-left 0.7s ease-out 0.15s both;
+  }
+
+  .reveal-fade {
+    animation: naitalk-reveal-fade 0.2s ease-out both;
+  }
+
+  .reveal-scale-up {
+    animation: naitalk-reveal-scale-up 0.22s ease-out both;
+  }
+
+  @keyframes naitalk-reveal-up {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes naitalk-reveal-up-left {
+    from {
+      opacity: 0;
+      transform: translate(-20px, 20px);
+    }
+    to {
+      opacity: 1;
+      transform: translate(0, 0);
+    }
+  }
+
+  @keyframes naitalk-reveal-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes naitalk-reveal-scale-up {
+    from {
+      opacity: 0;
+      transform: scale(0.96) translateY(18px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reveal-up,
+    .reveal-up-left,
+    .reveal-fade,
+    .reveal-scale-up {
+      animation: none;
+      opacity: 1;
+      transform: none;
+    }
+  }
+
   .project-marquee {
     @apply relative overflow-hidden;
     mask-image: linear-gradient(90deg, transparent, black 4%, black 96%, transparent);
@@ -1520,6 +1544,12 @@
 
   .project-marquee:hover .project-marquee-track {
     animation-play-state: paused;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .project-marquee-track {
+      animation: none;
+    }
   }
 
   @keyframes project-marquee-scroll {

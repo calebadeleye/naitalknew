@@ -17,6 +17,15 @@ function renderClientPortal(path: string) {
   );
 }
 
+// /client is now a React.lazy()-loaded chunk, so its content isn't in the DOM
+// on the first synchronous render -- only the Suspense loading fallback is.
+// Wait for that fallback to disappear before querying for real page content.
+async function waitForClientPortalReady() {
+  await waitFor(() => expect(screen.queryByRole("status", { name: "Loading page" })).not.toBeInTheDocument(), {
+    timeout: 5000,
+  });
+}
+
 describe("Client login/register form-state security", () => {
   beforeEach(() => {
     sessionStorage.clear();
@@ -34,6 +43,7 @@ describe("Client login/register form-state security", () => {
 
     const user = userEvent.setup();
     renderClientPortal("/client/login");
+    await waitForClientPortalReady();
 
     const emailInput = screen.getByPlaceholderText("john@naitalk.test");
     const passwordInput = document.querySelector('input[autocomplete="current-password"]') as HTMLInputElement;
@@ -54,6 +64,7 @@ describe("Client login/register form-state security", () => {
 
     const user = userEvent.setup();
     renderClientPortal("/client/register");
+    await waitForClientPortalReady();
 
     await user.type(document.querySelector('input[autocomplete="name"]') as HTMLInputElement, "Jane Doe");
     await user.type(document.querySelector('input[autocomplete="email"]') as HTMLInputElement, "jane@example.com");
@@ -104,6 +115,7 @@ describe("Client login/register form-state security", () => {
 
     const user = userEvent.setup();
     renderClientPortal("/client/login");
+    await waitForClientPortalReady();
 
     await user.type(screen.getByPlaceholderText("john@naitalk.test"), "john@naitalk.test");
     await user.type(document.querySelector('input[autocomplete="current-password"]') as HTMLInputElement, "password");

@@ -1,5 +1,4 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
 import { AlertTriangle, CheckCircle2, Info, X, XCircle } from "lucide-react";
 
 export type ToastType = "success" | "error" | "warning" | "info";
@@ -83,28 +82,18 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={{ push, clear }}>
       {children}
       <div className="toast-stack" aria-live="polite" aria-atomic="false">
-        <AnimatePresence>
-          {toasts.map((toast) => {
-            const Icon = ICONS[toast.type];
-            return (
-              <motion.div
-                key={toast.id}
-                initial={{ opacity: 0, y: -12, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -8, scale: 0.98 }}
-                transition={{ duration: 0.18 }}
-                className={`toast toast-${toast.type}`}
-                role="status"
-              >
-                <Icon className="h-5 w-5 shrink-0" />
-                <p>{toast.message}</p>
-                <button type="button" aria-label="Dismiss notification" onClick={() => dismiss(toast.id)}>
-                  <X className="h-4 w-4" />
-                </button>
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
+        {toasts.map((toast) => {
+          const Icon = ICONS[toast.type];
+          return (
+            <div key={toast.id} className={`toast toast-${toast.type} toast-enter`} role="status">
+              <Icon className="h-5 w-5 shrink-0" />
+              <p>{toast.message}</p>
+              <button type="button" aria-label="Dismiss notification" onClick={() => dismiss(toast.id)}>
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          );
+        })}
       </div>
     </ToastContext.Provider>
   );

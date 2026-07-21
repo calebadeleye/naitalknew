@@ -17,6 +17,15 @@ function renderAt(path: string) {
   );
 }
 
+// /get-a-website and /get-a-website/thank-you are React.lazy()-loaded chunks,
+// so only the Suspense loading fallback is in the DOM on the first
+// synchronous render. Wait for it to resolve before querying page content.
+async function waitForRouteReady() {
+  await waitFor(() => expect(screen.queryByRole("status", { name: "Loading page" })).not.toBeInTheDocument(), {
+    timeout: 5000,
+  });
+}
+
 // jsdom's window.location.assign is non-configurable, so it can't be spied on
 // directly — swap the whole property for a plain object that carries over
 // the current pathname/search (already set via setPath before this runs)
@@ -58,8 +67,9 @@ describe("/get-a-website landing page", () => {
     Object.defineProperty(window, "location", { configurable: true, value: realLocation });
   });
 
-  it("renders with all six required quote-form fields", () => {
+  it("renders with all six required quote-form fields", async () => {
     renderAt("/get-a-website");
+    await waitForRouteReady();
 
     expect(screen.getByRole("heading", { name: /get a professional website/i })).toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toBeInTheDocument();
@@ -76,6 +86,7 @@ describe("/get-a-website landing page", () => {
 
     const user = userEvent.setup();
     renderAt("/get-a-website");
+    await waitForRouteReady();
 
     await user.click(screen.getByRole("button", { name: /request my quote/i }));
 
@@ -98,6 +109,7 @@ describe("/get-a-website landing page", () => {
     );
     const user = userEvent.setup();
     renderAt("/get-a-website");
+    await waitForRouteReady();
     const assignSpy = mockLocationAssign();
 
     await fillValidForm(user);
@@ -116,6 +128,7 @@ describe("/get-a-website landing page", () => {
     );
     const user = userEvent.setup();
     renderAt("/get-a-website");
+    await waitForRouteReady();
     const assignSpy = mockLocationAssign();
 
     await fillValidForm(user);
@@ -138,6 +151,7 @@ describe("/get-a-website landing page", () => {
 
     const user = userEvent.setup();
     renderAt("/get-a-website?utm_source=google&utm_medium=cpc&utm_campaign=website-design-lagos&gclid=test-gclid-123");
+    await waitForRouteReady();
     mockLocationAssign();
 
     await fillValidForm(user);
@@ -155,8 +169,9 @@ describe("/get-a-website landing page", () => {
     expect(body.gclid).toBe("test-gclid-123");
   });
 
-  it("has working anchor navigation links to on-page sections", () => {
+  it("has working anchor navigation links to on-page sections", async () => {
     renderAt("/get-a-website");
+    await waitForRouteReady();
 
     // The header nav and the footer's Quick Links both link to these
     // anchors, so scope to the header nav specifically.
@@ -166,8 +181,9 @@ describe("/get-a-website landing page", () => {
     expect(within(headerNav).getByRole("link", { name: "Process" })).toHaveAttribute("href", "#process");
   });
 
-  it("Get a Quote CTA buttons link to the quote form", () => {
+  it("Get a Quote CTA buttons link to the quote form", async () => {
     renderAt("/get-a-website");
+    await waitForRouteReady();
 
     const ctaButtons = screen.getAllByRole("link", { name: /get a quote/i });
     expect(ctaButtons.length).toBeGreaterThan(0);
@@ -181,15 +197,17 @@ describe("/get-a-website/thank-you page", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders the confirmation heading and the reference from the URL", () => {
+  it("renders the confirmation heading and the reference from the URL", async () => {
     renderAt("/get-a-website/thank-you?ref=NWT-20260716-0001");
+    await waitForRouteReady();
 
     expect(screen.getByRole("heading", { name: /thank you/i })).toBeInTheDocument();
-    expect(screen.getByText(/NWT-20260716-0001/)).toBeInTheDocument();
+    expect(await screen.findByText(/NWT-20260716-0001/)).toBeInTheDocument();
   });
 
-  it("refreshing the thank-you route directly does not 404 (renders normally)", () => {
+  it("refreshing the thank-you route directly does not 404 (renders normally)", async () => {
     renderAt("/get-a-website/thank-you");
+    await waitForRouteReady();
 
     expect(screen.getByRole("heading", { name: /thank you/i })).toBeInTheDocument();
   });

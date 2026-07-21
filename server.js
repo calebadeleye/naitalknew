@@ -6,6 +6,7 @@ import crypto from "crypto";
 import nodemailer from "nodemailer";
 import axios from "axios";
 import dotenv from "dotenv";
+import sharp from "sharp";
 import { getPageSeo, DEFAULT_OG_IMAGE } from "./src/seo/pageSeoConfig.mjs";
 
 dotenv.config();
@@ -344,16 +345,34 @@ function extensionForMimeType(mimeType) {
   }[mimeType];
 }
 
-function safeUploadName(fileName, extension) {
-  const baseName = path
-    .basename(fileName || "upload")
-    .replace(/\.[^.]+$/, "")
-    .replace(/[^a-z0-9-]+/gi, "-")
-    .replace(/^-+|-+$/g, "")
-    .toLowerCase()
-    .slice(0, 80);
+const UPLOAD_MAX_DIMENSION = 1600;
 
-  return `${Date.now()}-${baseName || "image"}.${extension}`;
+/**
+ * Converts photographic uploads (PNG/JPEG) to WebP so newly-uploaded client
+ * logos and images stop shipping as multi-hundred-KB PNGs (see
+ * scripts/optimize-images.mjs for the equivalent one-off backfill over
+ * existing uploads). GIF/SVG pass through untouched -- GIF animation and SVG
+ * vector data would both break under a raster WebP re-encode.
+ */
+async function optimizeUploadImage(buffer, mimeType) {
+  if (mimeType !== "image/png" && mimeType !== "image/jpeg" && mimeType !== "image/jpg") {
+    return { buffer, mimeType };
+  }
+
+  const outputBuffer = await sharp(buffer)
+    .resize({ width: UPLOAD_MAX_DIMENSION, height: UPLOAD_MAX_DIMENSION, fit: "inside", withoutEnlargement: true })
+    .webp({ quality: 82 })
+    .toBuffer();
+
+  return { buffer: outputBuffer, mimeType: "image/webp" };
+}
+
+/** Content-hashed filenames are safe to cache immutably and naturally
+ * de-duplicate identical uploads (the same logo re-uploaded twice reuses the
+ * same file on disk instead of doubling storage/transfer). */
+function contentHashUploadName(buffer, extension) {
+  const hash = crypto.createHash("sha256").update(buffer).digest("hex").slice(0, 20);
+  return `${hash}.${extension}`;
 }
 
 async function startServer() {
@@ -365,10 +384,24 @@ async function startServer() {
   console.log(`Starting server in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
 
   app.use(express.json({ limit: "8mb" }));
-  app.use("/uploads", express.static(path.join(process.cwd(), "public", "uploads"), { maxAge: "1d" }));
 
-  // Public content managed from the admin backend.
+  // Upload filenames are unique per upload (timestamp- or content-hash-based)
+  // and are never overwritten, so the exact bytes behind any given URL never
+  // change -- safe to cache "forever".
+  app.use(
+    "/uploads",
+    express.static(path.join(process.cwd(), "public", "uploads"), { maxAge: "1y", immutable: true }),
+  );
+
+  // Public content managed from the admin backend. A short public/edge cache
+  // takes load off the origin for the common case (many concurrent visitors
+  // within the same window) while keeping admin edits visible within ~60s
+  // without needing a Cloudflare purge-on-save integration (no Cloudflare API
+  // token lives in this repo to call one). See docs note in the deploy
+  // report for the Cloudflare Cache Rule needed if that staleness window
+  // ever needs to be zero.
   app.get("/api/site-content", (req, res) => {
+    res.set("Cache-Control", "public, max-age=60, stale-while-revalidate=30");
     res.json(readSiteContent());
   });
 
@@ -401,14 +434,17 @@ async function startServer() {
   });
 
   app.get("/api/admin/session", requireAdmin, (req, res) => {
+    res.set("Cache-Control", "private, no-store");
     res.json({ ok: true, username: req.admin.username });
   });
 
   app.get("/api/admin/content", requireAdmin, (req, res) => {
+    res.set("Cache-Control", "private, no-store");
     res.json(readSiteContent());
   });
 
   app.put("/api/admin/content", requireAdmin, (req, res) => {
+    res.set("Cache-Control", "private, no-store");
     try {
       res.json(saveSiteContent(req.body));
     } catch (error) {
@@ -417,7 +453,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/admin/upload", requireAdmin, (req, res) => {
+  app.post("/api/admin/upload", requireAdmin, async (req, res) => {
     try {
       const { dataUrl, fileName } = req.body || {};
       const match = typeof dataUrl === "string" ? dataUrl.match(/^data:([^;]+);base64,(.+)$/) : null;
@@ -426,21 +462,23 @@ async function startServer() {
         return res.status(400).json({ error: "A valid image upload is required" });
       }
 
-      const mimeType = match[1].toLowerCase();
-      const extension = extensionForMimeType(mimeType);
-
-      if (!extension) {
+      const uploadedMimeType = match[1].toLowerCase();
+      if (!extensionForMimeType(uploadedMimeType)) {
         return res.status(400).json({ error: "Only PNG, JPG, WEBP, GIF or SVG images are allowed" });
       }
 
-      const buffer = Buffer.from(match[2], "base64");
-      if (!buffer.length || buffer.length > maxUploadBytes) {
+      const uploadedBuffer = Buffer.from(match[2], "base64");
+      if (!uploadedBuffer.length || uploadedBuffer.length > maxUploadBytes) {
         return res.status(400).json({ error: "Image must be smaller than 5MB" });
       }
 
-      const savedName = safeUploadName(fileName, extension);
+      const { buffer, mimeType } = await optimizeUploadImage(uploadedBuffer, uploadedMimeType);
+      const extension = extensionForMimeType(mimeType);
+      const savedName = contentHashUploadName(buffer, extension);
       const savedPath = path.join(uploadsDir, savedName);
-      fs.writeFileSync(savedPath, buffer);
+      if (!fs.existsSync(savedPath)) {
+        fs.writeFileSync(savedPath, buffer);
+      }
 
       res.json({
         src: `/uploads/admin/${savedName}`,
@@ -524,7 +562,7 @@ async function startServer() {
       appType: "spa",
     });
     app.use(vite.middlewares);
-    
+
     // SPA fallback for development
     app.get("*", async (req, res, next) => {
       const url = req.originalUrl;
@@ -535,17 +573,33 @@ async function startServer() {
         );
         template = await vite.transformIndexHtml(url, template);
         template = await injectSeoTags(template, req.path);
-        res.status(200).set({ "Content-Type": "text/html" }).end(template);
+        res.status(200).set({ "Content-Type": "text/html", "Cache-Control": "no-cache" }).end(template);
       } catch (e) {
         vite.ssrFixStacktrace(e);
         next(e);
       }
     });
   } else {
-    app.use(express.static(distPath));
+    // Vite's hashed JS/CSS output -- the filename changes whenever the
+    // content does, so it's safe to tell browsers/Cloudflare to never
+    // revalidate it.
+    app.use("/assets", express.static(path.join(distPath, "assets"), { maxAge: "1y", immutable: true }));
+    // Portfolio/marketing images under /data keep stable filenames and can be
+    // replaced in place by a future optimization pass, so they get a shorter
+    // cache instead of immutable (see docs/analytics-setup.md-style note in
+    // the deploy report for the content-hash alternative).
+    app.use("/data", express.static(path.join(distPath, "data"), { maxAge: "1d" }));
+    // `index: false` so `/` falls through to the catch-all below instead of
+    // express.static serving dist/index.html directly -- that would skip
+    // per-route SEO tag injection and the no-cache header just like every
+    // other route already gets.
+    app.use(express.static(distPath, { index: false }));
     app.get("*", async (req, res) => {
       const template = fs.readFileSync(path.join(distPath, "index.html"), "utf-8");
-      res.status(200).set({ "Content-Type": "text/html" }).end(await injectSeoTags(template, req.path));
+      res
+        .status(200)
+        .set({ "Content-Type": "text/html", "Cache-Control": "no-cache" })
+        .end(await injectSeoTags(template, req.path));
     });
   }
 

@@ -16,6 +16,13 @@ echo "📦 Installing frontend dependencies..."
 rm -rf node_modules package-lock.json
 npm install
 
+echo "🖼️  Optimizing images (WebP conversion + upload de-dupe)..."
+# storage/site-content.json and public/uploads/admin/* are gitignored
+# (server-local state), so a git pull never touches them -- this backfill has
+# to run here, on the server, every deploy. It's idempotent: already-optimized
+# files are skipped unless --force is passed, so re-running costs nothing.
+node scripts/optimize-images.mjs
+
 echo "🏗️ Building frontend..."
 npm run build
 

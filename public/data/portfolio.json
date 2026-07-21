@@ -3,7 +3,7 @@
     {
       "category": "Web Development,Web hosting",
       "title": "Ikeestores E-commerce Platform",
-      "img": "/data/ikeestores.png",
+      "img": "/data/ikeestores.webp",
       "details": {
         "challenge": "Ikeestores needed a scalable online store that could showcase products efficiently, manage inventory seamlessly, and provide customers with a smooth shopping experience across devices.",
         "solution": "We developed a responsive e-commerce platform with optimized product catalog management, secure checkout flow, mobile-friendly design, and reliable cloud hosting for uninterrupted performance.",
@@ -13,7 +13,7 @@
     {
       "category": "Web Development, Payment Integration,Web hosting",
       "title": "HRGems Coach Event Management System",
-      "img": "/data/hrgems.png",
+      "img": "/data/hrgems.webp",
       "details": {
         "challenge": "HRGems required a centralized platform to manage event registrations, attendee payments, scheduling, and participant communication without manual bottlenecks.",
         "solution": "We built an automated event management system with online registration, integrated payment processing, ticket tracking, and real-time attendee management dashboard.",
@@ -23,7 +23,7 @@
     {
       "category": "Web Consulting, Payment Integration,Web hosting",
       "title": "Naipay Payment Integration for E-commerce",
-      "img": "/data/skinologist.png",
+      "img": "/data/skinologist.webp",
       "details": {
         "challenge": "The client needed a secure and seamless payment gateway integration that could support fast online transactions while minimizing failed payments.",
         "solution": "We implemented Naipay payment integration with secure API connections, transaction validation, instant payment confirmation, and optimized checkout experience.",
@@ -33,7 +33,7 @@
     {
       "category": "Web Consulting, Web Development, Payment Integration,Web hosting",
       "title": "NGO website and donation platform",
-      "img": "/data/thrive.png",
+      "img": "/data/thrive.webp",
       "details": {
         "challenge": "The NGO needed a trustworthy online presence to attract donors, communicate impact stories, and simplify donation collection globally.",
         "solution": "We created a modern NGO website with secure donation gateway integration, campaign storytelling pages, recurring donation options, and donor tracking tools.",
@@ -43,7 +43,7 @@
     {
       "category": "Web Development, Payment Integration,Web hosting",
       "title": "NGO website and donation platform",
-      "img": "/data/eukalpton.png",
+      "img": "/data/eukalpton.webp",
       "details": {
         "challenge": "The organization lacked an effective digital fundraising system and needed a platform to streamline donor engagement and online giving.",
         "solution": "We delivered a donation-enabled website with campaign landing pages, transparent reporting features, and secure payment processing integration.",
@@ -53,7 +53,7 @@
     {
       "category": "Web Development, Payment Integration,Web hosting",
       "title": "Conference Management System for Academic Institutions",
-      "img": "/data/scholarjoint.png",
+      "img": "/data/scholarjoint.webp",
       "details": {
         "challenge": "Academic institutions needed an efficient way to manage conference submissions, registrations, speaker coordination, and fee payments.",
         "solution": "We built a conference management platform featuring abstract submission workflows, attendee registration modules, automated notifications, and payment integration.",
@@ -63,7 +63,7 @@
     {
       "category": "Web Development,Web hosting,Radio Streaming",
       "title": "Online Radio Streaming Platform",
-      "img": "/data/rhm.png",
+      "img": "/data/rhm.webp",
       "details": {
         "challenge": "The radio station needed a stable digital streaming solution to reach listeners globally without interruptions or poor audio quality.",
         "solution": "We developed a high-availability radio streaming platform with live broadcast support, mobile compatibility, and scalable hosting infrastructure.",
@@ -73,7 +73,7 @@
     {
       "category": "Web Development,Web hosting",
       "title": "Skinologist Dermatology Clinic Website",
-      "img": "/data/lilian.png",
+      "img": "/data/lilian.webp",
       "details": {
         "challenge": "The clinic needed a professional online presence to attract patients, showcase services, and simplify appointment scheduling.",
         "solution": "We designed a modern healthcare website with service pages, appointment booking forms, patient inquiry tools, and secure hosting.",
@@ -83,7 +83,7 @@
     {
       "category": "Web Consulting,Radio Streaming",
       "title": "Online Radio Streaming Platform",
-      "img": "/data/tyf.png",
+      "img": "/data/tyf.webp",
       "details": {
         "challenge": "The broadcaster required expert consulting to optimize digital radio delivery and improve listener streaming reliability.",
         "solution": "We provided streaming architecture consulting, platform optimization, and deployment support for stable and scalable radio broadcasting.",
@@ -93,7 +93,7 @@
     {
       "category": "Web Development,AI Integration",
       "title": "Advanced AI-Powered Calling for Customer Support",
-      "img": "/data/momentum.png",
+      "img": "/data/momentum.webp",
       "details": {
         "challenge": "Momentum Media needed to reduce customer support response delays while handling large call volumes efficiently.",
         "solution": "We developed an AI-powered voice calling system capable of automated customer interactions, intelligent query routing, and real-time support escalation.",
