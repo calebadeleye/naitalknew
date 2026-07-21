@@ -874,6 +874,22 @@
     @apply mx-auto flex w-full max-w-7xl flex-1 flex-col items-stretch gap-6 px-4 py-8 sm:px-6 lg:px-8;
   }
 
+  .admin-notification-panel {
+    @apply absolute right-0 top-[calc(100%+0.5rem)] z-40 w-72 overflow-hidden rounded-lg border border-white/10 bg-[#0a0f0c] shadow-[0_20px_60px_rgba(0,0,0,0.55)];
+  }
+
+  .admin-notification-panel-title {
+    @apply border-b border-white/10 px-4 py-3 text-[11px] font-black uppercase tracking-wide text-white/50;
+  }
+
+  .admin-notification-empty {
+    @apply px-4 py-6 text-center text-xs text-white/45;
+  }
+
+  .admin-notification-item {
+    @apply flex w-full items-start gap-2 border-b border-white/5 px-4 py-3 text-left text-xs font-bold text-white/80 transition last:border-b-0 hover:bg-white/[0.05] hover:text-white;
+  }
+
   .hosting-hero {
     @apply grid gap-8 overflow-hidden rounded-lg border border-white/10 bg-white/[0.035] p-6 sm:p-8 lg:grid-cols-[1fr_0.78fr] lg:p-10;
     background:

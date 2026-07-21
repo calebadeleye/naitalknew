@@ -105,8 +105,14 @@ class InvoicePaymentController extends Controller
     {
         $this->authorizeInvoice($request, $invoice);
 
+        $outstandingKobo = (int) ($invoice->outstanding_amount_kobo ?: $invoice->total_kobo);
+
         $payload = $request->validate([
             'receipt' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
+            // Optional: lets a client declare they only sent a partial amount.
+            // Defaults to the full outstanding balance below when omitted, same
+            // as before this field existed.
+            'amount_kobo' => ['nullable', 'integer', 'min:1', 'max:'.$outstandingKobo],
         ]);
 
         $payment = Payment::query()->where('invoice_id', $invoice->id)->where('gateway', 'bank_transfer')->first();
@@ -118,6 +124,7 @@ class InvoicePaymentController extends Controller
         $payment->forceFill([
             'status' => 'pending_review',
             'receipt_path' => $path,
+            'amount_kobo' => $payload['amount_kobo'] ?? $outstandingKobo,
         ])->save();
 
         $this->notifyAdminsOfPaymentProof($payment);

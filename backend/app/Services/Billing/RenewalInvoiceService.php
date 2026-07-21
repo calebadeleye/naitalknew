@@ -4,6 +4,8 @@ namespace App\Services\Billing;
 
 use App\Models\HostingService;
 use App\Models\Invoice;
+use App\Notifications\NaiTalkInvoiceCreated;
+use App\Services\Notifications\ClientNotifier;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -16,8 +18,10 @@ use Illuminate\Support\Str;
  */
 class RenewalInvoiceService
 {
-    public function __construct(private readonly VatCalculator $vatCalculator = new VatCalculator)
-    {
+    public function __construct(
+        private readonly VatCalculator $vatCalculator = new VatCalculator,
+        private readonly ClientNotifier $notifier = new ClientNotifier,
+    ) {
     }
 
     public function generateForRenewal(HostingService $service): Invoice
@@ -33,7 +37,7 @@ class RenewalInvoiceService
         $vat = $this->vatCalculator->calculate($subtotalKobo);
         $dueAt = $service->renews_at ?? now()->addDays(7);
 
-        return DB::transaction(function () use ($service, $subtotalKobo, $vat, $dueAt) {
+        $invoice = DB::transaction(function () use ($service, $subtotalKobo, $vat, $dueAt) {
             return Invoice::query()->create([
                 'client_id' => $service->client_id,
                 'order_id' => null,
@@ -59,6 +63,18 @@ class RenewalInvoiceService
                 ],
             ]);
         });
+
+        if ($service->client) {
+            $this->notifier->notify(
+                $service->client,
+                new NaiTalkInvoiceCreated($invoice),
+                'invoice_created',
+                "Your NAI TALK invoice {$invoice->invoice_number}",
+                $service
+            );
+        }
+
+        return $invoice;
     }
 
     /**

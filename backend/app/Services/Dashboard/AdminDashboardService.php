@@ -13,23 +13,58 @@ use Illuminate\Support\Carbon;
 
 class AdminDashboardService
 {
-    public function snapshot(): array
+    /**
+     * $from/$to are optional inclusive date bounds (Y-m-d). When omitted, the
+     * dashboard falls back to its original unfiltered/last-30-days behaviour
+     * so existing callers without a range keep working unchanged.
+     */
+    public function snapshot(?string $from = null, ?string $to = null): array
     {
-        $paidRevenue = Payment::query()->where('status', 'paid')->sum('amount_kobo');
+        $rangeStart = $from ? Carbon::parse($from)->startOfDay() : null;
+        $rangeEnd = $to ? Carbon::parse($to)->endOfDay() : null;
+        $hasRange = $rangeStart && $rangeEnd;
+
+        $revenueQuery = Payment::query()->where('status', 'paid');
+        if ($hasRange) {
+            $revenueQuery->whereBetween('paid_at', [$rangeStart, $rangeEnd]);
+        }
+        $paidRevenue = $revenueQuery->sum('amount_kobo');
+
         $overdueAmount = Invoice::query()->where('status', 'overdue')->sum('total_kobo');
 
+        $invoiceCountQuery = fn () => Invoice::query()->when(
+            $hasRange,
+            fn ($query) => $query->whereBetween('issued_at', [$rangeStart->toDateString(), $rangeEnd->toDateString()])
+        );
+
+        $newClientsQuery = Client::query();
+        $newClientsQuery = $hasRange
+            ? $newClientsQuery->whereBetween('created_at', [$rangeStart, $rangeEnd])
+            : $newClientsQuery->where('created_at', '>=', now()->subDays(30));
+
+        $recentPaymentsQuery = Payment::query()->with(['client.user', 'invoice']);
+        if ($hasRange) {
+            $recentPaymentsQuery->whereBetween('created_at', [$rangeStart, $rangeEnd]);
+        }
+
+        $recentOrdersQuery = Order::query()->with('client.user');
+        if ($hasRange) {
+            $recentOrdersQuery->whereBetween('created_at', [$rangeStart, $rangeEnd]);
+        }
+
         return [
+            'date_range' => $hasRange ? ['from' => $rangeStart->toDateString(), 'to' => $rangeEnd->toDateString()] : null,
             'pending_payment_reviews' => Payment::query()
                 ->where('gateway', 'bank_transfer')
                 ->where('status', 'pending_review')
                 ->count(),
             'metrics' => [
                 ['label' => 'Total Revenue', 'value' => Money::naira($paidRevenue), 'raw' => $paidRevenue],
-                ['label' => 'Total Invoices', 'value' => Invoice::query()->count()],
-                ['label' => 'Paid Invoices', 'value' => Invoice::query()->where('status', 'paid')->count()],
+                ['label' => 'Total Invoices', 'value' => $invoiceCountQuery()->count()],
+                ['label' => 'Paid Invoices', 'value' => $invoiceCountQuery()->where('status', 'paid')->count()],
                 ['label' => 'Overdue Invoices', 'value' => Invoice::query()->where('status', 'overdue')->count(), 'amount' => Money::naira($overdueAmount)],
                 ['label' => 'Active Services', 'value' => HostingService::query()->where('status', 'active')->count()],
-                ['label' => 'New Clients', 'value' => Client::query()->where('created_at', '>=', now()->subDays(30))->count()],
+                ['label' => 'New Clients', 'value' => $newClientsQuery->count()],
             ],
             'revenue_overview' => $this->monthlyRevenue(),
             'upcoming_renewals' => HostingService::query()
@@ -46,10 +81,9 @@ class AdminDashboardService
                     'status' => $service->status,
                     'renews_at' => $service->renews_at?->toDateString(),
                 ]),
-            'recent_payments' => Payment::query()
-                ->with(['client.user', 'invoice'])
+            'recent_payments' => $recentPaymentsQuery
                 ->latest()
-                ->limit(8)
+                ->limit($hasRange ? 50 : 8)
                 ->get()
                 ->map(fn (Payment $payment) => [
                     'client' => $payment->client?->user?->name,
@@ -59,7 +93,7 @@ class AdminDashboardService
                     'amount' => Money::naira($payment->amount_kobo),
                     'paid_at' => $payment->paid_at?->toDateTimeString(),
                 ]),
-            'invoice_overview' => Invoice::query()
+            'invoice_overview' => $invoiceCountQuery()
                 ->selectRaw('status, count(*) as count, sum(total_kobo) as amount')
                 ->groupBy('status')
                 ->get(),
@@ -77,10 +111,9 @@ class AdminDashboardService
                 ['name' => 'Scheduled Tasks', 'status' => 'healthy'],
                 ['name' => 'Backup Service', 'status' => 'active'],
             ],
-            'recent_orders' => Order::query()
-                ->with('client.user')
+            'recent_orders' => $recentOrdersQuery
                 ->latest()
-                ->limit(10)
+                ->limit($hasRange ? 50 : 10)
                 ->get()
                 ->map(fn (Order $order) => [
                     'order_number' => $order->order_number,

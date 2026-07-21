@@ -4,6 +4,8 @@ namespace App\Services\Billing;
 
 use App\Models\HostingService;
 use App\Models\Invoice;
+use App\Notifications\NaiTalkInvoiceCreated;
+use App\Services\Notifications\ClientNotifier;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -15,8 +17,10 @@ use RuntimeException;
  */
 class LegacyRenewalInvoiceService
 {
-    public function __construct(private readonly VatCalculator $vatCalculator = new VatCalculator)
-    {
+    public function __construct(
+        private readonly VatCalculator $vatCalculator = new VatCalculator,
+        private readonly ClientNotifier $notifier = new ClientNotifier,
+    ) {
     }
 
     public function generate(HostingService $service): Invoice
@@ -34,7 +38,7 @@ class LegacyRenewalInvoiceService
 
         $dueAt = $service->next_invoice_date ?? now()->addDays(7);
 
-        return DB::transaction(function () use ($service, $hostingAmountKobo, $sslAmountKobo, $subtotalKobo, $vat, $dueAt) {
+        $invoice = DB::transaction(function () use ($service, $hostingAmountKobo, $sslAmountKobo, $subtotalKobo, $vat, $dueAt) {
             return Invoice::query()->create([
                 'client_id' => $service->client_id,
                 'order_id' => null,
@@ -66,5 +70,17 @@ class LegacyRenewalInvoiceService
                 ],
             ]);
         });
+
+        if ($service->client) {
+            $this->notifier->notify(
+                $service->client,
+                new NaiTalkInvoiceCreated($invoice),
+                'invoice_created',
+                "Your NAI TALK invoice {$invoice->invoice_number}",
+                $service
+            );
+        }
+
+        return $invoice;
     }
 }

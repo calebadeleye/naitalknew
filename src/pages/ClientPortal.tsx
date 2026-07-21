@@ -1162,6 +1162,7 @@ export function ClientInvoicePage({
   const [hasDismissedBankTransfer, setHasDismissedBankTransfer] = useState(false);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [isUploadingProof, setIsUploadingProof] = useState(false);
+  const [amountPaidNaira, setAmountPaidNaira] = useState("");
 
   const invoiceApiPath = orderNumber ? `/api/v1/client/orders/${orderNumber}/invoice` : `/api/v1/client/invoices/${invoiceNumber}`;
 
@@ -1186,6 +1187,14 @@ export function ClientInvoicePage({
       const formData = new FormData();
       formData.append("receipt", receiptFile);
 
+      // Optional -- only sent if the client filled it in, meaning they paid
+      // less than the full outstanding balance. Left blank, the backend
+      // defaults to the full outstanding amount (unchanged behaviour).
+      const amountKobo = amountPaidNaira.trim() ? Math.round(parseNairaAmount(amountPaidNaira) * 100) : null;
+      if (amountKobo && amountKobo > 0) {
+        formData.append("amount_kobo", String(amountKobo));
+      }
+
       const response = await fetch(`${LARAVEL_API_BASE_URL}/api/v1/client/invoices/${invoice.invoice_number}/pay/bank-transfer/proof`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
@@ -1197,6 +1206,7 @@ export function ClientInvoicePage({
 
       toast.push({ type: "success", message: payload.message || "Proof of payment submitted." });
       setReceiptFile(null);
+      setAmountPaidNaira("");
       void loadInvoice();
     } catch (error) {
       toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not upload your proof of payment." });
@@ -1242,6 +1252,8 @@ export function ClientInvoicePage({
   }
 
   const isPaid = invoice.status === "paid";
+  const statusPillClass =
+    invoice.status === "paid" ? "status-pill paid" : invoice.status === "partially_paid" ? "status-pill pending" : "status-pill failed";
 
   return (
     <div>
@@ -1286,7 +1298,7 @@ export function ClientInvoicePage({
           </div>
           <div>
             <p className="text-[10px] font-black uppercase text-white/40">Status</p>
-            <span className={isPaid ? "status-pill paid mt-1 inline-flex" : "status-pill failed mt-1 inline-flex"}>{invoice.status}</span>
+            <span className={`${statusPillClass} mt-1 inline-flex`}>{invoice.status === "partially_paid" ? "Partially Paid" : invoice.status}</span>
           </div>
           {invoice.paid_at && (
             <div>
@@ -1349,6 +1361,25 @@ export function ClientInvoicePage({
 
                 <div className="mt-4 border-t border-white/10 pt-4">
                   <p className="text-xs font-black uppercase text-white/50">Step 2 — Upload your proof of payment</p>
+
+                  <label htmlFor="amount-paid" className="mt-3 block text-[11px] font-bold text-white/60">
+                    Amount you paid (only if less than the full amount above)
+                  </label>
+                  <input
+                    id="amount-paid"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    inputMode="decimal"
+                    placeholder={`Leave blank if you paid the full ${bankTransferInfo?.amount || invoice.total}`}
+                    className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none focus:border-primary/50"
+                    value={amountPaidNaira}
+                    onChange={(event) => setAmountPaidNaira(event.target.value)}
+                  />
+                  <p className="mt-1 text-[10px] text-white/40">
+                    If you send less than the full amount, the difference will stay as an outstanding balance on this invoice — we'll email you a confirmation either way.
+                  </p>
+
                   <label
                     htmlFor="receipt-upload"
                     className="mt-2 flex cursor-pointer flex-col items-center gap-1.5 rounded-lg border-2 border-dashed border-primary/40 bg-primary/5 p-4 text-center transition hover:border-primary hover:bg-primary/10"

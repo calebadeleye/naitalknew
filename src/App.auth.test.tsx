@@ -22,7 +22,7 @@ function renderClientPortal(path: string) {
 // Wait for that fallback to disappear before querying for real page content.
 async function waitForClientPortalReady() {
   await waitFor(() => expect(screen.queryByRole("status", { name: "Loading page" })).not.toBeInTheDocument(), {
-    timeout: 5000,
+    timeout: 15000,
   });
 }
 

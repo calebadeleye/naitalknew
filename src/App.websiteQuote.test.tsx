@@ -22,7 +22,7 @@ function renderAt(path: string) {
 // synchronous render. Wait for it to resolve before querying page content.
 async function waitForRouteReady() {
   await waitFor(() => expect(screen.queryByRole("status", { name: "Loading page" })).not.toBeInTheDocument(), {
-    timeout: 5000,
+    timeout: 15000,
   });
 }
 

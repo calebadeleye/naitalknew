@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -769,11 +769,16 @@ export function AdminDashboardOverview({
   data,
   isLoading,
   onNavigate,
+  dateRange,
+  onDateRangeChange,
 }: {
   data: AdminDashboardSnapshot | null;
   isLoading: boolean;
   onNavigate?: (section: string) => void;
+  dateRange?: { from: string; to: string } | null;
+  onDateRangeChange?: (range: { from: string; to: string } | null) => void;
 }) {
+  const todayIso = new Date().toISOString().slice(0, 10);
   const dashboardMetrics = data?.metrics?.length
     ? data.metrics.map((metric, index) => ({
         ...metric,
@@ -799,9 +804,49 @@ export function AdminDashboardOverview({
             {isLoading ? "Loading live Laravel dashboard data..." : "Live data from the Laravel billing engine."}
           </p>
         </div>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <button type="button" className="btn-outline justify-center">Jun 1 - Jun 30, 2026</button>
-          <button type="button" className="btn-primary justify-center">Export report</button>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+            <label className="text-[10px] font-black uppercase text-white/45" htmlFor="dashboard-range-from">
+              From
+            </label>
+            <input
+              id="dashboard-range-from"
+              type="date"
+              className="bg-transparent text-xs font-bold text-white outline-none [color-scheme:dark]"
+              max={dateRange?.to || todayIso}
+              value={dateRange?.from || ""}
+              onChange={(event) => {
+                const from = event.target.value;
+                if (!from) {
+                  onDateRangeChange?.(null);
+                  return;
+                }
+                onDateRangeChange?.({ from, to: dateRange?.to && dateRange.to >= from ? dateRange.to : todayIso });
+              }}
+            />
+            <span className="text-white/20">–</span>
+            <label className="text-[10px] font-black uppercase text-white/45" htmlFor="dashboard-range-to">
+              To
+            </label>
+            <input
+              id="dashboard-range-to"
+              type="date"
+              className="bg-transparent text-xs font-bold text-white outline-none [color-scheme:dark]"
+              min={dateRange?.from}
+              max={todayIso}
+              value={dateRange?.to || ""}
+              onChange={(event) => {
+                const to = event.target.value;
+                if (!dateRange?.from || !to) return;
+                onDateRangeChange?.({ from: dateRange.from, to });
+              }}
+            />
+          </div>
+          {dateRange && (
+            <button type="button" className="btn-outline justify-center !min-h-9 !px-3 !text-[11px]" onClick={() => onDateRangeChange?.(null)}>
+              Clear range
+            </button>
+          )}
         </div>
       </div>
 
@@ -3347,6 +3392,7 @@ export function AdminApp() {
   const [adminToken, setAdminToken] = useState(() => sessionStorage.getItem("naitalk_laravel_admin_token") || "");
   const [dashboardData, setDashboardData] = useState<AdminDashboardSnapshot | null>(null);
   const [isDashboardLoading, setIsDashboardLoading] = useState(false);
+  const [dashboardDateRange, setDashboardDateRange] = useState<{ from: string; to: string } | null>(null);
   const [adminRecords, setAdminRecords] = useState<Partial<Record<AdminRecordsSectionId, LaravelPage>>>({});
   const [loadingRecords, setLoadingRecords] = useState<Partial<Record<AdminRecordsSectionId, boolean>>>({});
   const [recordFilters, setRecordFilters] = useState<Partial<Record<AdminRecordsSectionId, Record<string, string>>>>({});
@@ -3356,6 +3402,40 @@ export function AdminApp() {
   const [retryingServiceId, setRetryingServiceId] = useState<number | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const notificationPanelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!isNotificationsOpen) return undefined;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (notificationPanelRef.current && !notificationPanelRef.current.contains(event.target as Node)) {
+        setIsNotificationsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isNotificationsOpen]);
+
+  // Site-content sections editable via the shared `content` state / Save
+  // button below -- everything else (dashboard, clients, invoices, etc.) has
+  // its own per-section save actions, so the global Save button only makes
+  // sense while one of these is active.
+  const CONTENT_EDITOR_SECTIONS: AdminSectionId[] = ["logo", "clientLogos", "portfolio", "testimonials", "pricing"];
+  const isContentEditorSection = CONTENT_EDITOR_SECTIONS.includes(activeSection);
+
+  const notificationItems: Array<{ id: string; label: string; section: AdminSectionId }> = [
+    ...(dashboardData?.pending_payment_reviews
+      ? [
+          {
+            id: "payment-reviews",
+            label: `${dashboardData.pending_payment_reviews} bank transfer ${dashboardData.pending_payment_reviews === 1 ? "payment" : "payments"} awaiting review`,
+            section: "paymentVerification" as AdminSectionId,
+          },
+        ]
+      : []),
+  ];
 
   const adminRequest = async <T,>(url: string, options: RequestInit = {}): Promise<T> => {
     const headers = new Headers(options.headers);
@@ -3398,12 +3478,13 @@ export function AdminApp() {
     });
   };
 
-  const loadAdminDashboard = async (token = adminToken) => {
+  const loadAdminDashboard = async (token = adminToken, range = dashboardDateRange) => {
     if (!token) return;
     setIsDashboardLoading(true);
 
     try {
-      const data = await laravelApi<AdminDashboardSnapshot>("/api/v1/admin/dashboard", token);
+      const query = range ? `?from=${range.from}&to=${range.to}` : "";
+      const data = await laravelApi<AdminDashboardSnapshot>(`/api/v1/admin/dashboard${query}`, token);
       setDashboardData(data);
     } catch (error) {
       sessionStorage.removeItem("naitalk_laravel_admin_token");
@@ -3498,12 +3579,34 @@ export function AdminApp() {
 
   const [approvingPaymentId, setApprovingPaymentId] = useState<number | null>(null);
 
-  const approveBankTransferPayment = async (invoiceNumber: string, paymentId: number) => {
+  const approveBankTransferPayment = async (invoiceNumber: string, paymentId: number, declaredAmountKobo?: number) => {
+    // The client may have declared a partial amount when uploading their
+    // proof of payment (declaredAmountKobo, pre-filled here) -- give the
+    // admin a chance to confirm or correct it before it's reconciled.
+    // Passing a smaller amount than the invoice total is exactly how a
+    // partial/underpayment gets recorded (see ReconcileInvoicePaymentService).
+    const defaultNaira = declaredAmountKobo ? Math.round(declaredAmountKobo / 100).toString() : "";
+    const enteredNaira = window.prompt(
+      "Confirm the amount received for this payment (in Naira). Enter less than the invoice total if this was a partial payment:",
+      defaultNaira,
+    );
+    if (enteredNaira === null) return;
+
+    const amountKobo = Math.round(parseNairaAmount(enteredNaira) * 100);
+    if (!amountKobo || amountKobo <= 0) {
+      setMessage("Please enter a valid amount greater than zero.");
+      return;
+    }
+
     setApprovingPaymentId(paymentId);
 
     try {
-      await laravelApi(`/api/v1/admin/invoices/${invoiceNumber}/mark-paid`, adminToken, { method: "POST" });
+      await laravelApi(`/api/v1/admin/invoices/${invoiceNumber}/mark-paid`, adminToken, {
+        method: "POST",
+        body: JSON.stringify({ amount_kobo: amountKobo }),
+      });
       await loadAdminRecords("payments", adminToken);
+      void loadAdminDashboard(adminToken);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Approving payment failed");
     } finally {
@@ -4142,16 +4245,40 @@ export function AdminApp() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-            <button type="button" className="btn-primary justify-center !min-h-9 !px-3 !text-[11px]" onClick={saveContent} disabled={isSaving}>
-              <Save className="h-4 w-4" />
-              <span className="hidden sm:inline">{isSaving ? "Saving..." : "Save changes"}</span>
-            </button>
-            <button type="button" className="admin-topbar-icon-button">
-              <Bell className="h-4 w-4" />
-              {Boolean(dashboardData?.pending_payment_reviews) && (
-                <span className="admin-topbar-badge">{dashboardData?.pending_payment_reviews}</span>
+            <div className="relative" ref={notificationPanelRef}>
+              <button
+                type="button"
+                className="admin-topbar-icon-button"
+                onClick={() => setIsNotificationsOpen((current) => !current)}
+                aria-expanded={isNotificationsOpen}
+                aria-label="Notifications"
+              >
+                <Bell className="h-4 w-4" />
+                {notificationItems.length > 0 && <span className="admin-topbar-badge">{notificationItems.length}</span>}
+              </button>
+              {isNotificationsOpen && (
+                <div className="admin-notification-panel">
+                  <p className="admin-notification-panel-title">Notifications</p>
+                  {notificationItems.length === 0 ? (
+                    <p className="admin-notification-empty">You're all caught up.</p>
+                  ) : (
+                    notificationItems.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className="admin-notification-item"
+                        onClick={() => {
+                          navigateToSection(item.section);
+                          setIsNotificationsOpen(false);
+                        }}
+                      >
+                        {item.label}
+                      </button>
+                    ))
+                  )}
+                </div>
               )}
-            </button>
+            </div>
             <button type="button" className="admin-topbar-avatar" onClick={handleLogout} title="Logout">
               <span className="admin-avatar-circle">
                 <User className="h-4 w-4" />
@@ -4181,6 +4308,23 @@ export function AdminApp() {
           />
         )}
 
+        {isContentEditorSection && !routeClientId && !routeServiceId && (
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/[0.04] px-4 py-3">
+            <p className="text-xs font-bold text-white/60">
+              Changes to {adminSectionLabels[activeSection]} only go live on the public site once saved here.
+            </p>
+            <button
+              type="button"
+              className="btn-primary shrink-0 justify-center !min-h-9 !px-3 !text-[11px]"
+              onClick={saveContent}
+              disabled={isSaving}
+            >
+              <Save className="h-4 w-4" />
+              {isSaving ? "Saving..." : "Save changes"}
+            </button>
+          </div>
+        )}
+
         {routeClientId && (
           <ClientDetailPage
             clientId={routeClientId}
@@ -4206,6 +4350,11 @@ export function AdminApp() {
             data={dashboardData}
             isLoading={isDashboardLoading}
             onNavigate={(section) => navigateToSection(section as AdminSectionId)}
+            dateRange={dashboardDateRange}
+            onDateRangeChange={(range) => {
+              setDashboardDateRange(range);
+              void loadAdminDashboard(adminToken, range);
+            }}
           />
         )}
 
@@ -4229,7 +4378,12 @@ export function AdminApp() {
               return (
                 <div className="flex items-center justify-end gap-2">
                   <button type="button" className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]" onClick={() => void downloadReceipt(paymentId)}>View Proof</button>
-                  <button type="button" className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]" disabled={isBusy} onClick={() => void approveBankTransferPayment(invoiceNumber, paymentId)}>
+                  <button
+                    type="button"
+                    className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                    disabled={isBusy}
+                    onClick={() => void approveBankTransferPayment(invoiceNumber, paymentId, Number(row.amount_kobo) || undefined)}
+                  >
                     {isBusy ? "Approving..." : "Approve"}
                   </button>
                   <button type="button" className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]" disabled={isBusy} onClick={() => void rejectBankTransferPayment(invoiceNumber, paymentId)}>Reject</button>
@@ -4307,7 +4461,7 @@ export function AdminApp() {
                           type="button"
                           className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
                           disabled={isBusy}
-                          onClick={() => void approveBankTransferPayment(invoiceNumber, paymentId)}
+                          onClick={() => void approveBankTransferPayment(invoiceNumber, paymentId, Number(row.amount_kobo) || undefined)}
                         >
                           {isBusy ? "Approving..." : "Approve"}
                         </button>
