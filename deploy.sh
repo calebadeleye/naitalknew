@@ -60,13 +60,26 @@ cd ..
 # -----------------------------
 # CRITICAL: We start the server.js file, NOT just serve the dist folder.
 # server.js handles both the API and serving the dist folder.
+#
+# The live process is named "naitalk-react" (started directly as
+# `server.js`, listening on the port the Apache vhost proxies to). An
+# earlier version of this script instead managed a process named
+# "naitalk-api" started via `npm start` -- since package.json has no
+# "start" script, npm's implicit default (`node server.js`) meant that
+# process also ran server.js, but on the SAME port naitalk-react already
+# held. Every deploy since then restarted/recreated naitalk-api, which
+# instantly crashed with EADDRINUSE and got auto-restarted by PM2 forever,
+# while naitalk-react -- the process actually serving traffic -- was never
+# restarted, so new code never went live. Fixed to manage naitalk-react
+# directly, and to clean up the crash-looping naitalk-api process.
 echo "🔄 Restarting application with PM2..."
 pm2 delete naitalk-api 2>/dev/null || true
 
-# We run 'npm start' which sets NODE_ENV=production and runs server.js
-pm2 start npm --name naitalk-api -- start
-
-pm2 restart naitalk-api --update-env
+if pm2 describe naitalk-react > /dev/null 2>&1; then
+    pm2 restart naitalk-react --update-env
+else
+    pm2 start server.js --name naitalk-react
+fi
 
 pm2 save
 pm2 status
