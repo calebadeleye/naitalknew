@@ -146,18 +146,26 @@ async function optimizeUploads() {
     applyRewrite(content.brand?.logo);
     for (const logo of content.clientLogos || []) applyRewrite(logo);
 
-    // Admin-saved content keeps its own independent copy of `projects`
-    // (a snapshot from whenever it was last saved via the admin panel), so
-    // its /data/*.png paths need rewriting to the sibling .webp too --
-    // otherwise the underlying files get optimized but this JSON keeps
-    // pointing at the original oversized ones.
+    // Admin-saved content keeps its own independent copy of `projects` (a
+    // snapshot from whenever it was last saved via the admin panel), so its
+    // image references need the same rewriting as logos -- otherwise the
+    // underlying files get optimized but this JSON keeps pointing at the
+    // original oversized ones. Projects have no width/height field, so this
+    // only ever rewrites the path, unlike applyRewrite() above.
     for (const project of content.projects || []) {
-      if (!project?.img || !project.img.startsWith("/data/")) continue;
-      const webpPath = project.img.replace(/\.(png|jpe?g)$/i, ".webp");
-      if (webpPath === project.img) continue;
-      if (fs.existsSync(path.join(ROOT, "public", webpPath))) {
-        project.img = webpPath;
+      if (!project?.img) continue;
+      const uploadRewrite = rewrites.get(project.img);
+      if (uploadRewrite) {
+        project.img = uploadRewrite.src;
         changed = true;
+        continue;
+      }
+      if (project.img.startsWith("/data/")) {
+        const webpPath = project.img.replace(/\.(png|jpe?g)$/i, ".webp");
+        if (webpPath !== project.img && fs.existsSync(path.join(ROOT, "public", webpPath))) {
+          project.img = webpPath;
+          changed = true;
+        }
       }
     }
 
