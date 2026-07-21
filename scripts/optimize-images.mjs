@@ -78,9 +78,20 @@ async function optimizeDataImages() {
  * has the same "naipay.png" saved three times under different upload
  * timestamps). storage/site-content.json + any old URL keeps working because
  * we only ever add new files -- nothing already referenced is deleted. */
+// Filenames this script (or server.js's own upload-time conversion) produce:
+// a bare hex content hash, no timestamp/name prefix. Real admin uploads are
+// always saved as `${Date.now()}-${originalBasename}` or, once uploaded
+// through the app, `${sha256Hash}.webp` -- either way this pattern only
+// matches prior generated output, which must never be re-encoded
+// (webp->webp re-compression changes the hash every run, cascading a new
+// "generation" of files and rewrites forever).
+const OWN_OUTPUT_PATTERN = /^[0-9a-f]{12,64}\.webp$/i;
+
 async function optimizeUploads() {
   if (!fs.existsSync(UPLOADS_DIR)) return;
-  const files = fs.readdirSync(UPLOADS_DIR).filter((f) => /\.(png|jpe?g|webp)$/i.test(f));
+  const files = fs
+    .readdirSync(UPLOADS_DIR)
+    .filter((f) => /\.(png|jpe?g|webp)$/i.test(f) && !OWN_OUTPUT_PATTERN.test(f));
   console.log(`\n--- public/uploads/admin (${files.length} source images) ---`);
 
   const rewrites = new Map(); // old "/uploads/admin/xxx" -> new path
@@ -134,6 +145,21 @@ async function optimizeUploads() {
 
     applyRewrite(content.brand?.logo);
     for (const logo of content.clientLogos || []) applyRewrite(logo);
+
+    // Admin-saved content keeps its own independent copy of `projects`
+    // (a snapshot from whenever it was last saved via the admin panel), so
+    // its /data/*.png paths need rewriting to the sibling .webp too --
+    // otherwise the underlying files get optimized but this JSON keeps
+    // pointing at the original oversized ones.
+    for (const project of content.projects || []) {
+      if (!project?.img || !project.img.startsWith("/data/")) continue;
+      const webpPath = project.img.replace(/\.(png|jpe?g)$/i, ".webp");
+      if (webpPath === project.img) continue;
+      if (fs.existsSync(path.join(ROOT, "public", webpPath))) {
+        project.img = webpPath;
+        changed = true;
+      }
+    }
 
     if (changed) {
       fs.writeFileSync(SITE_CONTENT_PATH, `${JSON.stringify(content, null, 2)}\n`);
