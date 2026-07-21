@@ -34,6 +34,14 @@ if [ ! -d "dist" ]; then
     exit 1
 fi
 
+echo "📄 Prerendering public pages (SEO snapshots)..."
+# Snapshots every public route (plus every published blog/KB article, fetched
+# live from the still-running old backend below) into dist/prerendered/ for
+# server.js to serve in place of the bare SPA shell. Non-fatal by design --
+# see scripts/prerender.mjs: a route that fails or times out is just skipped,
+# never blocks the deploy.
+node scripts/prerender.mjs || echo "⚠️  Prerendering had issues -- continuing deploy, affected routes fall back to client-side rendering."
+
 # -----------------------------
 # ✅ Deploy the Laravel backend
 # -----------------------------

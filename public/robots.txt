@@ -1,4 +1,7 @@
 User-agent: *
 Allow: /
+Disallow: /client
+Disallow: /admin
+Disallow: /api
 
-Sitemap: https://naitalk.com/sitemap.xml
+Sitemap: https://www.naitalk.com/sitemap.xml

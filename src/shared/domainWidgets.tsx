@@ -399,11 +399,15 @@ export function DomainSearchSection({ initialDomain }: { initialDomain?: string 
 
         <div className="domain-hero-grid">
           <div className="domain-copy-panel">
-            <h2>
+            {/* This is the only place DomainSearchSection is actually
+                rendered (DomainPages.tsx's DomainsLandingPage) -- safe as
+                the page's real h1, styled via .domain-copy-panel h1/h2 CSS
+                either way so this doesn't change how it looks. */}
+            <h1>
               Find the perfect domain
               <br />
               for <span className="text-primary">your business</span>
-            </h2>
+            </h1>
             <p>
               Start your online journey with the right domain name. Search, register, transfer, and manage your
               domain with ease.

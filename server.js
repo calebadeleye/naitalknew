@@ -7,7 +7,8 @@ import nodemailer from "nodemailer";
 import axios from "axios";
 import dotenv from "dotenv";
 import sharp from "sharp";
-import { getPageSeo, DEFAULT_OG_IMAGE } from "./src/seo/pageSeoConfig.mjs";
+import { getPageSeo, DEFAULT_OG_IMAGE, SITE_URL } from "./src/seo/pageSeoConfig.mjs";
+import { isKnownPublicPath, isPrivatePath, isDynamicSlugPath, prerenderedRelativeFilePath, INDEXABLE_STATIC_PATHS } from "./src/seo/publicRoutes.mjs";
 
 dotenv.config();
 
@@ -46,6 +47,36 @@ async function getBlogPostSeo(pathname) {
 }
 
 /**
+ * Same idea as getBlogPostSeo, for knowledge-base articles -- also doubles
+ * as the "does this slug actually exist" check the 404 logic below needs,
+ * since Laravel 404s (axios throws, caught, returns null) for any
+ * unpublished/missing slug.
+ */
+async function getKnowledgeBaseArticleSeo(pathname) {
+  const match = pathname.match(/^\/knowledge-base\/([^/]+)\/?$/);
+  if (!match) return null;
+
+  const slug = match[1];
+
+  try {
+    const response = await axios.get(`${laravelApiBaseUrl}/api/v1/public/knowledge-base/${encodeURIComponent(slug)}`, {
+      headers: { Accept: "application/json" },
+      timeout: 5000,
+    });
+    const article = response.data?.data;
+    if (!article) return null;
+
+    return {
+      title: article.seo_title || article.title,
+      description: article.seo_description || article.summary,
+    };
+  } catch (error) {
+    console.error(`Could not fetch knowledge-base SEO for slug "${slug}":`, error.message);
+    return null;
+  }
+}
+
+/**
  * Real crawlers and social-preview scrapers (Google, Facebook, Twitter,
  * LinkedIn, WhatsApp) read the raw HTML response — they don't run this app's
  * client-side JS. Since this is a client-rendered SPA, that HTML would
@@ -55,7 +86,7 @@ async function getBlogPostSeo(pathname) {
  * full server-rendering rewrite.
  */
 async function injectSeoTags(html, pathname) {
-  const seo = { ...getPageSeo(pathname), ...(await getBlogPostSeo(pathname)) };
+  const seo = { ...getPageSeo(pathname), ...(await getBlogPostSeo(pathname)), ...(await getKnowledgeBaseArticleSeo(pathname)) };
   const escape = (value) => String(value).replace(/"/g, "&quot;");
 
   return html
@@ -69,6 +100,105 @@ async function injectSeoTags(html, pathname) {
     .replace(/(<meta\s+name="twitter:title"\s+content=")[^"]*(")/s, `$1${escape(seo.title)}$2`)
     .replace(/(<meta\s+name="twitter:description"\s+content=")[^"]*(")/s, `$1${escape(seo.description)}$2`)
     .replace(/(<meta\s+name="twitter:image"\s+content=")[^"]*(")/s, `$1${escape(seo.ogImage)}$2`);
+}
+
+/**
+ * /client/* and /admin/* are auth-gated SPA zones with no public content of
+ * their own -- index.html's <meta name="robots"> is otherwise static
+ * "index, follow" for every route (injectSeoTags never touches it), and
+ * getPageSeo() has no entries for these prefixes so its generic fallback
+ * canonical ends up pointing at the private path itself. Both are real bugs,
+ * not intentional: strip the (wrong) canonical and force noindex.
+ */
+function applyPrivateNoindex(html) {
+  return html
+    .replace(/<link[^>]*rel="canonical"[^>]*>\s*/s, "")
+    .replace(/(<meta\s+name="robots"\s+content=")[^"]*(")/s, "$1noindex, nofollow$2");
+}
+
+// Known retired URLs that should 301 instead of 404 -- empty by default.
+// Populate from Search Console's "previously indexed" / crawl-error report
+// if/when specific legacy paths need redirecting, e.g.:
+//   "/old-hosting-plans": "/web-hosting",
+const legacyRedirects = {};
+
+/**
+ * Resolves the correct HTTP status for a public request without
+ * duplicating App.tsx's client-side routing: static paths are checked
+ * against the same table App.tsx uses (src/seo/publicRoutes.mjs), and
+ * blog/knowledge-base slugs are checked the same way their SEO metadata
+ * already is (a live Laravel lookup) since their validity isn't knowable
+ * statically. /client/* and /admin/* are always 200 -- their validity is
+ * entirely client-side/auth-dependent, not this server's concern.
+ */
+async function resolveStatus(pathname) {
+  if (isPrivatePath(pathname)) return 200;
+  if (isDynamicSlugPath(pathname)) {
+    const found = pathname.startsWith("/blog/") ? await getBlogPostSeo(pathname) : await getKnowledgeBaseArticleSeo(pathname);
+    return found ? 200 : 404;
+  }
+  return isKnownPublicPath(pathname) ? 200 : 404;
+}
+
+// Static marketing copy only changes when the code is redeployed, so "the
+// date this server process started" is an honest lastmod signal for it
+// without needing a per-page CMS field. Computed once at startup, not per
+// request.
+const staticContentLastModified = new Date().toISOString().slice(0, 10);
+
+async function fetchAllPublishedBlogSummaries() {
+  const summaries = [];
+  let page = 1;
+  for (;;) {
+    const response = await axios.get(`${laravelApiBaseUrl}/api/v1/public/blog?page=${page}`, { timeout: 8000 });
+    for (const post of response.data?.data || []) summaries.push(post);
+    if (!response.data?.meta || page >= response.data.meta.last_page) break;
+    page += 1;
+  }
+  return summaries;
+}
+
+async function fetchAllPublishedKbArticles() {
+  const response = await axios.get(`${laravelApiBaseUrl}/api/v1/public/knowledge-base`, { timeout: 8000 });
+  return (response.data?.groups || []).flatMap((group) => group.articles || []);
+}
+
+function xmlEscape(value) {
+  return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function sitemapUrlEntry(loc, lastmod, changefreq, priority) {
+  return `  <url>\n    <loc>${xmlEscape(loc)}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>${changefreq}</changefreq>\n    <priority>${priority}</priority>\n  </url>`;
+}
+
+/**
+ * Generated fresh on every request (with a short cache) rather than baked
+ * into the build, so a blog post or KB article published between deploys
+ * shows up immediately -- unlike the prerendered HTML snapshots (item 4 of
+ * the SEO plan), which only refresh on the next deploy.
+ */
+async function buildSitemapXml() {
+  const staticUrls = INDEXABLE_STATIC_PATHS.map((path) =>
+    sitemapUrlEntry(`${SITE_URL}${path === "/" ? "" : path}`, staticContentLastModified, path === "/" ? "weekly" : "monthly", path === "/" ? "1.0" : "0.7"),
+  );
+
+  let blogUrls = [];
+  try {
+    const posts = await fetchAllPublishedBlogSummaries();
+    blogUrls = posts.map((post) => sitemapUrlEntry(`${SITE_URL}/blog/${post.slug}`, post.updated_at || post.published_at || staticContentLastModified, "monthly", "0.6"));
+  } catch (error) {
+    console.error("Could not fetch blog posts for sitemap:", error.message);
+  }
+
+  let kbUrls = [];
+  try {
+    const articles = await fetchAllPublishedKbArticles();
+    kbUrls = articles.map((article) => sitemapUrlEntry(`${SITE_URL}/knowledge-base/${article.slug}`, article.last_updated_at || staticContentLastModified, "monthly", "0.5"));
+  } catch (error) {
+    console.error("Could not fetch knowledge-base articles for sitemap:", error.message);
+  }
+
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${[...staticUrls, ...blogUrls, ...kbUrls].join("\n")}\n</urlset>\n`;
 }
 
 const dataDir = path.join(process.cwd(), "storage");
@@ -552,6 +682,21 @@ async function startServer() {
     res.status(404).json({ error: "API route not found" });
   });
 
+  // Registered ahead of the SPA catch-all (and, in production, ahead of
+  // express.static(distPath) too) so this always wins over any static
+  // dist/sitemap.xml -- there isn't one anymore (removed public/sitemap.xml
+  // in favor of this), but registration order is what would decide it
+  // either way.
+  app.get("/sitemap.xml", async (req, res) => {
+    try {
+      const xml = await buildSitemapXml();
+      res.set({ "Content-Type": "application/xml", "Cache-Control": "public, max-age=3600, stale-while-revalidate=300" }).send(xml);
+    } catch (error) {
+      console.error("Sitemap generation failed:", error.message);
+      res.status(500).set({ "Content-Type": "text/plain" }).send("Sitemap temporarily unavailable");
+    }
+  });
+
   // Vite / Static Serving logic
   const isProduction = process.env.NODE_ENV === "production";
   const distPath = path.join(process.cwd(), "dist");
@@ -595,11 +740,33 @@ async function startServer() {
     // other route already gets.
     app.use(express.static(distPath, { index: false }));
     app.get("*", async (req, res) => {
-      const template = fs.readFileSync(path.join(distPath, "index.html"), "utf-8");
+      const pathname = req.path;
+
+      const redirectTarget = legacyRedirects[pathname];
+      if (redirectTarget) {
+        return res.redirect(301, redirectTarget);
+      }
+
+      const status = await resolveStatus(pathname);
+
+      // Prefer a build-time snapshot (real H1/body content for crawlers) if
+      // scripts/prerender.mjs produced one for this exact path; otherwise
+      // fall back to the bare shell it's always served until now. A missing
+      // snapshot (route published since the last deploy, or one that timed
+      // out during prerendering) is never worse than today's baseline.
+      const prerenderedPath = path.join(distPath, "prerendered", prerenderedRelativeFilePath(pathname));
+      const templatePath = fs.existsSync(prerenderedPath) ? prerenderedPath : path.join(distPath, "index.html");
+      const template = fs.readFileSync(templatePath, "utf-8");
+
+      let html = await injectSeoTags(template, pathname);
+      if (isPrivatePath(pathname)) {
+        html = applyPrivateNoindex(html);
+      }
+
       res
-        .status(200)
+        .status(status)
         .set({ "Content-Type": "text/html", "Cache-Control": "no-cache" })
-        .end(await injectSeoTags(template, req.path));
+        .end(html);
     });
   }
 

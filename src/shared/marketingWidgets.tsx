@@ -78,6 +78,8 @@ import {
 } from "lucide-react";
 import { useToast } from "../toast/ToastProvider";
 import { useSeo } from "../seo/useSeo";
+import { useJsonLd } from "../seo/useJsonLd";
+import { SITE_URL } from "../seo/pageSeoConfig.mjs";
 import { useClientRoute, navigateClient, type ClientRouteName } from "../routing/useClientRoute";
 import { useAdminRoute, adminPath, adminClientDetailPath, adminServiceDetailPath, type AdminSectionId } from "../routing/useAdminRoute";
 import {
@@ -131,6 +133,27 @@ export function PublicPage({
 }
 
 export function PublicBreadcrumbs({ items, dark = false }: { items: Array<{ label: string; href?: string }>; dark?: boolean }) {
+  // Keyed on the serialized items rather than the array reference -- every
+  // call site passes a fresh inline array literal each render, which would
+  // otherwise re-fire the JSON-LD effect (and rewrite the DOM) every render.
+  const itemsKey = JSON.stringify(items);
+  const breadcrumbJsonLd = useMemo(() => {
+    const currentPath = typeof window !== "undefined" ? window.location.pathname : "/";
+    const allItems = [{ label: "Home", href: "/" }, ...items];
+    return {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: allItems.map((item, index) => ({
+        "@type": "ListItem",
+        position: index + 1,
+        name: item.label,
+        item: `${SITE_URL}${item.href ?? currentPath}`,
+      })),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemsKey]);
+  useJsonLd("naitalk-breadcrumb-schema", breadcrumbJsonLd);
+
   return (
     <nav
       aria-label="Breadcrumb"

@@ -120,7 +120,11 @@ import {
   fallbackSiteContent,
   whatsappUrl,
 } from "./shared/siteDefaults";
-import { Logo, Navbar, Footer, FloatingWhatsApp, SectionHeader } from "./shared/PublicLayout";
+import { Logo, Navbar, Footer, FloatingWhatsApp, SectionHeader, socialLinks } from "./shared/PublicLayout";
+import { SITE_URL, DEFAULT_OG_IMAGE } from "./seo/pageSeoConfig.mjs";
+import { useJsonLd } from "./seo/useJsonLd";
+import { NotFoundPage } from "./pages/NotFoundPage";
+import { isKnownPublicPath } from "./seo/publicRoutes.mjs";
 
 export const services = [
   {
@@ -495,7 +499,7 @@ export function Services() {
   );
 }
 
-export function Portfolio({ projects }: { projects: Project[] }) {
+export function Portfolio({ projects, headingLevel = "h2" }: { projects: Project[]; headingLevel?: "h1" | "h2" }) {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
   useEffect(() => {
@@ -528,6 +532,7 @@ export function Portfolio({ projects }: { projects: Project[] }) {
               </>
             }
             align="left"
+            headingLevel={headingLevel}
           />
           <a href="/portfolio" className="inline-flex items-center gap-2 text-sm font-black text-primary">
             View all projects
@@ -1076,19 +1081,19 @@ export function PublicSite() {
         "@type": "CreativeWork",
         name: project.title,
         description: project.details.solution,
-        image: project.img,
+        image: project.img.startsWith("http") ? project.img : `${SITE_URL}${project.img}`,
       })),
     [projects],
   );
 
-  useEffect(() => {
-    const jsonLd = {
+  const homepageJsonLd = useMemo(
+    () => ({
       "@context": "https://schema.org",
       "@type": "ProfessionalService",
       name: "NAITALK",
-      url: "https://naitalk.com/",
-      logo: `https://naitalk.com${siteContent.brand.logo.src.startsWith("/") ? siteContent.brand.logo.src : "/logo.png"}`,
-      image: "https://naitalk.com/og-naitalk-home.png",
+      url: `${SITE_URL}/`,
+      logo: `${SITE_URL}${siteContent.brand.logo.src.startsWith("/") ? siteContent.brand.logo.src : "/logo.png"}`,
+      image: DEFAULT_OG_IMAGE,
       email: "info@naitalk.com",
       telephone: "+2347087057654",
       address: {
@@ -1104,7 +1109,7 @@ export function PublicSite() {
         "Domain registration",
         "AI automation",
       ],
-      sameAs: [],
+      sameAs: socialLinks.map(([, , href]) => href),
       hasOfferCatalog: {
         "@type": "OfferCatalog",
         name: "NAITALK digital services",
@@ -1118,17 +1123,10 @@ export function PublicSite() {
         })),
       },
       workExample: structuredProjects,
-    };
-
-    let script = document.getElementById("naitalk-service-schema") as HTMLScriptElement | null;
-    if (!script) {
-      script = document.createElement("script");
-      script.type = "application/ld+json";
-      script.id = "naitalk-service-schema";
-      document.head.appendChild(script);
-    }
-    script.textContent = JSON.stringify(jsonLd);
-  }, [siteContent.brand.logo.src, structuredProjects]);
+    }),
+    [siteContent.brand.logo.src, structuredProjects],
+  );
+  useJsonLd("naitalk-service-schema", homepageJsonLd);
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-background text-white">
@@ -1238,5 +1236,10 @@ export default function App() {
   if (path.startsWith("/refund-policy")) return <RoutedPage><LazyRefundPolicyPage /></RoutedPage>;
   if (path === "/get-a-website/thank-you") return <RoutedPage><LazyWebsiteQuoteThankYouPage /></RoutedPage>;
   if (path === "/get-a-website") return <RoutedPage><LazyWebsiteQuoteLandingPage /></RoutedPage>;
+  if (path === "/") return <PublicSite />;
+  // Every valid route has an explicit branch above (kept in sync with
+  // src/seo/publicRoutes.mjs, which server.js uses to resolve the same
+  // 404 decision) -- anything reaching here is genuinely unknown.
+  if (!isKnownPublicPath(path)) return <RoutedPage><NotFoundPage /></RoutedPage>;
   return <PublicSite />;
 }

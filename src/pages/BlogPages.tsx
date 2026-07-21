@@ -109,6 +109,8 @@ import { parseNairaAmount, formatNaira, formatKobo, toDateInputValue, formatDate
 import { fallbackClientLogos, fallbackProjects, fallbackReviews, fallbackSiteContent, whatsappUrl } from "../shared/siteDefaults";
 import { Logo, Navbar, Footer, FloatingWhatsApp, SectionHeader, socialLinks, paymentBadges, footerColumns } from "../shared/PublicLayout";
 import { PublicPage, PublicBreadcrumbs, usePublicImage, MarketingHero, MarketingCtaBand, FaqAccordionItem, FaqAccordionGroup } from "../shared/marketingWidgets";
+import { useJsonLd } from "../seo/useJsonLd";
+import { SITE_URL, DEFAULT_OG_IMAGE } from "../seo/pageSeoConfig.mjs";
 import { goToDomainCheckout, DomainPromoBadge, TldPriceCard, DomainFeatureItem, DomainSearchBar, DomainSearchSection, DomainGlobeIllustration } from "../shared/domainWidgets";
 import type { DomainFeature, PublicTldPricingRow } from "../shared/domainWidgets";
 
@@ -152,6 +154,7 @@ export type PublicBlogSummary = {
   featured_image_alt: string | null;
   author_name: string;
   published_at: string | null;
+  updated_at: string | null;
   reading_time_minutes: number;
 };
 
@@ -168,7 +171,7 @@ export const BlogCard: React.FC<{ post: PublicBlogSummary }> = ({ post }) => {
         <h3 className="text-lg font-black text-[#07111f] transition group-hover:text-primary">{post.title}</h3>
         <p className="mt-2 flex-1 text-sm leading-6 text-[#596273]">{post.excerpt}</p>
         <div className="mt-4 flex items-center justify-between border-t border-black/8 pt-4 text-xs font-bold text-[#596273]">
-          <span>{post.author_name} · {post.published_at ? formatDate(post.published_at) : ""}</span>
+          <span>{post.author_name} · {post.published_at ? <time dateTime={post.published_at}>{formatDate(post.published_at)}</time> : ""}</span>
           <span className="inline-flex items-center gap-1 text-primary">
             Read more
             <ArrowRight className="h-3.5 w-3.5" />
@@ -267,6 +270,7 @@ export function BlogIndexPage() {
 export function BlogDetailPage({ slug }: { slug: string }) {
   const toast = useToast();
   const [post, setPost] = useState<(PublicBlogSummary & { content: string; seo_title: string; seo_description: string; og_image: string | null }) | null>(null);
+  const canonicalUrl = `${SITE_URL}/blog/${slug}`;
   const [related, setRelated] = useState<PublicBlogSummary[]>([]);
   const [notFound, setNotFound] = useState(false);
 
@@ -284,7 +288,30 @@ export function BlogDetailPage({ slug }: { slug: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
-  useSeo(post ? { title: post.seo_title, description: post.seo_description, ogImage: post.og_image || undefined } : undefined);
+  useSeo(post ? { title: post.seo_title, description: post.seo_description, ogImage: post.og_image || undefined, canonical: canonicalUrl } : undefined);
+
+  const blogPostingJsonLd = useMemo(() => {
+    if (!post) return null;
+    const imageUrl = post.og_image || post.featured_image_url;
+    return {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      headline: post.title,
+      description: post.seo_description || post.excerpt || undefined,
+      image: imageUrl ? (imageUrl.startsWith("http") ? imageUrl : `${SITE_URL}${imageUrl}`) : DEFAULT_OG_IMAGE,
+      datePublished: post.published_at || undefined,
+      dateModified: post.updated_at || post.published_at || undefined,
+      author: { "@type": "Person", name: post.author_name },
+      publisher: {
+        "@type": "Organization",
+        name: "NAI TALK",
+        logo: { "@type": "ImageObject", url: `${SITE_URL}/logo.png` },
+      },
+      mainEntityOfPage: { "@type": "WebPage", "@id": canonicalUrl },
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [post, canonicalUrl]);
+  useJsonLd("naitalk-blog-posting-schema", blogPostingJsonLd);
 
   if (notFound) {
     return (
@@ -314,7 +341,7 @@ export function BlogDetailPage({ slug }: { slug: string }) {
           <h1 className="text-3xl font-black leading-tight text-[#07111f] sm:text-4xl">{post.title}</h1>
           <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-bold text-[#596273]">
             <span>{post.author_name}</span>
-            <span>{post.published_at ? formatDate(post.published_at) : ""}</span>
+            {post.published_at && <time dateTime={post.published_at}>{formatDate(post.published_at)}</time>}
             <span>{post.reading_time_minutes} min read</span>
           </div>
 

@@ -552,15 +552,24 @@ export function SectionHeader({
   eyebrow,
   title,
   align = "center",
+  headingLevel = "h2",
 }: {
   eyebrow: string;
   title: React.ReactNode;
   align?: "center" | "left";
+  // Every other call site sits below a page-level h1 already (the
+  // homepage's Hero, marketing-page heroes, ...) where h2 is correct.
+  // Portfolio is the one exception -- reused standalone on /portfolio,
+  // where this heading IS the page's only heading and needs to be the
+  // real h1 for a sighted-nav/SEO structure, not just styled to look like
+  // one. Same className either way, so this never changes appearance.
+  headingLevel?: "h1" | "h2";
 }) {
+  const Heading = headingLevel;
   return (
     <div className={align === "center" ? "mx-auto max-w-2xl text-center" : "max-w-2xl"}>
       <span className="eyebrow">{eyebrow}</span>
-      <h2 className="mt-3 text-3xl font-black leading-tight text-white sm:text-4xl">{title}</h2>
+      <Heading className="mt-3 text-3xl font-black leading-tight text-white sm:text-4xl">{title}</Heading>
     </div>
   );
 }

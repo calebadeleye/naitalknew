@@ -71,6 +71,7 @@ class ContentController extends Controller
             'featured_image_alt' => $post->featured_image_meta['alt_text'] ?? $post->title,
             'author_name' => $post->author_name,
             'published_at' => $post->published_at?->toDateString(),
+            'updated_at' => $post->updated_at?->toDateString(),
             'reading_time_minutes' => $post->readingTimeMinutes(),
         ];
     }
@@ -91,6 +92,7 @@ class ContentController extends Controller
                     'title' => $article->title,
                     'slug' => $article->slug,
                     'summary' => $article->summary,
+                    'last_updated_at' => $article->last_updated_at?->toDateString(),
                 ]),
             ]),
         ]);

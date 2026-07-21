@@ -447,7 +447,9 @@ export function KnowledgeBaseArticlePage({ slug }: { slug: string }) {
           <article>
             <h1 className="text-3xl font-black text-[#07111f] sm:text-4xl">{article.title}</h1>
             {article.summary && <p className="mt-3 text-base leading-7 text-[#596273]">{article.summary}</p>}
-            <p className="mt-2 text-xs font-bold text-[#9aa39a]">Last updated {article.last_updated_at ? formatDate(article.last_updated_at) : "recently"}</p>
+            <p className="mt-2 text-xs font-bold text-[#9aa39a]">
+              Last updated {article.last_updated_at ? <time dateTime={article.last_updated_at}>{formatDate(article.last_updated_at)}</time> : "recently"}
+            </p>
 
             <div className="mt-8 grid gap-5 text-base leading-8 text-[#334138]">
               {article.content.split(/\n{2,}/).map((paragraph, index) => (

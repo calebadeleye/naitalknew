@@ -1022,7 +1022,7 @@ export function PortfolioPage() {
     <PublicPage>
       <PublicBreadcrumbs items={[{ label: "Portfolio" }]} />
       <div className="pt-4">
-        <Portfolio projects={projects} />
+        <Portfolio projects={projects} headingLevel="h1" />
       </div>
       <MarketingCtaBand
         title="Ready to start your online journey?"

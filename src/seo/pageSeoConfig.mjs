@@ -5,7 +5,7 @@
 // navigation). Keeping this in one plain-JS file avoids duplicating copy
 // between the two runtimes.
 const SITE_NAME = "NAI TALK";
-const SITE_URL = "https://naitalk.com";
+export const SITE_URL = "https://www.naitalk.com";
 export const DEFAULT_OG_IMAGE = `${SITE_URL}/og-naitalk-home.png`;
 
 export const pageSeoConfig = {
@@ -92,6 +92,18 @@ export const pageSeoConfig = {
   "/get-a-website/thank-you": {
     title: "Request Received | NAITALK",
     description: "Thank you for requesting a website quote from NAITALK. Our team will be in touch shortly.",
+  },
+  "/privacy-policy": {
+    title: "Privacy Policy | NAI TALK",
+    description: "How NAI TALK collects, uses and protects your personal information across our websites, hosting and client account services.",
+  },
+  "/terms-of-service": {
+    title: "Terms of Service | NAI TALK",
+    description: "The terms that govern your use of NAI TALK's domains, hosting, website design and website care services.",
+  },
+  "/refund-policy": {
+    title: "Refund Policy | NAI TALK",
+    description: "NAI TALK's refund and cancellation policy for domains, hosting, website design and website care plan purchases.",
   },
 };
 
