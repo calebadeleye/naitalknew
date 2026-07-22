@@ -353,7 +353,7 @@ export function DeviceShowcase({ logo }: { logo: LogoImage }) {
             width={heroPreviewImages.phone.width}
             height={heroPreviewImages.phone.height}
             className="aspect-[4/5] w-full rounded-xl object-cover"
-            loading="lazy"
+            loading="eager"
             decoding="async"
           />
           <div className="mt-4 rounded-xl bg-primary px-4 py-3 text-center text-[11px] font-black text-on-primary">

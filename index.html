@@ -5,6 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <!--
+      The navbar logo is the confirmed mobile LCP element (renders on every
+      route, above the fold, before anything else meaningful paints) --
+      preloaded at the same 1x/2x it's actually requested at (see
+      src/shared/PublicLayout.tsx's Logo component) so the browser doesn't
+      wait to discover it from the CSS/JS-rendered <img>.
+    -->
+    <link rel="preload" as="image" href="/logo-96.png" imagesrcset="/logo-96.png 1x, /logo-192.png 2x" fetchpriority="high" />
+
+    <!--
       Google Tag Manager. Container id comes from VITE_GTM_ID (Vite replaces
       %VITE_GTM_ID% with that env var's value at build/serve time). If it's
       unset, the id below is empty, gtm.js is never requested, and dataLayer

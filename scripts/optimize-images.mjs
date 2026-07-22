@@ -2,7 +2,7 @@
 /**
  * One-off/backfill image optimizer. Converts oversized project screenshots
  * and client-logo uploads to WebP without upscaling, and (for /data assets)
- * writes responsive 480/800/1200 variants. Re-run safely at any time --
+ * writes responsive 320/480/800/1200 variants. Re-run safely at any time --
  * anything already converted is skipped unless --force is passed.
  *
  * Usage:
@@ -20,7 +20,7 @@ const DATA_DIR = path.join(ROOT, "public", "data");
 const UPLOADS_DIR = path.join(ROOT, "public", "uploads", "admin");
 const SITE_CONTENT_PATH = path.join(ROOT, "storage", "site-content.json");
 
-const RESPONSIVE_WIDTHS = [480, 800, 1200];
+const RESPONSIVE_WIDTHS = [320, 480, 800, 1200];
 
 function fmtKB(bytes) {
   return `${(bytes / 1024).toFixed(0)}KB`;
@@ -56,14 +56,14 @@ async function optimizeDataImages() {
     };
 
     const targetWidth = Math.min(meta.width, 900);
-    const mainBuffer = await base_pipeline().resize({ width: targetWidth }).webp({ quality: 76 }).toBuffer();
+    const mainBuffer = await base_pipeline().resize({ width: targetWidth }).webp({ quality: 72 }).toBuffer();
     fs.writeFileSync(mainOut, mainBuffer);
 
     for (const width of RESPONSIVE_WIDTHS) {
       if (width >= targetWidth) continue; // never upscale
       const variantOut = path.join(DATA_DIR, `${base}-${width}.webp`);
       if (fs.existsSync(variantOut) && !FORCE) continue;
-      const buffer = await base_pipeline().resize({ width }).webp({ quality: 74 }).toBuffer();
+      const buffer = await base_pipeline().resize({ width }).webp({ quality: 68 }).toBuffer();
       fs.writeFileSync(variantOut, buffer);
     }
 

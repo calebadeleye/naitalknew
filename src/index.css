@@ -1,8 +1,29 @@
-@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap");
+/*
+ * Self-hosted Manrope -- replaces the old render-blocking
+ * fonts.googleapis.com @import (extra DNS/connect/request round trip
+ * before the browser could even start fetching the actual font). Only the
+ * weights actually used in markup: 400 (body default), 600 (font-semibold),
+ * 700 (font-bold), 800 (font-extrabold, and font-black -- see the
+ * --font-weight-black override below, Manrope's variable font doesn't
+ * reliably offer a true 900 cut). @fontsource ships font-display: swap
+ * already, so there's no separate flag to set here. index.html preloads
+ * the 700 file specifically since it's the weight the above-the-fold H1
+ * generally renders in.
+ */
+@import "@fontsource/manrope/latin-400.css";
+@import "@fontsource/manrope/latin-600.css";
+@import "@fontsource/manrope/latin-700.css";
+@import "@fontsource/manrope/latin-800.css";
 @import "tailwindcss";
 
 @theme {
-  --font-body: "Manrope", sans-serif;
+  --font-body: "Manrope", system-ui, sans-serif;
+  /* Matches the 800 weight actually loaded above -- without this, every
+     font-black element (263 usages) requests a 900 cut that was never
+     fetched, so the browser either fakes a bolder face or silently falls
+     back to the closest match anyway. This makes the fallback explicit
+     and guaranteed pixel-identical to what's loaded. */
+  --font-weight-black: 800;
   --color-primary: #9bea16;
   --color-primary-container: #6ed414;
   --color-on-primary: #031006;

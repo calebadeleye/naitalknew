@@ -171,26 +171,30 @@ export const fallbackProjects: Project[] = [
   },
 ];
 
+// profile_photo_url is intentionally blank -- Testimonials (App.tsx) already
+// falls back to a CSS initials avatar (review.author_name.charAt(0)) when
+// this is empty, so there's no need for a third-party ui-avatars.com
+// request just to render a colored circle with a letter in it.
 export const fallbackReviews: Review[] = [
   {
     author_name: "Tem's Creche",
     rating: 5,
     text: "This was a top notch experience for the project the organization handled for me and my team, thank you for your service of love, we are very happy to do more business with you as I commend your dedication towards time frame delivery of set goals.",
-    profile_photo_url: "https://ui-avatars.com/api/?name=Tem's%20Creche&background=random",
+    profile_photo_url: "",
     relative_time_description: "9 hours ago",
   },
   {
     author_name: "Samuel Adeyemo",
     rating: 5,
     text: "The AI integration provided by NAITALK has doubled our operational efficiency. Their predictive analytics models are scarily accurate. Highly recommended for any scaling enterprise.",
-    profile_photo_url: "https://ui-avatars.com/api/?name=Samuel%20Adeyemo&background=random",
+    profile_photo_url: "",
     relative_time_description: "1 month ago",
   },
   {
     author_name: "Anthony Eghosa Ewone",
     rating: 5,
     text: "Excellent service delivery.",
-    profile_photo_url: "https://ui-avatars.com/api/?name=Anthony%20Eghosa%20Ewone&background=random",
+    profile_photo_url: "",
     relative_time_description: "16 Mar 2022",
   },
 ];

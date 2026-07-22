@@ -254,6 +254,7 @@ export function MarketingHero({
             src={image?.url || "/images/placeholder-business.svg"}
             alt={image?.alt_text || String(title)}
             loading="eager"
+            fetchPriority="high"
             width={800}
             height={600}
             className="aspect-[4/3] w-full rounded-2xl object-cover shadow-[0_30px_80px_rgba(16,24,16,0.14)]"

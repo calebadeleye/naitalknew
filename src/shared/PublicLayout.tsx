@@ -169,10 +169,43 @@ export const authenticatedAccountGroup = {
   ],
 };
 
-export function Logo({ className = "", logo = fallbackSiteContent.brand.logo }: { className?: string; logo?: LogoImage }) {
+export function Logo({
+  className = "",
+  logo = fallbackSiteContent.brand.logo,
+  priority = false,
+}: {
+  className?: string;
+  logo?: LogoImage;
+  // Only the Navbar's instance (always visible, first paint, on every
+  // route) should opt into this -- the same logo also renders in the
+  // footer, the mobile nav drawer and the homepage hero mockup, none of
+  // which are LCP candidates, so they keep the browser's default priority.
+  priority?: boolean;
+}) {
+  const isDefaultLogo = !logo.src || logo.src === "/logo.png";
+  // The default NAITALK wordmark ships as right-sized 1x/2x PNGs (a
+  // 331x124 source rendered at ~96x36 -- see public/logo-96.png /
+  // public/logo-192.png). An admin-uploaded custom logo keeps using
+  // whatever it actually is, with whatever dimensions the upload endpoint
+  // recorded for it (falling back to the same 96x36 box if missing).
+  const src = isDefaultLogo ? "/logo-96.png" : logo.src;
+  const srcSet = isDefaultLogo ? "/logo-96.png 1x, /logo-192.png 2x" : undefined;
+  const width = isDefaultLogo ? 96 : logo.width || 96;
+  const height = isDefaultLogo ? 36 : logo.height || 36;
+
   return (
     <a href="/" className={`inline-flex items-center ${className}`} aria-label="NAITALK home">
-      <img src={logo.src || "/logo.png"} alt={logo.alt || "NAITALK"} className="h-8 w-auto max-w-[150px] object-contain sm:h-9" />
+      <img
+        src={src}
+        srcSet={srcSet}
+        alt={logo.alt || "NAITALK"}
+        width={width}
+        height={height}
+        loading={priority ? "eager" : "lazy"}
+        fetchPriority={priority ? "high" : undefined}
+        decoding="async"
+        className="h-8 w-auto max-w-[150px] object-contain sm:h-9"
+      />
     </a>
   );
 }
@@ -227,7 +260,7 @@ export function Navbar({ logo }: { logo: LogoImage }) {
     <>
       <header className="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-[#030505]/85 backdrop-blur-xl">
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <Logo logo={logo} />
+        <Logo logo={logo} priority />
 
         <nav className="hidden items-center gap-4 lg:flex" aria-label="Primary navigation">
           {navItems.map((item) => (
