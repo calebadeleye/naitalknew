@@ -45,32 +45,6 @@
       gtag("config", "AW-18326410611");
     </script>
 
-    <!--
-      Event snippet for the "Submit lead form" conversion, click variant.
-      Call window.gtag_report_conversion(url) from an onClick handler when a
-      link/button itself is the conversion (e.g. navigates away on click).
-      The page-load variant (fires once the actual thank-you page renders)
-      is wired up in React instead of pasted here — this file is the shared
-      shell for every route, so an unconditional fire here would count every
-      page view across the whole site as a conversion.
-    -->
-    <script>
-      function gtag_report_conversion(url) {
-        var callback = function () {
-          if (typeof url != "undefined") {
-            window.location = url;
-          }
-        };
-        gtag("event", "conversion", {
-          send_to: "AW-18326410611/aBJTCPvXntEcEPOq26JE",
-          value: 1.0,
-          currency: "USD",
-          event_callback: callback,
-        });
-        return false;
-      }
-    </script>
-
     <title>NAITALK | Web Design, Custom Software, Hosting & AI Solutions in Lagos</title>
     <meta
       name="description"

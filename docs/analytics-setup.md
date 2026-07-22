@@ -99,3 +99,13 @@ If `VITE_GTM_ID` is unset when the app is built, `%VITE_GTM_ID%` resolves to an 
 ## Full event list
 
 `page_view`, `contact_form_submit`, `contact_form_error`, `hosting_plan_view`, `hosting_plan_select`, `buy_hosting_click`, `domain_search`, `domain_search_result`, `domain_purchase_start`, `signup_start`, `sign_up`, `login`, `login_error`, `checkout_begin`, `payment_success`, `payment_failed`, `purchase`, `whatsapp_click`, `phone_click`, `email_click`, `knowledge_base_view`, `blog_post_view`, `cta_click`, `file_download`, `scroll_depth`.
+
+## Duplicate-tracking audit checklist (dashboard access required)
+
+`index.html` currently loads **two** independent Google tagging mechanisms side by side: the GTM container above (`GTM-...`), and a direct `gtag.js` include configuring `AW-18326410611` (Google Ads) — plus Cloudflare's first-party Tag Gateway proxy at `/ejpi/`, confirmed live in production. This is not necessarily wrong (GTM and a direct Ads `gtag.js` is a common, non-duplicated split — GTM owns GA4, the direct include owns Ads), but it can't be verified from the codebase alone. Whoever has GTM/Cloudflare dashboard access should check:
+
+1. **GTM → Tags**: does any tag already configure `AW-18326410611` (a "Google Ads Conversion Tracking" tag, or a "Google tag" pointed at that ID)?
+   - **If yes**: the direct `gtag.js` include in `index.html` (the `<script async src="https://www.googletagmanager.com/gtag/js?id=AW-18326410611">` block and the `gtag('config', 'AW-18326410611')` call right below it) is redundant and doubling the "page viewed" signal sent to Google Ads (visible as a `googleads.g.doubleclick.net/.../viewthroughconversion/...` request firing on every page load). Removing it is a small, contained change — ask for it once confirmed.
+   - **If no**: the current split is correct as-is. Nothing to change.
+2. **Cloudflare → Tag Gateway / Zaraz settings**: confirm what `/ejpi/` is actually proxying (most likely `gtm.js`, made first-party so ad-blockers don't strip it) and that it isn't loading a *second* independent copy of anything alongside the direct requests already firing.
+3. **GTM Preview mode**, run against the live quote form (`/get-a-website`): submit a real test quote and confirm the `AW-18326410611/aBJTCPvXntEcEPOq26JE` conversion tag fires **exactly once** in the Tag Assistant summary. The React-side guard (`src/pages/WebsiteQuotePages.tsx`, `localStorage` + in-memory dedup keyed on the quote's event reference) is already solid — this step is specifically to confirm GTM itself isn't firing a second, independent copy of the same conversion.
