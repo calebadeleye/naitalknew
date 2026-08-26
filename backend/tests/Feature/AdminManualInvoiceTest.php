@@ -234,6 +234,121 @@ class AdminManualInvoiceTest extends TestCase
             ->assertJsonFragment(['invoice_number' => $invoiceNumber]);
     }
 
+    public function test_admin_can_edit_a_pending_invoice(): void
+    {
+        $this->actingAsAdmin();
+        $client = $this->makeClient();
+
+        $created = $this->postJson('/api/v1/admin/invoices', [
+            'client_id' => $client->id,
+            'line_items' => [['description' => 'Custom project fee', 'quantity' => 1, 'unit_price_kobo' => 10_000_00]],
+            'due_at' => now()->addDays(14)->toDateString(),
+        ])->assertCreated();
+
+        $invoiceNumber = $created->json('data.invoice_number');
+        $newDueAt = now()->addDays(21)->toDateString();
+
+        $this->putJson("/api/v1/admin/invoices/{$invoiceNumber}", [
+            'line_items' => [['description' => 'Corrected project fee', 'quantity' => 2, 'unit_price_kobo' => 6_000_00]],
+            'due_at' => $newDueAt,
+            'apply_vat' => true,
+            'notes' => 'Fixed a typo in the quantity and unit price.',
+        ])->assertOk();
+
+        $invoice = Invoice::where('invoice_number', $invoiceNumber)->firstOrFail();
+
+        $this->assertSame(12_000_00, $invoice->subtotal_kobo);
+        $this->assertSame((int) round(12_000_00 * 0.075), $invoice->tax_kobo);
+        $this->assertSame($invoice->subtotal_kobo + $invoice->tax_kobo, $invoice->total_kobo);
+        $this->assertSame($invoice->total_kobo, $invoice->outstanding_amount_kobo);
+        $this->assertSame($newDueAt, $invoice->due_at->toDateString());
+        $this->assertSame('Corrected project fee', $invoice->line_items[0]['description']);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'invoice_updated',
+            'invoice_id' => $invoice->id,
+            'reason' => 'Fixed a typo in the quantity and unit price.',
+        ]);
+    }
+
+    public function test_admin_cannot_edit_an_invoice_that_has_already_reconciled(): void
+    {
+        Notification::fake();
+        $this->actingAsAdmin();
+        $client = $this->makeClient();
+
+        $created = $this->postJson('/api/v1/admin/invoices', [
+            'client_id' => $client->id,
+            'line_items' => [['description' => 'Project fee', 'quantity' => 1, 'unit_price_kobo' => 5_000_00]],
+            'due_at' => now()->addDays(14)->toDateString(),
+        ])->assertCreated();
+
+        $invoiceNumber = $created->json('data.invoice_number');
+        $this->postJson("/api/v1/admin/invoices/{$invoiceNumber}/mark-paid")->assertOk();
+
+        $this->putJson("/api/v1/admin/invoices/{$invoiceNumber}", [
+            'line_items' => [['description' => 'Changed', 'quantity' => 1, 'unit_price_kobo' => 1_00]],
+            'due_at' => now()->addDays(14)->toDateString(),
+        ])->assertStatus(422);
+
+        $this->assertSame(5_000_00, Invoice::where('invoice_number', $invoiceNumber)->firstOrFail()->total_kobo);
+    }
+
+    public function test_admin_cannot_edit_a_partially_paid_invoice_below_the_amount_already_paid(): void
+    {
+        Notification::fake();
+        $this->actingAsAdmin();
+        $client = $this->makeClient();
+
+        $created = $this->postJson('/api/v1/admin/invoices', [
+            'client_id' => $client->id,
+            'line_items' => [['description' => 'Project fee', 'quantity' => 1, 'unit_price_kobo' => 10_000_00]],
+            'due_at' => now()->addDays(14)->toDateString(),
+        ])->assertCreated();
+
+        $invoiceNumber = $created->json('data.invoice_number');
+        $invoice = Invoice::where('invoice_number', $invoiceNumber)->firstOrFail();
+
+        // Only enough wallet balance to cover part of the invoice, so the
+        // wallet payment lands as an underpayment -- reconciliation_status
+        // reverts to 'pending' with amount_paid_kobo already > 0.
+        app(WalletService::class)->credit($client, 4_000_00, 'wallet_topup');
+        Sanctum::actingAs($client->user, [], 'sanctum');
+        $this->postJson("/api/v1/client/invoices/{$invoiceNumber}/pay/wallet")->assertOk();
+
+        $invoice->refresh();
+        $this->assertSame('pending', $invoice->reconciliation_status);
+        $this->assertSame(4_000_00, $invoice->amount_paid_kobo);
+
+        $this->actingAsAdmin();
+        $this->putJson("/api/v1/admin/invoices/{$invoiceNumber}", [
+            'line_items' => [['description' => 'Reduced fee', 'quantity' => 1, 'unit_price_kobo' => 2_000_00]],
+            'due_at' => now()->addDays(14)->toDateString(),
+        ])->assertStatus(422);
+
+        $this->assertSame(10_000_00, $invoice->fresh()->total_kobo);
+    }
+
+    public function test_non_admin_cannot_edit_an_invoice(): void
+    {
+        $this->actingAsAdmin();
+        $client = $this->makeClient();
+
+        $created = $this->postJson('/api/v1/admin/invoices', [
+            'client_id' => $client->id,
+            'line_items' => [['description' => 'x', 'quantity' => 1, 'unit_price_kobo' => 100]],
+            'due_at' => now()->addDays(7)->toDateString(),
+        ])->assertCreated();
+
+        $invoiceNumber = $created->json('data.invoice_number');
+
+        Sanctum::actingAs($client->user, [], 'sanctum');
+        $this->putJson("/api/v1/admin/invoices/{$invoiceNumber}", [
+            'line_items' => [['description' => 'x', 'quantity' => 1, 'unit_price_kobo' => 200]],
+            'due_at' => now()->addDays(7)->toDateString(),
+        ])->assertStatus(403);
+    }
+
     public function test_admin_can_search_clients_by_name_email_or_client_code_when_picking_who_to_invoice(): void
     {
         $this->actingAsAdmin();

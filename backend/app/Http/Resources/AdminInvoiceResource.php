@@ -30,6 +30,7 @@ class AdminInvoiceResource extends JsonResource
             'amount_paid' => $breakdown['amount_paid'],
             'outstanding_amount' => $breakdown['outstanding_amount'],
             'subtotal' => $breakdown['subtotal'],
+            'discount_kobo' => $breakdown['discount_kobo'],
             'vat_rate' => $breakdown['vat_rate'],
             'vat_amount' => $breakdown['vat_amount'],
             'wallet_amount_applied' => $breakdown['wallet_amount_applied'],
@@ -41,6 +42,8 @@ class AdminInvoiceResource extends JsonResource
             'paid_at' => $this->paid_at?->toDateString(),
             'id' => $this->id,
             'order_id' => $this->order_id,
+            'line_items' => $this->line_items,
+            'apply_vat' => (float) $this->vat_rate > 0,
         ];
     }
 }

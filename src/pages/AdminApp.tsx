@@ -582,6 +582,191 @@ export function CreateManualInvoiceModal({
 }
 
 
+export type EditableInvoice = {
+  invoice_number: string;
+  client: { name: string } | null;
+  line_items: Array<{ description: string; quantity: number; unit_price_kobo: number }>;
+  due_at: string | null;
+  discount_kobo: number;
+  apply_vat: boolean;
+  vat_rate: number;
+};
+
+/**
+ * Only ever shown for an invoice whose reconciliation_status is "pending"
+ * (see the row-action gate in AdminApp) — the backend re-checks this too,
+ * since money may already be reconciled against the invoice by the time
+ * this form is submitted.
+ */
+export function EditInvoiceModal({
+  adminToken,
+  invoice,
+  onClose,
+  onUpdated,
+}: {
+  adminToken: string;
+  invoice: EditableInvoice;
+  onClose: () => void;
+  onUpdated: () => void;
+}) {
+  const [dueAt, setDueAt] = useState(invoice.due_at || "");
+  const [discountNaira, setDiscountNaira] = useState(invoice.discount_kobo ? String(invoice.discount_kobo / 100) : "");
+  const [applyVat, setApplyVat] = useState(invoice.apply_vat);
+  const [notes, setNotes] = useState("");
+  const [lineItems, setLineItems] = useState<Array<{ description: string; quantity: string; unitPriceNaira: string }>>(
+    invoice.line_items.map((item) => ({
+      description: item.description,
+      quantity: String(item.quantity),
+      unitPriceNaira: String(item.unit_price_kobo / 100),
+    }))
+  );
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const vatRate = invoice.vat_rate || 0.075;
+
+  const updateLineItem = (index: number, patch: Partial<{ description: string; quantity: string; unitPriceNaira: string }>) => {
+    setLineItems((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)));
+  };
+
+  const addLineItem = () => {
+    setLineItems((current) => [...current, { description: "", quantity: "1", unitPriceNaira: "" }]);
+  };
+
+  const removeLineItem = (index: number) => {
+    setLineItems((current) => (current.length > 1 ? current.filter((_, itemIndex) => itemIndex !== index) : current));
+  };
+
+  const subtotalNaira = lineItems.reduce((sum, item) => {
+    const quantity = Number(item.quantity) || 0;
+    const unitPrice = Number(item.unitPriceNaira) || 0;
+    return sum + quantity * unitPrice;
+  }, 0);
+  const taxableNaira = Math.max(subtotalNaira - (Number(discountNaira) || 0), 0);
+  const vatNaira = applyVat ? taxableNaira * vatRate : 0;
+  const totalNaira = taxableNaira + vatNaira;
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+
+    try {
+      await laravelApi(`/api/v1/admin/invoices/${invoice.invoice_number}`, adminToken, {
+        method: "PUT",
+        body: JSON.stringify({
+          line_items: lineItems.map((item) => ({
+            description: item.description,
+            quantity: Number(item.quantity) || 1,
+            unit_price_kobo: Math.round((Number(item.unitPriceNaira) || 0) * 100),
+          })),
+          due_at: dueAt,
+          discount_kobo: discountNaira ? Math.round(Number(discountNaira) * 100) : undefined,
+          apply_vat: applyVat,
+          notes: notes || undefined,
+        }),
+      });
+      onUpdated();
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Updating the invoice failed");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="hosting-modal-backdrop" role="presentation" onClick={onClose}>
+      <div className="hosting-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+        <form className="grid gap-4" onSubmit={(event) => void handleSubmit(event)}>
+          <h3 className="text-lg font-black text-white">Edit invoice {invoice.invoice_number}</h3>
+          {invoice.client?.name && <p className="-mt-2 text-xs text-white/55">{invoice.client.name}</p>}
+          {error && <p className="form-message error">{error}</p>}
+
+          <div className="grid gap-3">
+            <span className="text-sm font-bold text-white/80">Line items</span>
+            {lineItems.map((item, index) => (
+              <div key={index} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto_auto]">
+                <input
+                  required
+                  type="text"
+                  placeholder="Description"
+                  value={item.description}
+                  onChange={(event) => updateLineItem(index, { description: event.target.value })}
+                />
+                <input
+                  required
+                  type="number"
+                  min={1}
+                  className="w-full sm:w-20"
+                  placeholder="Qty"
+                  value={item.quantity}
+                  onChange={(event) => updateLineItem(index, { quantity: event.target.value })}
+                />
+                <input
+                  required
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  className="w-full sm:w-32"
+                  placeholder="Unit price (₦)"
+                  value={item.unitPriceNaira}
+                  onChange={(event) => updateLineItem(index, { unitPriceNaira: event.target.value })}
+                />
+                <button
+                  type="button"
+                  className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                  disabled={lineItems.length <= 1}
+                  onClick={() => removeLineItem(index)}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            <button type="button" className="btn-outline self-start" onClick={addLineItem}>+ Add line item</button>
+          </div>
+
+          <label className="admin-field">
+            <span>Due date</span>
+            <input required type="date" value={dueAt} onChange={(event) => setDueAt(event.target.value)} />
+          </label>
+
+          <label className="admin-field">
+            <span>Discount (₦, optional)</span>
+            <input type="number" min={0} step="0.01" value={discountNaira} onChange={(event) => setDiscountNaira(event.target.value)} />
+          </label>
+
+          <label className="flex items-center gap-2 text-sm text-white/70">
+            <input type="checkbox" checked={applyVat} onChange={(event) => setApplyVat(event.target.checked)} />
+            Apply VAT ({(vatRate * 100).toFixed(vatRate * 100 % 1 === 0 ? 0 : 1)}%)
+          </label>
+
+          <div className="grid gap-1 rounded-md border border-white/10 bg-black/20 p-3 text-sm text-white/70">
+            <p className="flex justify-between"><span>Subtotal</span><span>₦{subtotalNaira.toLocaleString()}</span></p>
+            {Number(discountNaira) > 0 && (
+              <p className="flex justify-between"><span>Discount</span><span>-₦{Number(discountNaira).toLocaleString()}</span></p>
+            )}
+            {applyVat && (
+              <p className="flex justify-between"><span>VAT</span><span>₦{vatNaira.toLocaleString()}</span></p>
+            )}
+            <p className="flex justify-between font-bold text-white"><span>Total</span><span>₦{totalNaira.toLocaleString()}</span></p>
+          </div>
+
+          <label className="admin-field">
+            <span>Internal note (optional)</span>
+            <textarea rows={2} placeholder="e.g. Fixed a typo in the quantity" value={notes} onChange={(event) => setNotes(event.target.value)} />
+          </label>
+
+          <div className="mt-2 flex gap-3">
+            <button type="button" className="btn-outline flex-1 justify-center" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn-primary flex-1 justify-center" disabled={isSubmitting}>
+              {isSubmitting ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export function AdminBreadcrumbs({ items }: { items: Array<{ label: string; onClick?: () => void }> }) {
   return (
     <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-2 text-xs font-bold text-white/50">
@@ -3405,6 +3590,7 @@ export function AdminApp() {
   const [retryingServiceId, setRetryingServiceId] = useState<number | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<EditableInvoice | null>(null);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const notificationPanelRef = useRef<HTMLDivElement | null>(null);
 
@@ -4601,6 +4787,19 @@ export function AdminApp() {
           />
         )}
 
+        {editingInvoice && (
+          <EditInvoiceModal
+            adminToken={adminToken}
+            invoice={editingInvoice}
+            onClose={() => setEditingInvoice(null)}
+            onUpdated={() => {
+              setEditingInvoice(null);
+              setMessage("Invoice updated.");
+              void loadAdminRecords("invoices", adminToken);
+            }}
+          />
+        )}
+
         {isRecordSection(activeSection) && !routeClientId && !routeServiceId && (
           <AdminRecordsSection
             title={adminRecordLabels[activeSection].title}
@@ -4608,7 +4807,31 @@ export function AdminApp() {
             records={adminRecords[activeSection] || null}
             isLoading={Boolean(loadingRecords[activeSection])}
             renderRowActions={
-              activeSection === "payments"
+              activeSection === "invoices"
+                ? (row) => {
+                    if (row.reconciliation_status !== "pending") return null;
+
+                    return (
+                      <button
+                        type="button"
+                        className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                        onClick={() =>
+                          setEditingInvoice({
+                            invoice_number: String(row.invoice_number),
+                            client: (row.client as { name: string } | null) || null,
+                            line_items: (row.line_items as EditableInvoice["line_items"]) || [],
+                            due_at: (row.due_at as string | null) || null,
+                            discount_kobo: Number(row.discount_kobo) || 0,
+                            apply_vat: Boolean(row.apply_vat),
+                            vat_rate: Number(row.vat_rate) || 0.075,
+                          })
+                        }
+                      >
+                        Edit
+                      </button>
+                    );
+                  }
+                : activeSection === "payments"
                 ? (row) => {
                     const invoiceNumber = (row.invoice as { invoice_number?: string } | null)?.invoice_number;
                     const paymentId = Number(row.id);

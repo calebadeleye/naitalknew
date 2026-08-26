@@ -177,6 +177,7 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/services/{service}', [RecordsController::class, 'serviceDetail']);
             Route::get('/invoices', [RecordsController::class, 'invoices']);
             Route::post('/invoices', [AdminInvoiceController::class, 'store']);
+            Route::put('/invoices/{invoice:invoice_number}', [AdminInvoiceController::class, 'update']);
             Route::post('/invoices/{invoice:invoice_number}/mark-paid', [AdminInvoicePaymentController::class, 'markPaid']);
             Route::post('/invoices/{invoice:invoice_number}/reject-bank-transfer', [AdminInvoicePaymentController::class, 'rejectBankTransfer']);
             Route::get('/payments/{payment}/receipt', [AdminInvoicePaymentController::class, 'downloadReceipt']);
