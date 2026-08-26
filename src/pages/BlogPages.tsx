@@ -267,6 +267,35 @@ export function BlogIndexPage() {
   );
 }
 
+/**
+ * Blog post content is stored as light markdown (## / ### headings, plain
+ * paragraphs) but until now had no inline formatting support at all --
+ * `[label](url)` rendered as literal bracket text. This parses just enough
+ * to make internal/external links inside article prose actually clickable.
+ */
+function renderInlineMarkdown(text: string): React.ReactNode[] {
+  const parts = text.split(/(\[[^\]]+\]\([^)]+\))/g);
+
+  return parts.map((part, index) => {
+    const match = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (!match) return part;
+
+    const [, label, href] = match;
+    const isExternal = /^https?:\/\//.test(href) && !href.includes("naitalk.com");
+
+    return (
+      <a
+        key={index}
+        href={href}
+        className="font-bold text-primary hover:underline"
+        {...(isExternal ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+      >
+        {label}
+      </a>
+    );
+  });
+}
+
 export function BlogDetailPage({ slug }: { slug: string }) {
   const toast = useToast();
   const [post, setPost] = useState<(PublicBlogSummary & { content: string; seo_title: string; seo_description: string; og_image: string | null }) | null>(null);
@@ -358,7 +387,7 @@ export function BlogDetailPage({ slug }: { slug: string }) {
               if (h3) {
                 return (
                   <h3 key={index} className="mt-2 text-lg font-black text-[#07111f] sm:text-xl">
-                    {h3[1]}
+                    {renderInlineMarkdown(h3[1])}
                   </h3>
                 );
               }
@@ -366,11 +395,21 @@ export function BlogDetailPage({ slug }: { slug: string }) {
               if (h2) {
                 return (
                   <h2 key={index} className="mt-4 text-2xl font-black text-[#07111f] sm:text-3xl">
-                    {h2[1]}
+                    {renderInlineMarkdown(h2[1])}
                   </h2>
                 );
               }
-              return <p key={index}>{block}</p>;
+              const lines = trimmed.split("\n").map((line) => line.trim());
+              if (lines.length > 0 && lines.every((line) => /^[-*]\s+/.test(line))) {
+                return (
+                  <ul key={index} className="grid list-disc gap-2 pl-5 marker:text-primary">
+                    {lines.map((line, lineIndex) => (
+                      <li key={lineIndex}>{renderInlineMarkdown(line.replace(/^[-*]\s+/, ""))}</li>
+                    ))}
+                  </ul>
+                );
+              }
+              return <p key={index}>{renderInlineMarkdown(block)}</p>;
             })}
           </div>
 
