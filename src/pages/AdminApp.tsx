@@ -3388,6 +3388,9 @@ export function AdminApp() {
   const [isUploading, setIsUploading] = useState("");
   const [message, setMessage] = useState("");
   const [login, setLogin] = useState({ username: "", password: "" });
+  const [authView, setAuthView] = useState<"login" | "forgot" | "reset">("login");
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [resetForm, setResetForm] = useState({ email: "", token: "", password: "", password_confirmation: "" });
   const [content, setContent] = useState<SiteContent>(fallbackSiteContent);
   const [adminToken, setAdminToken] = useState(() => sessionStorage.getItem("naitalk_laravel_admin_token") || "");
   const [dashboardData, setDashboardData] = useState<AdminDashboardSnapshot | null>(null);
@@ -3417,6 +3420,18 @@ export function AdminApp() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isNotificationsOpen]);
+
+  // A password reset email links back to /admin?reset_email=...&reset_token=...
+  // -- pick those up once on mount and drop straight into the reset form.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const email = params.get("reset_email");
+    const token = params.get("reset_token");
+    if (email && token) {
+      setResetForm((current) => ({ ...current, email, token }));
+      setAuthView("reset");
+    }
+  }, []);
 
   // Site-content sections editable via the shared `content` state / Save
   // button below -- everything else (dashboard, clients, invoices, etc.) has
@@ -3988,6 +4003,50 @@ export function AdminApp() {
     }
   };
 
+  const handleForgotPassword = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setMessage("");
+
+    try {
+      const data = await laravelApi<{ message: string; reset_token?: string | null; reset_url?: string | null }>(
+        "/api/v1/auth/forgot-password",
+        undefined,
+        { method: "POST", body: JSON.stringify({ email: forgotEmail }) },
+      );
+      setMessage(data.message || "If this email exists, a password reset link has been sent to it.");
+
+      if (data.reset_token) {
+        setResetForm((current) => ({ ...current, email: forgotEmail, token: data.reset_token || "" }));
+        setAuthView("reset");
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Password reset request failed.");
+    }
+  };
+
+  const handleResetPassword = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setMessage("");
+
+    if (resetForm.password !== resetForm.password_confirmation) {
+      setMessage("Passwords do not match.");
+      return;
+    }
+
+    try {
+      const data = await laravelApi<{ message: string }>("/api/v1/auth/reset-password", undefined, {
+        method: "POST",
+        body: JSON.stringify(resetForm),
+      });
+      setMessage(data.message || "Your password has been updated successfully.");
+      setLogin({ username: resetForm.email, password: "" });
+      setResetForm({ email: "", token: "", password: "", password_confirmation: "" });
+      setAuthView("login");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Password reset failed.");
+    }
+  };
+
   const handleLogout = async () => {
     if (adminToken) {
       await laravelApi<{ message: string }>("/api/v1/auth/logout", adminToken, { method: "POST" }).catch(() => undefined);
@@ -4147,44 +4206,153 @@ export function AdminApp() {
   }
 
   if (!isAuthenticated) {
+    const authMessageClass = /fail|could not|invalid|incorrect|expired|must be|do not match|enter a valid/i.test(message)
+      ? "form-message error mt-4"
+      : "form-message success mt-4";
+
     return (
       <div className="grid min-h-screen place-items-center bg-background px-4 py-10 text-white">
-        <form className="admin-panel w-full max-w-md" onSubmit={handleLogin}>
-          <div className="mb-7 flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10">
-              <LockKeyhole className="h-5 w-5 text-primary" />
+        {authView === "login" && (
+          <form className="admin-panel w-full max-w-md" onSubmit={handleLogin}>
+            <div className="mb-7 flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10">
+                <LockKeyhole className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-black">Backend Login</h1>
+                <p className="mt-1 text-sm text-white/55">NAITALK content management</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-black">Backend Login</h1>
-              <p className="mt-1 text-sm text-white/55">NAITALK content management</p>
+            <label className="admin-field">
+              <span>Admin email</span>
+              <input
+                value={login.username}
+                onChange={(event) => setLogin((current) => ({ ...current, username: event.target.value }))}
+                autoComplete="email"
+                placeholder="admin@naitalk.com"
+                required
+              />
+            </label>
+            <label className="admin-field">
+              <span>Password</span>
+              <input
+                type="password"
+                value={login.password}
+                onChange={(event) => setLogin((current) => ({ ...current, password: event.target.value }))}
+                autoComplete="current-password"
+                required
+              />
+            </label>
+            <button type="submit" className="btn-primary mt-3 w-full justify-center">
+              Login
+              <ArrowRight className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              className="auth-link mt-3 w-full text-center text-sm text-white/55 hover:text-white"
+              onClick={() => {
+                setMessage("");
+                setForgotEmail(login.username);
+                setAuthView("forgot");
+              }}
+            >
+              Forgot password?
+            </button>
+            {message && <p className={authMessageClass}>{message}</p>}
+          </form>
+        )}
+
+        {authView === "forgot" && (
+          <form className="admin-panel w-full max-w-md" onSubmit={handleForgotPassword}>
+            <div className="mb-7 flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10">
+                <LockKeyhole className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-black">Reset Password</h1>
+                <p className="mt-1 text-sm text-white/55">We'll email a reset link to your admin address.</p>
+              </div>
             </div>
-          </div>
-          <label className="admin-field">
-            <span>Admin email</span>
-            <input
-              value={login.username}
-              onChange={(event) => setLogin((current) => ({ ...current, username: event.target.value }))}
-              autoComplete="email"
-              placeholder="admin@naitalk.com"
-              required
-            />
-          </label>
-          <label className="admin-field">
-            <span>Password</span>
-            <input
-              type="password"
-              value={login.password}
-              onChange={(event) => setLogin((current) => ({ ...current, password: event.target.value }))}
-              autoComplete="current-password"
-              required
-            />
-          </label>
-          <button type="submit" className="btn-primary mt-3 w-full justify-center">
-            Login
-            <ArrowRight className="h-4 w-4" />
-          </button>
-          {message && <p className="form-message error mt-4">{message}</p>}
-        </form>
+            <label className="admin-field">
+              <span>Admin email</span>
+              <input
+                type="email"
+                value={forgotEmail}
+                onChange={(event) => setForgotEmail(event.target.value)}
+                autoComplete="email"
+                placeholder="admin@naitalk.com"
+                required
+              />
+            </label>
+            <button type="submit" className="btn-primary mt-3 w-full justify-center">
+              Send Reset Link
+              <ArrowRight className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              className="auth-link mt-3 w-full text-center text-sm text-white/55 hover:text-white"
+              onClick={() => {
+                setMessage("");
+                setAuthView("login");
+              }}
+            >
+              Back to login
+            </button>
+            {message && <p className={authMessageClass}>{message}</p>}
+          </form>
+        )}
+
+        {authView === "reset" && (
+          <form className="admin-panel w-full max-w-md" onSubmit={handleResetPassword}>
+            <div className="mb-7 flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10">
+                <LockKeyhole className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-black">Set New Password</h1>
+                <p className="mt-1 text-sm text-white/55">{resetForm.email}</p>
+              </div>
+            </div>
+            <label className="admin-field">
+              <span>New password</span>
+              <input
+                type="password"
+                value={resetForm.password}
+                onChange={(event) => setResetForm((current) => ({ ...current, password: event.target.value }))}
+                autoComplete="new-password"
+                minLength={8}
+                required
+              />
+            </label>
+            <label className="admin-field">
+              <span>Confirm new password</span>
+              <input
+                type="password"
+                value={resetForm.password_confirmation}
+                onChange={(event) => setResetForm((current) => ({ ...current, password_confirmation: event.target.value }))}
+                autoComplete="new-password"
+                minLength={8}
+                required
+              />
+            </label>
+            <button type="submit" className="btn-primary mt-3 w-full justify-center">
+              Reset Password
+              <ArrowRight className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              className="auth-link mt-3 w-full text-center text-sm text-white/55 hover:text-white"
+              onClick={() => {
+                setMessage("");
+                setResetForm({ email: "", token: "", password: "", password_confirmation: "" });
+                setAuthView("login");
+              }}
+            >
+              Back to login
+            </button>
+            {message && <p className={authMessageClass}>{message}</p>}
+          </form>
+        )}
       </div>
     );
   }

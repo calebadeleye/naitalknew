@@ -7,6 +7,7 @@ use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Models\Client;
 use App\Models\User;
+use App\Notifications\NaiTalkPasswordReset;
 use App\Services\Clients\ClientActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -89,6 +90,7 @@ class AuthController extends Controller
 
         $user = User::query()->where('email', $payload['email'])->first();
         $token = null;
+        $resetUrl = null;
 
         if ($user) {
             $token = Str::random(64);
@@ -99,14 +101,20 @@ class AuthController extends Controller
                     'created_at' => now(),
                 ]
             );
+
+            $isAdmin = in_array($user->role, ['super_admin', 'admin_staff'], true);
+            $resetPath = $isAdmin
+                ? '/admin?reset_email='.urlencode($user->email).'&reset_token='.$token
+                : '/client/reset-password?email='.urlencode($user->email).'&token='.$token;
+            $resetUrl = rtrim(config('app.frontend_url'), '/').$resetPath;
+
+            $user->notify(new NaiTalkPasswordReset($resetUrl));
         }
 
         return response()->json([
-            'message' => 'If this email exists, a password reset link has been prepared.',
+            'message' => 'If this email exists, a password reset link has been sent to it.',
             'reset_token' => config('app.debug') ? $token : null,
-            'reset_url' => config('app.debug') && $token
-                ? rtrim(config('app.url'), '/').'/client/reset-password?email='.urlencode($payload['email']).'&token='.$token
-                : null,
+            'reset_url' => config('app.debug') ? $resetUrl : null,
         ]);
     }
 
