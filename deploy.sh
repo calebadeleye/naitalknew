@@ -56,6 +56,14 @@ php artisan migrate --force
 echo "⚙️ Caching backend config..."
 php artisan config:cache
 
+echo "🛣️  Caching routes..."
+# A stale routes-v7.php from a one-off manual `route:cache` (2026-07-16) sat
+# untouched by every deploy since -- this step never ran here before, so any
+# route added after that date silently 404'd in production no matter how
+# clean the deploy looked. route:cache always overwrites the old file with
+# the current routes/*.php, so this is safe to run on every deploy.
+php artisan route:cache
+
 echo "🔁 Restarting queue workers..."
 # Signals the supervisor-managed queue:work processes to restart so they
 # pick up the new code. Supervisor's autorestart=true brings them back up.
