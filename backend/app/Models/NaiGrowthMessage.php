@@ -14,12 +14,16 @@ class NaiGrowthMessage extends Model
         'role',
         'content',
         'facts_snapshot',
+        'actions_taken',
+        'sources',
     ];
 
     protected function casts(): array
     {
         return [
             'facts_snapshot' => 'array',
+            'actions_taken' => 'array',
+            'sources' => 'array',
         ];
     }
 

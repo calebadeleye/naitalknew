@@ -2045,10 +2045,33 @@ export function ServiceDetailPanel({
 }
 
 
+type NaiGrowthAction = {
+  tool: string;
+  summary: string;
+};
+
+type NaiGrowthSource = {
+  title: string | null;
+  uri: string | null;
+};
+
 type NaiGrowthMessage = {
   role: "user" | "assistant";
   content: string;
+  actions_taken?: NaiGrowthAction[] | null;
+  sources?: NaiGrowthSource[] | null;
   created_at?: string;
+};
+
+type NaiGrowthEmailDraftRow = {
+  id: number;
+  recipient_email: string;
+  recipient_name: string | null;
+  subject: string;
+  body: string;
+  status: "pending_review" | "sent" | "discarded";
+  sent_at: string | null;
+  created_at: string;
 };
 
 const NAIGROWTH_QUICK_PROMPTS = [
@@ -2059,12 +2082,21 @@ const NAIGROWTH_QUICK_PROMPTS = [
 ];
 
 export function AdminNaiGrowthPanel({ adminToken }: { adminToken: string }) {
+  const [activeTab, setActiveTab] = useState<"chat" | "queue">("chat");
   const [messages, setMessages] = useState<NaiGrowthMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [emailDrafts, setEmailDrafts] = useState<NaiGrowthEmailDraftRow[]>([]);
   const threadEndRef = useRef<HTMLDivElement | null>(null);
+
+  const loadEmailDrafts = () => {
+    if (!adminToken) return;
+    laravelApi<{ data: NaiGrowthEmailDraftRow[] }>("/api/v1/admin/naigrowth/email-drafts", adminToken)
+      .then((response) => setEmailDrafts(response.data || []))
+      .catch(() => {});
+  };
 
   useEffect(() => {
     if (!adminToken) return;
@@ -2073,6 +2105,7 @@ export function AdminNaiGrowthPanel({ adminToken }: { adminToken: string }) {
       .then((response) => setMessages(response.data || []))
       .catch(() => setError("Could not load the NaiGrowth conversation."))
       .finally(() => setIsLoadingHistory(false));
+    loadEmailDrafts();
   }, [adminToken]);
 
   useEffect(() => {
@@ -2089,11 +2122,18 @@ export function AdminNaiGrowthPanel({ adminToken }: { adminToken: string }) {
     setIsSending(true);
 
     try {
-      const response = await laravelApi<{ reply: string }>("/api/v1/admin/naigrowth/chat", adminToken, {
-        method: "POST",
-        body: JSON.stringify({ message: trimmed }),
-      });
-      setMessages((current) => [...current, { role: "assistant", content: response.reply }]);
+      const response = await laravelApi<{ reply: string; actions_taken?: NaiGrowthAction[]; sources?: NaiGrowthSource[] }>(
+        "/api/v1/admin/naigrowth/chat",
+        adminToken,
+        { method: "POST", body: JSON.stringify({ message: trimmed }) },
+      );
+      setMessages((current) => [
+        ...current,
+        { role: "assistant", content: response.reply, actions_taken: response.actions_taken, sources: response.sources },
+      ]);
+      if (response.actions_taken?.some((action) => action.tool === "draft_email")) {
+        loadEmailDrafts();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "NaiGrowth couldn't reply — please try again.");
     } finally {
@@ -2101,84 +2141,263 @@ export function AdminNaiGrowthPanel({ adminToken }: { adminToken: string }) {
     }
   };
 
+  const pendingCount = emailDrafts.filter((row) => row.status === "pending_review").length;
+
   return (
     <section className="admin-panel flex flex-col">
       <div>
         <h2 className="text-2xl font-black">NaiGrowth</h2>
         <p className="mt-1 text-sm text-white/55">
-          Your AI growth and revenue agent — grounded in Naitalk's live clients, invoices, hosting, and lead data. Drafts
-          emails and campaigns as text only; nothing is sent automatically.
+          Your AI growth and revenue agent — grounded in Naitalk's live clients, invoices, hosting, and lead data, with
+          live web search for market research. Drafted emails always wait for your approval before anything sends.
         </p>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        {NAIGROWTH_QUICK_PROMPTS.map((prompt) => (
-          <button
-            key={prompt}
-            type="button"
-            className="btn-outline !min-h-9 !px-3 !text-[11px]"
-            disabled={isSending}
-            onClick={() => void sendMessage(prompt)}
-          >
-            {prompt}
-          </button>
-        ))}
+      <div className="mt-4 flex gap-2 border-b border-white/10">
+        <button
+          type="button"
+          className={`px-4 py-2 text-sm font-bold ${activeTab === "chat" ? "border-b-2 border-primary text-primary" : "text-white/55"}`}
+          onClick={() => setActiveTab("chat")}
+        >
+          Chat
+        </button>
+        <button
+          type="button"
+          className={`px-4 py-2 text-sm font-bold ${activeTab === "queue" ? "border-b-2 border-primary text-primary" : "text-white/55"}`}
+          onClick={() => {
+            setActiveTab("queue");
+            loadEmailDrafts();
+          }}
+        >
+          Approval Queue{pendingCount > 0 ? ` (${pendingCount})` : ""}
+        </button>
       </div>
 
-      <div className="mt-4 flex-1 overflow-y-auto rounded-lg border border-white/10 bg-black/20 p-4" style={{ minHeight: 360, maxHeight: 520 }}>
-        {isLoadingHistory ? (
-          <div className="text-sm font-bold text-white/60">Loading conversation...</div>
-        ) : messages.length === 0 ? (
-          <div className="text-sm font-bold text-white/60">
-            Ask NaiGrowth something like "How are we doing this month?" or "Which clients can I upsell?"
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {messages.map((message, index) => (
-              <div
-                key={index}
-                className={`max-w-[85%] rounded-lg px-4 py-3 text-sm whitespace-pre-wrap ${
-                  message.role === "user" ? "ml-auto bg-primary/20 text-white" : "mr-auto bg-white/10 text-white/90"
-                }`}
+      {activeTab === "queue" ? (
+        <NaiGrowthApprovalQueue adminToken={adminToken} drafts={emailDrafts} onChange={loadEmailDrafts} />
+      ) : (
+        <>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {NAIGROWTH_QUICK_PROMPTS.map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                className="btn-outline !min-h-9 !px-3 !text-[11px]"
+                disabled={isSending}
+                onClick={() => void sendMessage(prompt)}
               >
-                {message.content}
+                {prompt}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-4 flex-1 overflow-y-auto rounded-lg border border-white/10 bg-black/20 p-4" style={{ minHeight: 360, maxHeight: 520 }}>
+            {isLoadingHistory ? (
+              <div className="text-sm font-bold text-white/60">Loading conversation...</div>
+            ) : messages.length === 0 ? (
+              <div className="text-sm font-bold text-white/60">
+                Ask NaiGrowth something like "How are we doing this month?" or "Which clients can I upsell?"
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {messages.map((message, index) => (
+                  <div key={index} className={`flex max-w-[85%] flex-col gap-1.5 ${message.role === "user" ? "ml-auto items-end" : "mr-auto items-start"}`}>
+                    <div
+                      className={`rounded-lg px-4 py-3 text-sm whitespace-pre-wrap ${
+                        message.role === "user" ? "bg-primary/20 text-white" : "bg-white/10 text-white/90"
+                      }`}
+                    >
+                      {message.content}
+                    </div>
+                    {message.actions_taken?.map((action, actionIndex) => (
+                      <div
+                        key={actionIndex}
+                        className="rounded-md border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary"
+                      >
+                        ✓ {action.summary}
+                      </div>
+                    ))}
+                    {message.sources && message.sources.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {message.sources.map((source, sourceIndex) =>
+                          source.uri ? (
+                            <a
+                              key={sourceIndex}
+                              href={source.uri}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="rounded-md border border-white/15 bg-white/5 px-2 py-1 text-[11px] font-bold text-white/60 hover:text-white/90"
+                            >
+                              🔗 {source.title || source.uri}
+                            </a>
+                          ) : null,
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {isSending && <div className="mr-auto max-w-[85%] rounded-lg bg-white/10 px-4 py-3 text-sm font-bold text-white/60">NaiGrowth is thinking...</div>}
+              </div>
+            )}
+            <div ref={threadEndRef} />
+          </div>
+
+          {error && <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-xs font-bold text-red-300">{error}</div>}
+
+          <form
+            className="mt-4 flex items-end gap-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void sendMessage(draft);
+            }}
+          >
+            <label className="admin-field flex-1">
+              <span>Ask NaiGrowth</span>
+              <textarea
+                rows={2}
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    void sendMessage(draft);
+                  }
+                }}
+                placeholder="e.g. Find upsell opportunities among our hosting clients"
+              />
+            </label>
+            <button type="submit" className="btn-primary justify-center" disabled={isSending || !draft.trim()}>
+              {isSending ? "Sending..." : "Send"}
+            </button>
+          </form>
+        </>
+      )}
+    </section>
+  );
+}
+
+function NaiGrowthApprovalQueue({
+  adminToken,
+  drafts,
+  onChange,
+}: {
+  adminToken: string;
+  drafts: NaiGrowthEmailDraftRow[];
+  onChange: () => void;
+}) {
+  const [edits, setEdits] = useState<Record<number, { subject: string; body: string }>>({});
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [notice, setNotice] = useState<{ id: number; text: string; isError: boolean } | null>(null);
+
+  const pending = drafts.filter((row) => row.status === "pending_review");
+  const history = drafts.filter((row) => row.status !== "pending_review");
+
+  const fieldsFor = (row: NaiGrowthEmailDraftRow) => edits[row.id] ?? { subject: row.subject, body: row.body };
+
+  const saveEdits = async (row: NaiGrowthEmailDraftRow) => {
+    const fields = edits[row.id];
+    if (!fields || (fields.subject === row.subject && fields.body === row.body)) return;
+
+    try {
+      await laravelApi(`/api/v1/admin/naigrowth/email-drafts/${row.id}`, adminToken, {
+        method: "PUT",
+        body: JSON.stringify(fields),
+      });
+    } catch {
+      // Best-effort autosave; the next Approve click will still send whatever
+      // is in the field via a fresh edit, so a transient failure here isn't fatal.
+    }
+  };
+
+  const approve = async (row: NaiGrowthEmailDraftRow) => {
+    setBusyId(row.id);
+    setNotice(null);
+    try {
+      await saveEdits(row);
+      await laravelApi(`/api/v1/admin/naigrowth/email-drafts/${row.id}/approve`, adminToken, { method: "POST" });
+      setNotice({ id: row.id, text: "Sent.", isError: false });
+      onChange();
+    } catch (err) {
+      setNotice({ id: row.id, text: err instanceof Error ? err.message : "Could not send this email.", isError: true });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const discard = async (row: NaiGrowthEmailDraftRow) => {
+    setBusyId(row.id);
+    setNotice(null);
+    try {
+      await laravelApi(`/api/v1/admin/naigrowth/email-drafts/${row.id}/discard`, adminToken, { method: "POST" });
+      onChange();
+    } catch (err) {
+      setNotice({ id: row.id, text: err instanceof Error ? err.message : "Could not discard this draft.", isError: true });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <div className="mt-4">
+      {pending.length === 0 ? (
+        <div className="rounded-lg border border-white/10 bg-black/20 p-6 text-sm font-bold text-white/60">
+          No drafts waiting for review. Ask NaiGrowth to draft an email and it will show up here.
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {pending.map((row) => {
+            const fields = fieldsFor(row);
+            const isBusy = busyId === row.id;
+
+            return (
+              <article key={row.id} className="rounded-lg border border-white/10 bg-black/20 p-4">
+                <div className="text-xs font-bold text-white/55">
+                  To: {row.recipient_name ? `${row.recipient_name} <${row.recipient_email}>` : row.recipient_email}
+                </div>
+                <input
+                  className="admin-field mt-2 w-full !bg-black/30 font-bold"
+                  value={fields.subject}
+                  onChange={(event) => setEdits((current) => ({ ...current, [row.id]: { ...fields, subject: event.target.value } }))}
+                />
+                <textarea
+                  className="admin-field mt-2 w-full !bg-black/30"
+                  rows={5}
+                  value={fields.body}
+                  onChange={(event) => setEdits((current) => ({ ...current, [row.id]: { ...fields, body: event.target.value } }))}
+                />
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <button type="button" className="btn-primary justify-center" disabled={isBusy} onClick={() => void approve(row)}>
+                    {isBusy ? "Working..." : "Approve & Send"}
+                  </button>
+                  <button type="button" className="btn-outline justify-center" disabled={isBusy} onClick={() => void discard(row)}>
+                    Discard
+                  </button>
+                  {notice?.id === row.id && (
+                    <span className={`text-xs font-bold ${notice.isError ? "text-red-400" : "text-primary"}`}>{notice.text}</span>
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+
+      {history.length > 0 && (
+        <div className="mt-6">
+          <h3 className="text-xs font-bold uppercase tracking-wide text-white/40">History</h3>
+          <div className="mt-2 flex flex-col gap-2">
+            {history.map((row) => (
+              <div key={row.id} className="flex items-center justify-between rounded-md border border-white/10 bg-black/10 px-3 py-2 text-xs">
+                <span className="text-white/70">
+                  {row.subject} — {row.recipient_name || row.recipient_email}
+                </span>
+                <span className={row.status === "sent" ? "font-bold text-primary" : "font-bold text-white/40"}>{row.status}</span>
               </div>
             ))}
-            {isSending && <div className="mr-auto max-w-[85%] rounded-lg bg-white/10 px-4 py-3 text-sm font-bold text-white/60">NaiGrowth is thinking...</div>}
           </div>
-        )}
-        <div ref={threadEndRef} />
-      </div>
-
-      {error && <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-xs font-bold text-red-300">{error}</div>}
-
-      <form
-        className="mt-4 flex items-end gap-3"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void sendMessage(draft);
-        }}
-      >
-        <label className="admin-field flex-1">
-          <span>Ask NaiGrowth</span>
-          <textarea
-            rows={2}
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                void sendMessage(draft);
-              }
-            }}
-            placeholder="e.g. Find upsell opportunities among our hosting clients"
-          />
-        </label>
-        <button type="submit" className="btn-primary justify-center" disabled={isSending || !draft.trim()}>
-          {isSending ? "Sending..." : "Send"}
-        </button>
-      </form>
-    </section>
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\Admin\InvoicePaymentController as AdminInvoicePayme
 use App\Http\Controllers\Api\Admin\IspConfigLegacyImportController;
 use App\Http\Controllers\Api\Admin\KnowledgeBaseController;
 use App\Http\Controllers\Api\Admin\NaiGrowthController;
+use App\Http\Controllers\Api\Admin\NaiGrowthEmailDraftController;
 use App\Http\Controllers\Api\Admin\PageSeoMetadataController;
 use App\Http\Controllers\Api\Admin\ProvisioningController;
 use App\Http\Controllers\Api\Admin\RecordsController;
@@ -164,6 +165,10 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/naigrowth/messages', [NaiGrowthController::class, 'index']);
             Route::post('/naigrowth/chat', [NaiGrowthController::class, 'chat']);
             Route::delete('/naigrowth/messages', [NaiGrowthController::class, 'clear']);
+            Route::get('/naigrowth/email-drafts', [NaiGrowthEmailDraftController::class, 'index']);
+            Route::put('/naigrowth/email-drafts/{naiGrowthEmailDraft}', [NaiGrowthEmailDraftController::class, 'update']);
+            Route::post('/naigrowth/email-drafts/{naiGrowthEmailDraft}/approve', [NaiGrowthEmailDraftController::class, 'approve']);
+            Route::post('/naigrowth/email-drafts/{naiGrowthEmailDraft}/discard', [NaiGrowthEmailDraftController::class, 'discard']);
             Route::get('/clients', [RecordsController::class, 'clients']);
             Route::get('/clients/{client}', [RecordsController::class, 'clientDetail']);
             Route::get('/products', [RecordsController::class, 'products']);

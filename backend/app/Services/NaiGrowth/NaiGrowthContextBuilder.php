@@ -71,8 +71,9 @@ class NaiGrowthContextBuilder
                 'recent' => WebsiteQuoteRequest::query()
                     ->latest()
                     ->limit(10)
-                    ->get(['name', 'website_type', 'estimated_budget', 'status', 'created_at'])
+                    ->get(['id', 'name', 'website_type', 'estimated_budget', 'status', 'created_at'])
                     ->map(fn (WebsiteQuoteRequest $lead) => [
+                        'id' => $lead->id,
                         'name' => $lead->name,
                         'website_type' => $lead->website_type,
                         'estimated_budget' => $lead->estimated_budget,
@@ -87,6 +88,7 @@ class NaiGrowthContextBuilder
                 ->limit(5)
                 ->get()
                 ->map(fn (Client $client) => [
+                    'id' => $client->id,
                     'client' => $client->user?->name ?? $client->company_name,
                     'company' => $client->company_name,
                     'industry' => $client->industry,
@@ -100,6 +102,7 @@ class NaiGrowthContextBuilder
                 ->take(10)
                 ->values()
                 ->map(fn (Client $client) => [
+                    'id' => $client->id,
                     'client' => $client->user?->name ?? $client->company_name,
                     'company' => $client->company_name,
                     'note' => 'Has active hosting but no other recorded order — potential SEO/maintenance/AI upsell.',
