@@ -99,4 +99,14 @@ return [
         'manual_only_tlds' => ['.ng', '.com.ng', '.org.ng', '.net.ng'],
     ],
 
+    'gemini' => [
+        'key' => env('GEMINI_API_KEY'),
+        'model' => env('GEMINI_MODEL', 'gemini-3.6-flash'),
+    ],
+
+    'naigrowth' => [
+        // ₦1,000,000 in kobo — NaiGrowth's monthly revenue target.
+        'monthly_target_kobo' => (int) env('NAIGROWTH_MONTHLY_TARGET_KOBO', 100_000_00 * 100),
+    ],
+
 ];

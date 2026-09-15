@@ -2045,6 +2045,143 @@ export function ServiceDetailPanel({
 }
 
 
+type NaiGrowthMessage = {
+  role: "user" | "assistant";
+  content: string;
+  created_at?: string;
+};
+
+const NAIGROWTH_QUICK_PROMPTS = [
+  "How are we doing this month?",
+  "What should I focus on today?",
+  "Which clients can I upsell?",
+  "Analyse our revenue.",
+];
+
+export function AdminNaiGrowthPanel({ adminToken }: { adminToken: string }) {
+  const [messages, setMessages] = useState<NaiGrowthMessage[]>([]);
+  const [draft, setDraft] = useState("");
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const threadEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!adminToken) return;
+    setIsLoadingHistory(true);
+    laravelApi<{ data: NaiGrowthMessage[] }>("/api/v1/admin/naigrowth/messages", adminToken)
+      .then((response) => setMessages(response.data || []))
+      .catch(() => setError("Could not load the NaiGrowth conversation."))
+      .finally(() => setIsLoadingHistory(false));
+  }, [adminToken]);
+
+  useEffect(() => {
+    threadEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isSending]);
+
+  const sendMessage = async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || isSending) return;
+
+    setError(null);
+    setDraft("");
+    setMessages((current) => [...current, { role: "user", content: trimmed }]);
+    setIsSending(true);
+
+    try {
+      const response = await laravelApi<{ reply: string }>("/api/v1/admin/naigrowth/chat", adminToken, {
+        method: "POST",
+        body: JSON.stringify({ message: trimmed }),
+      });
+      setMessages((current) => [...current, { role: "assistant", content: response.reply }]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "NaiGrowth couldn't reply — please try again.");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  return (
+    <section className="admin-panel flex flex-col">
+      <div>
+        <h2 className="text-2xl font-black">NaiGrowth</h2>
+        <p className="mt-1 text-sm text-white/55">
+          Your AI growth and revenue agent — grounded in Naitalk's live clients, invoices, hosting, and lead data. Drafts
+          emails and campaigns as text only; nothing is sent automatically.
+        </p>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        {NAIGROWTH_QUICK_PROMPTS.map((prompt) => (
+          <button
+            key={prompt}
+            type="button"
+            className="btn-outline !min-h-9 !px-3 !text-[11px]"
+            disabled={isSending}
+            onClick={() => void sendMessage(prompt)}
+          >
+            {prompt}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-4 flex-1 overflow-y-auto rounded-lg border border-white/10 bg-black/20 p-4" style={{ minHeight: 360, maxHeight: 520 }}>
+        {isLoadingHistory ? (
+          <div className="text-sm font-bold text-white/60">Loading conversation...</div>
+        ) : messages.length === 0 ? (
+          <div className="text-sm font-bold text-white/60">
+            Ask NaiGrowth something like "How are we doing this month?" or "Which clients can I upsell?"
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {messages.map((message, index) => (
+              <div
+                key={index}
+                className={`max-w-[85%] rounded-lg px-4 py-3 text-sm whitespace-pre-wrap ${
+                  message.role === "user" ? "ml-auto bg-primary/20 text-white" : "mr-auto bg-white/10 text-white/90"
+                }`}
+              >
+                {message.content}
+              </div>
+            ))}
+            {isSending && <div className="mr-auto max-w-[85%] rounded-lg bg-white/10 px-4 py-3 text-sm font-bold text-white/60">NaiGrowth is thinking...</div>}
+          </div>
+        )}
+        <div ref={threadEndRef} />
+      </div>
+
+      {error && <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-xs font-bold text-red-300">{error}</div>}
+
+      <form
+        className="mt-4 flex items-end gap-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void sendMessage(draft);
+        }}
+      >
+        <label className="admin-field flex-1">
+          <span>Ask NaiGrowth</span>
+          <textarea
+            rows={2}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                void sendMessage(draft);
+              }
+            }}
+            placeholder="e.g. Find upsell opportunities among our hosting clients"
+          />
+        </label>
+        <button type="submit" className="btn-primary justify-center" disabled={isSending || !draft.trim()}>
+          {isSending ? "Sending..." : "Send"}
+        </button>
+      </form>
+    </section>
+  );
+}
+
 export function AdminClientsList({
   adminToken,
   onOpenClient,
@@ -3222,7 +3359,10 @@ export type AdminSectionDefinition = { id: AdminSectionId; label: string; icon: 
 export const adminSectionGroups: Array<{ label: string; sections: AdminSectionDefinition[] }> = [
   {
     label: "Overview",
-    sections: [{ id: "dashboard", label: "Dashboard", icon: BarChart3 }],
+    sections: [
+      { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+      { id: "naigrowth", label: "NaiGrowth", icon: Bot },
+    ],
   },
   {
     label: "Site Content",
@@ -4710,6 +4850,10 @@ export function AdminApp() {
               void loadAdminDashboard(adminToken, range);
             }}
           />
+        )}
+
+        {activeSection === "naigrowth" && !routeClientId && !routeServiceId && (
+          <AdminNaiGrowthPanel adminToken={adminToken} />
         )}
 
         {activeSection === "clients" && !routeClientId && !routeServiceId && (
