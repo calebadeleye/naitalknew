@@ -2074,6 +2074,23 @@ type NaiGrowthEmailDraftRow = {
   created_at: string;
 };
 
+type NaiGrowthSocialAccountRow = {
+  id: number;
+  platform: "facebook" | "instagram" | "tiktok" | "linkedin";
+  display_name: string | null;
+  external_account_id: string | null;
+  status: "not_connected" | "connected";
+  connected_at: string | null;
+  last_synced_at: string | null;
+};
+
+const NAIGROWTH_SOCIAL_PLATFORM_LABELS: Record<NaiGrowthSocialAccountRow["platform"], string> = {
+  facebook: "Facebook",
+  instagram: "Instagram",
+  tiktok: "TikTok",
+  linkedin: "LinkedIn",
+};
+
 const NAIGROWTH_QUICK_PROMPTS = [
   "How are we doing this month?",
   "What should I focus on today?",
@@ -2082,7 +2099,7 @@ const NAIGROWTH_QUICK_PROMPTS = [
 ];
 
 export function AdminNaiGrowthPanel({ adminToken }: { adminToken: string }) {
-  const [activeTab, setActiveTab] = useState<"chat" | "queue">("chat");
+  const [activeTab, setActiveTab] = useState<"chat" | "queue" | "social">("chat");
   const [messages, setMessages] = useState<NaiGrowthMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
@@ -2171,10 +2188,19 @@ export function AdminNaiGrowthPanel({ adminToken }: { adminToken: string }) {
         >
           Approval Queue{pendingCount > 0 ? ` (${pendingCount})` : ""}
         </button>
+        <button
+          type="button"
+          className={`px-4 py-2 text-sm font-bold ${activeTab === "social" ? "border-b-2 border-primary text-primary" : "text-white/55"}`}
+          onClick={() => setActiveTab("social")}
+        >
+          Social
+        </button>
       </div>
 
       {activeTab === "queue" ? (
         <NaiGrowthApprovalQueue adminToken={adminToken} drafts={emailDrafts} onChange={loadEmailDrafts} />
+      ) : activeTab === "social" ? (
+        <NaiGrowthSocialAccounts adminToken={adminToken} />
       ) : (
         <>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -2395,6 +2421,133 @@ function NaiGrowthApprovalQueue({
               </div>
             ))}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NaiGrowthSocialAccounts({ adminToken }: { adminToken: string }) {
+  const [accounts, setAccounts] = useState<NaiGrowthSocialAccountRow[] | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [forms, setForms] = useState<Record<number, { display_name: string; external_account_id: string; access_token: string }>>({});
+
+  const load = () => {
+    laravelApi<{ data: NaiGrowthSocialAccountRow[] }>("/api/v1/admin/naigrowth/social-accounts", adminToken)
+      .then((response) => setAccounts(response.data || []))
+      .catch(() => setError("Could not load connected accounts."));
+  };
+
+  useEffect(() => {
+    if (adminToken) load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminToken]);
+
+  const fieldsFor = (id: number) => forms[id] ?? { display_name: "", external_account_id: "", access_token: "" };
+
+  const connect = async (row: NaiGrowthSocialAccountRow) => {
+    const fields = fieldsFor(row.id);
+    if (!fields.external_account_id.trim() || !fields.access_token.trim()) {
+      setError("Both the account/page ID and access token are required.");
+      return;
+    }
+
+    setBusyId(row.id);
+    setError(null);
+    try {
+      await laravelApi(`/api/v1/admin/naigrowth/social-accounts/${row.id}/connect`, adminToken, {
+        method: "POST",
+        body: JSON.stringify(fields),
+      });
+      setForms((current) => ({ ...current, [row.id]: { display_name: "", external_account_id: "", access_token: "" } }));
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not connect this account.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const disconnect = async (row: NaiGrowthSocialAccountRow) => {
+    setBusyId(row.id);
+    setError(null);
+    try {
+      await laravelApi(`/api/v1/admin/naigrowth/social-accounts/${row.id}/disconnect`, adminToken, { method: "POST" });
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not disconnect this account.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <div className="mt-4">
+      <p className="text-xs font-bold text-white/50">
+        Connect a platform so NaiGrowth can analyse real engagement instead of saying "not connected." Paste a long-lived
+        access token you've already generated for that platform's business API — NaiGrowth doesn't fetch metrics yet, this
+        just stores the connection so that's a quick follow-up once you're ready.
+      </p>
+
+      {error && <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-xs font-bold text-red-300">{error}</div>}
+
+      {!accounts ? (
+        <div className="mt-4 rounded-lg border border-white/10 bg-black/20 p-6 text-sm font-bold text-white/60">Loading...</div>
+      ) : (
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          {accounts.map((row) => {
+            const fields = fieldsFor(row.id);
+            const isBusy = busyId === row.id;
+            const isConnected = row.status === "connected";
+
+            return (
+              <article key={row.id} className="rounded-lg border border-white/10 bg-black/20 p-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-black">{NAIGROWTH_SOCIAL_PLATFORM_LABELS[row.platform]}</h3>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${isConnected ? "bg-primary/20 text-primary" : "bg-white/10 text-white/50"}`}>
+                    {isConnected ? "Connected" : "Not connected"}
+                  </span>
+                </div>
+
+                {isConnected ? (
+                  <div className="mt-3 flex flex-col gap-2">
+                    <div className="text-xs text-white/60">
+                      {row.display_name || "Account"} · {row.external_account_id}
+                    </div>
+                    <button type="button" className="btn-outline justify-center !min-h-9 !text-xs" disabled={isBusy} onClick={() => void disconnect(row)}>
+                      {isBusy ? "Working..." : "Disconnect"}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mt-3 flex flex-col gap-2">
+                    <input
+                      className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-xs text-white outline-none transition placeholder:text-white/32 focus:border-accent-cyan/55"
+                      placeholder="Page / Account ID"
+                      value={fields.external_account_id}
+                      onChange={(event) => setForms((current) => ({ ...current, [row.id]: { ...fields, external_account_id: event.target.value } }))}
+                    />
+                    <input
+                      className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-xs text-white outline-none transition placeholder:text-white/32 focus:border-accent-cyan/55"
+                      placeholder="Display name (optional)"
+                      value={fields.display_name}
+                      onChange={(event) => setForms((current) => ({ ...current, [row.id]: { ...fields, display_name: event.target.value } }))}
+                    />
+                    <input
+                      className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-xs text-white outline-none transition placeholder:text-white/32 focus:border-accent-cyan/55"
+                      type="password"
+                      placeholder="Access token"
+                      value={fields.access_token}
+                      onChange={(event) => setForms((current) => ({ ...current, [row.id]: { ...fields, access_token: event.target.value } }))}
+                    />
+                    <button type="button" className="btn-primary justify-center !min-h-9 !text-xs" disabled={isBusy} onClick={() => void connect(row)}>
+                      {isBusy ? "Connecting..." : "Connect"}
+                    </button>
+                  </div>
+                )}
+              </article>
+            );
+          })}
         </div>
       )}
     </div>

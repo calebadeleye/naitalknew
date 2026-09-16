@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\Admin\IspConfigLegacyImportController;
 use App\Http\Controllers\Api\Admin\KnowledgeBaseController;
 use App\Http\Controllers\Api\Admin\NaiGrowthController;
 use App\Http\Controllers\Api\Admin\NaiGrowthEmailDraftController;
+use App\Http\Controllers\Api\Admin\NaiGrowthSocialAccountController;
 use App\Http\Controllers\Api\Admin\PageSeoMetadataController;
 use App\Http\Controllers\Api\Admin\ProvisioningController;
 use App\Http\Controllers\Api\Admin\RecordsController;
@@ -169,6 +170,9 @@ Route::prefix('v1')->group(function (): void {
             Route::put('/naigrowth/email-drafts/{naiGrowthEmailDraft}', [NaiGrowthEmailDraftController::class, 'update']);
             Route::post('/naigrowth/email-drafts/{naiGrowthEmailDraft}/approve', [NaiGrowthEmailDraftController::class, 'approve']);
             Route::post('/naigrowth/email-drafts/{naiGrowthEmailDraft}/discard', [NaiGrowthEmailDraftController::class, 'discard']);
+            Route::get('/naigrowth/social-accounts', [NaiGrowthSocialAccountController::class, 'index']);
+            Route::post('/naigrowth/social-accounts/{naiGrowthSocialAccount}/connect', [NaiGrowthSocialAccountController::class, 'connect']);
+            Route::post('/naigrowth/social-accounts/{naiGrowthSocialAccount}/disconnect', [NaiGrowthSocialAccountController::class, 'disconnect']);
             Route::get('/clients', [RecordsController::class, 'clients']);
             Route::get('/clients/{client}', [RecordsController::class, 'clientDetail']);
             Route::get('/products', [RecordsController::class, 'products']);

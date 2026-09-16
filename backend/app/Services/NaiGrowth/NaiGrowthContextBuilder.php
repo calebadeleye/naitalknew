@@ -5,6 +5,7 @@ namespace App\Services\NaiGrowth;
 use App\Models\Client;
 use App\Models\HostingService;
 use App\Models\Invoice;
+use App\Models\NaiGrowthSocialAccount;
 use App\Models\Payment;
 use App\Models\SupportTicket;
 use App\Models\WebsiteQuoteRequest;
@@ -108,6 +109,18 @@ class NaiGrowthContextBuilder
                     'note' => 'Has active hosting but no other recorded order — potential SEO/maintenance/AI upsell.',
                 ]),
             'open_support_tickets' => SupportTicket::query()->whereNotIn('status', ['closed', 'resolved'])->count(),
+            // No metrics ingestion exists yet for any platform -- this only
+            // tells the model what's connected, never fabricated engagement
+            // numbers. See §12 in the system prompt.
+            'social_media_accounts' => NaiGrowthSocialAccount::query()
+                ->orderBy('platform')
+                ->get(['platform', 'status', 'display_name', 'last_synced_at'])
+                ->map(fn (NaiGrowthSocialAccount $account) => [
+                    'platform' => $account->platform,
+                    'connected' => $account->status === 'connected',
+                    'display_name' => $account->display_name,
+                    'last_synced_at' => $account->last_synced_at?->toDateTimeString(),
+                ]),
         ];
     }
 }
