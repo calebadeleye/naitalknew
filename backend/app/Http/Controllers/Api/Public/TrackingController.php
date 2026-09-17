@@ -26,6 +26,23 @@ class TrackingController extends Controller
         'bot', 'spider', 'crawl', 'slurp', 'curl/', 'wget/', 'python-requests', 'headlesschrome',
     ];
 
+    /**
+     * This is a client-side-routed SPA with no server-rendered PHP pages, so
+     * any of these appearing in a reported path is a vulnerability scanner
+     * probing for a WordPress/PHP exploit, not a real page — e.g. the
+     * `/ad-redirect/{encrypted-payload}` scans that showed up in production
+     * analytics, which is Laravel's own encryption payload shape being
+     * lobbed at random sites hoping for a deserialization bug. Not
+     * exhaustive; just the well-known, high-signal cases.
+     */
+    private const SUSPICIOUS_PATH_MARKERS = [
+        '.php', '.aspx', '.jsp', '.cgi', '.env', '.git/',
+        'wp-admin', 'wp-content', 'wp-login', 'wp-json', 'wp-includes', 'xmlrpc',
+        'phpmyadmin', 'pma/', 'ad-redirect', '/vendor/', 'cgi-bin',
+    ];
+
+    private const MAX_PLAUSIBLE_PATH_LENGTH = 300;
+
     public function pageview(Request $request, GeoIpLookupService $geoIp)
     {
         $payload = $request->validate([
@@ -35,7 +52,7 @@ class TrackingController extends Controller
             'referrer' => ['nullable', 'string', 'max:500'],
         ]);
 
-        if ($this->looksLikeBot($request)) {
+        if ($this->looksLikeBot($request) || $this->looksLikeJunkPath($payload['path'])) {
             return response()->json(['ignored' => true], 202);
         }
 
@@ -54,6 +71,7 @@ class TrackingController extends Controller
                 'visitor_id' => $payload['visitor_id'],
                 'entry_path' => $payload['path'],
                 'referrer' => $payload['referrer'] ?? null,
+                'user_agent' => substr((string) $request->userAgent(), 0, 500),
                 'country' => $geo['country'],
                 'country_code' => $geo['country_code'],
                 'city' => $geo['city'],
@@ -119,6 +137,22 @@ class TrackingController extends Controller
         ]);
 
         return response()->json(['ok' => true], 201);
+    }
+
+    private function looksLikeJunkPath(string $path): bool
+    {
+        if (strlen($path) > self::MAX_PLAUSIBLE_PATH_LENGTH) {
+            return true;
+        }
+
+        $lowerPath = strtolower($path);
+        foreach (self::SUSPICIOUS_PATH_MARKERS as $marker) {
+            if (str_contains($lowerPath, $marker)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function looksLikeBot(Request $request): bool
