@@ -46,15 +46,20 @@ class AdminAnalyticsService
             ->limit(10)
             ->get();
 
+        // Grouped by path with the query string stripped — otherwise a
+        // shared link's tracking params (e.g. Facebook's unique ?fbclid= per
+        // click) make every visit to the same page look like a different
+        // page. The raw path+query is still on each AnalyticsPageView row,
+        // so campaign-level detail isn't lost, just not shown in this report.
         $topPages = AnalyticsPageView::query()
             ->whereBetween('viewed_at', [$rangeStart, $rangeEnd])
-            ->selectRaw('path, count(*) as views, avg(duration_seconds) as avg_duration_seconds')
-            ->groupBy('path')
+            ->selectRaw("SUBSTRING_INDEX(path, '?', 1) as clean_path, count(*) as views, avg(duration_seconds) as avg_duration_seconds")
+            ->groupBy('clean_path')
             ->orderByDesc('views')
             ->limit(10)
             ->get()
             ->map(fn ($row) => [
-                'path' => $row->path,
+                'path' => $row->clean_path,
                 'views' => (int) $row->views,
                 'avg_duration_seconds' => (int) round($row->avg_duration_seconds),
             ]);
