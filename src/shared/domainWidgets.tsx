@@ -89,6 +89,7 @@ import {
   peekPendingPayment,
   clearPendingPayment,
 } from "../routing/pendingOrder";
+import { trackSiteEvent } from "../lib/siteAnalytics";
 import {
   trackPageView,
   trackEvent,
@@ -228,6 +229,7 @@ export function DomainSearchBar({ initialDomain }: { initialDomain?: string } = 
 
     const domainExtension = domain.includes(".") ? domain.slice(domain.lastIndexOf(".")) : undefined;
     trackDomainSearch("query", { domain_extension: domainExtension });
+    trackSiteEvent("domain_hosting", "domain_search", { domain_extension: domainExtension });
 
     try {
       const data = await laravelApi<PublicDomainSearchResult>(`/api/v1/public/domains/search?domain=${encodeURIComponent(domain)}`);

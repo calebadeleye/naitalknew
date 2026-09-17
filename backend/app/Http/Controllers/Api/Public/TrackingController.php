@@ -3,10 +3,13 @@
 namespace App\Http\Controllers\Api\Public;
 
 use App\Http\Controllers\Controller;
+use App\Models\AnalyticsFunnelEvent;
 use App\Models\AnalyticsPageView;
 use App\Models\AnalyticsVisit;
+use App\Services\Analytics\FunnelDefinitions;
 use App\Services\Analytics\GeoIpLookupService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 /**
  * First-party visit tracking for the admin analytics dashboard. Deliberately
@@ -87,6 +90,35 @@ class TrackingController extends Controller
         $pageView->visit()->update(['last_seen_at' => now()]);
 
         return response()->json(['ok' => true]);
+    }
+
+    public function event(Request $request)
+    {
+        $payload = $request->validate([
+            'visitor_id' => ['required', 'uuid'],
+            'funnel' => ['required', 'string', Rule::in(array_keys(FunnelDefinitions::FUNNELS))],
+            'event_name' => ['required', 'string'],
+            'properties' => ['nullable', 'array'],
+            'value_kobo' => ['nullable', 'integer', 'min:0'],
+        ]);
+
+        if (! FunnelDefinitions::isValidEvent($payload['funnel'], $payload['event_name'])) {
+            return response()->json(['message' => 'Unknown funnel event.'], 422);
+        }
+
+        if ($this->looksLikeBot($request)) {
+            return response()->json(['ignored' => true], 202);
+        }
+
+        AnalyticsFunnelEvent::query()->create([
+            'visitor_id' => $payload['visitor_id'],
+            'funnel' => $payload['funnel'],
+            'event_name' => $payload['event_name'],
+            'properties' => $payload['properties'] ?? null,
+            'value_kobo' => $payload['value_kobo'] ?? null,
+        ]);
+
+        return response()->json(['ok' => true], 201);
     }
 
     private function looksLikeBot(Request $request): bool

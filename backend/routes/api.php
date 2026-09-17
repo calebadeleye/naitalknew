@@ -80,6 +80,7 @@ Route::prefix('v1')->group(function (): void {
 
     Route::post('/public/track/pageview', [TrackingController::class, 'pageview'])->middleware('throttle:tracking');
     Route::post('/public/track/heartbeat', [TrackingController::class, 'heartbeat'])->middleware('throttle:tracking');
+    Route::post('/public/track/event', [TrackingController::class, 'event'])->middleware('throttle:tracking');
 
     Route::get('/payments/paystack/callback', [PaymentGatewayController::class, 'paystackCallback']);
     Route::post('/payments/paystack/webhook', [PaymentGatewayController::class, 'paystackWebhook']);
@@ -169,6 +170,7 @@ Route::prefix('v1')->group(function (): void {
         Route::middleware('role:super_admin,admin_staff')->prefix('admin')->group(function (): void {
             Route::get('/dashboard', AdminDashboardController::class);
             Route::get('/analytics/overview', [AdminAnalyticsController::class, 'overview']);
+            Route::get('/analytics/funnel', [AdminAnalyticsController::class, 'funnels']);
             Route::get('/naigrowth/messages', [NaiGrowthController::class, 'index']);
             Route::post('/naigrowth/chat', [NaiGrowthController::class, 'chat']);
             Route::delete('/naigrowth/messages', [NaiGrowthController::class, 'clear']);

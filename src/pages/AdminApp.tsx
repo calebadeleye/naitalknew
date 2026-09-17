@@ -103,7 +103,7 @@ import {
   initScrollDepthTracking,
 } from "../lib/analytics";
 import { captureAdAttribution } from "../lib/adAttribution";
-import type { LogoImage, ClientLogo, Project, Review, SiteContent, HostingPlanCard, ServiceCatalogItem, ClientOrderSummary, BankTransferDetails, PricingPackage, AdminDashboardMetric, AdminDashboardSnapshot, AdminAnalyticsOverview, ClientDashboardSnapshot, ClientAuthMode, LaravelPage, AdminRecordsSectionId } from "../shared/types";
+import type { LogoImage, ClientLogo, Project, Review, SiteContent, HostingPlanCard, ServiceCatalogItem, ClientOrderSummary, BankTransferDetails, PricingPackage, AdminDashboardMetric, AdminDashboardSnapshot, AdminAnalyticsOverview, AdminFunnelOverview, ClientDashboardSnapshot, ClientAuthMode, LaravelPage, AdminRecordsSectionId } from "../shared/types";
 import { LARAVEL_API_BASE_URL, laravelApi } from "../shared/api";
 import { parseNairaAmount, formatNaira, formatKobo, toDateInputValue, formatDate, formatDateTime, accountTypeLabel, clientStatusPillClass, hostingStatusPillClass, formatMb, catalogCategoryIcon, ISO_DATE_PATTERN } from "../shared/format";
 import { fallbackClientLogos, fallbackProjects, fallbackReviews, fallbackSiteContent, whatsappUrl } from "../shared/siteDefaults";
@@ -1283,16 +1283,55 @@ function VisitsOverTimeChart({ data }: { data: AdminAnalyticsOverview["visits_ov
   );
 }
 
+const FunnelChart: React.FC<{ funnel: AdminFunnelOverview["funnels"][string] }> = ({ funnel }) => {
+  const firstStepVisitors = funnel.steps[0]?.visitors || 0;
+
+  return (
+    <article className="dashboard-card">
+      <div className="flex items-center justify-between">
+        <h3>{funnel.label}</h3>
+        {funnel.revenue && <span className="text-primary">{funnel.revenue} revenue</span>}
+      </div>
+      <div className="mt-5 grid gap-3">
+        {funnel.steps.map((step, index) => (
+          <div key={step.event_name}>
+            {index > 0 && (
+              <p className="mb-2 pl-1 text-[11px] font-bold text-white/40">
+                {step.pct_of_previous_step === null ? "" : `↓ ${step.pct_of_previous_step}% of previous step`}
+              </p>
+            )}
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-bold text-white/80">{step.label}</span>
+              <span className="text-white/50">
+                <strong className="font-black text-white">{step.visitors.toLocaleString()}</strong>{" "}
+                {firstStepVisitors > 0 && `(${step.pct_of_first_step}%)`}
+              </span>
+            </div>
+            <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-primary transition-all"
+                style={{ width: `${firstStepVisitors > 0 ? step.pct_of_first_step : 0}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+};
+
 export function AdminAnalyticsOverview({
   data,
   isLoading,
   dateRange,
   onDateRangeChange,
+  funnelData,
 }: {
   data: AdminAnalyticsOverview | null;
   isLoading: boolean;
   dateRange?: { from: string; to: string } | null;
   onDateRangeChange?: (range: { from: string; to: string } | null) => void;
+  funnelData?: AdminFunnelOverview | null;
 }) {
   const todayIso = new Date().toISOString().slice(0, 10);
   const maxCountryVisits = Math.max(1, ...(data?.top_countries || []).map((row) => row.visits));
@@ -1411,6 +1450,14 @@ export function AdminAnalyticsOverview({
           </div>
         </article>
       </div>
+
+      {funnelData && (
+        <div className="grid gap-5 xl:grid-cols-2">
+          {Object.entries(funnelData.funnels).map(([funnelKey, entry]) => (
+            <FunnelChart key={funnelKey} funnel={entry} />
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -4304,6 +4351,7 @@ export function AdminApp() {
   const [analyticsData, setAnalyticsData] = useState<AdminAnalyticsOverview | null>(null);
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(false);
   const [analyticsDateRange, setAnalyticsDateRange] = useState<{ from: string; to: string } | null>(null);
+  const [funnelData, setFunnelData] = useState<AdminFunnelOverview | null>(null);
   const [adminRecords, setAdminRecords] = useState<Partial<Record<AdminRecordsSectionId, LaravelPage>>>({});
   const [loadingRecords, setLoadingRecords] = useState<Partial<Record<AdminRecordsSectionId, boolean>>>({});
   const [recordFilters, setRecordFilters] = useState<Partial<Record<AdminRecordsSectionId, Record<string, string>>>>({});
@@ -4426,8 +4474,12 @@ export function AdminApp() {
 
     try {
       const query = range ? `?from=${range.from}&to=${range.to}` : "";
-      const data = await laravelApi<AdminAnalyticsOverview>(`/api/v1/admin/analytics/overview${query}`, token);
-      setAnalyticsData(data);
+      const [overview, funnels] = await Promise.all([
+        laravelApi<AdminAnalyticsOverview>(`/api/v1/admin/analytics/overview${query}`, token),
+        laravelApi<AdminFunnelOverview>(`/api/v1/admin/analytics/funnel${query}`, token),
+      ]);
+      setAnalyticsData(overview);
+      setFunnelData(funnels);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Analytics could not be loaded");
     } finally {
@@ -5458,6 +5510,7 @@ export function AdminApp() {
             data={analyticsData}
             isLoading={isAnalyticsLoading}
             dateRange={analyticsDateRange}
+            funnelData={funnelData}
             onDateRangeChange={(range) => {
               setAnalyticsDateRange(range);
               void loadAdminAnalytics(adminToken, range);

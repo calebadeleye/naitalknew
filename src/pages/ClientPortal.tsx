@@ -89,6 +89,7 @@ import {
   peekPendingPayment,
   clearPendingPayment,
 } from "../routing/pendingOrder";
+import { trackSiteEvent } from "../lib/siteAnalytics";
 import {
   trackPageView,
   trackEvent,
@@ -979,6 +980,7 @@ export function trackInvoicePaymentSuccess(invoiceNumber: string, outstandingKob
       },
     ],
   });
+  trackSiteEvent("domain_hosting", "purchase", { plan_id: pendingPayment?.plan_id }, outstandingKobo);
 
   if (pendingPayment) clearPendingPayment();
 }
@@ -1833,6 +1835,7 @@ export function DomainSearchPage({
 
     const domainExtension = domain.includes(".") ? domain.slice(domain.lastIndexOf(".")) : undefined;
     trackDomainSearch("query", { domain_extension: domainExtension });
+    trackSiteEvent("domain_hosting", "domain_search", { domain_extension: domainExtension });
 
     try {
       const data = await laravelApi<DomainSearchResult>(`/api/v1/public/domains/search?domain=${encodeURIComponent(domain)}`);
@@ -3539,6 +3542,7 @@ export function ClientPortal() {
             },
           ],
         });
+        trackSiteEvent("domain_hosting", "purchase", { plan_id: pendingPayment.plan_id }, Math.round(pendingPayment.value * 100));
         clearPendingPayment();
       }
     } else if (paymentStatus === "failed") {
@@ -3856,6 +3860,7 @@ export function ClientPortal() {
         value,
         currency: "NGN",
       });
+      trackSiteEvent("domain_hosting", "checkout_begin", { plan_id: orderDraft.plan_slug, billing_cycle: orderDraft.billing_cycle }, checkout.invoice.total_kobo);
       // Stashed so the purchase event can still fire correctly after the
       // full-page redirect to Paystack/Flutterwave (see the payment=success
       // handling below) — React state doesn't survive that round trip.

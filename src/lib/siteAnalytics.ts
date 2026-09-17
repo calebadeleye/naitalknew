@@ -64,7 +64,7 @@ function sendHeartbeat(useBeacon: boolean): void {
       navigator.sendBeacon(url, new Blob([body], { type: "application/json" }));
       return;
     }
-    fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true }).catch(() => {});
+    fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true })?.catch(() => {});
   } catch {
     // Tracking must never break the app.
   }
@@ -98,6 +98,44 @@ function attachLifecycleListeners(): void {
   });
 }
 
+export type FunnelName = "domain_hosting" | "website_quote";
+
+/**
+ * Records one conversion-funnel milestone against the site's own backend,
+ * alongside whatever GA4 event already fires at the same call site (see
+ * src/lib/analytics.ts) — this is what lets the admin Analytics tab build a
+ * funnel chart without depending on Google/GTM. Fire-and-forget: never
+ * throws, never blocks the UI. `valueKobo` is only meaningful on the
+ * funnel's final ("purchase") step.
+ */
+export function trackSiteEvent(
+  funnel: FunnelName,
+  eventName: string,
+  properties?: Record<string, string | number | boolean | null | undefined>,
+  valueKobo?: number,
+): void {
+  if (typeof window === "undefined") return;
+
+  const payload = {
+    visitor_id: getVisitorId(),
+    funnel,
+    event_name: eventName,
+    properties: properties && Object.keys(properties).length ? properties : undefined,
+    value_kobo: valueKobo,
+  };
+
+  try {
+    fetch(`${apiBase()}/api/v1/public/track/event`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      keepalive: true,
+    })?.catch(() => {});
+  } catch {
+    // Tracking must never break the app.
+  }
+}
+
 /**
  * Records one page view against the site's own backend and starts an
  * active-time tracker (paused while the tab is hidden) so the admin
@@ -121,22 +159,26 @@ export function trackSiteVisit(): void {
     referrer: document.referrer || undefined,
   };
 
-  fetch(`${apiBase()}/api/v1/public/track/pageview`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-    keepalive: true,
-  })
-    .then((response) => (response.ok ? response.json() : null))
-    .then((data: { page_view_id?: number } | null) => {
-      if (!data?.page_view_id) return;
-      currentPageViewId = data.page_view_id;
-      resumeActiveTimer();
-      attachLifecycleListeners();
-      stopHeartbeat();
-      heartbeatTimer = setInterval(() => sendHeartbeat(false), HEARTBEAT_INTERVAL_MS);
+  try {
+    fetch(`${apiBase()}/api/v1/public/track/pageview`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      keepalive: true,
     })
-    .catch(() => {
-      // Tracking must never break the app.
-    });
+      ?.then((response) => (response.ok ? response.json() : null))
+      .then((data: { page_view_id?: number } | null) => {
+        if (!data?.page_view_id) return;
+        currentPageViewId = data.page_view_id;
+        resumeActiveTimer();
+        attachLifecycleListeners();
+        stopHeartbeat();
+        heartbeatTimer = setInterval(() => sendHeartbeat(false), HEARTBEAT_INTERVAL_MS);
+      })
+      .catch(() => {
+        // Tracking must never break the app.
+      });
+  } catch {
+    // Tracking must never break the app.
+  }
 }

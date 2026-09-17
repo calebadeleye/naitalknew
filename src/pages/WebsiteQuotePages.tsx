@@ -89,6 +89,7 @@ import {
   peekPendingPayment,
   clearPendingPayment,
 } from "../routing/pendingOrder";
+import { trackSiteEvent } from "../lib/siteAnalytics";
 import {
   trackPageView,
   trackEvent,
@@ -203,6 +204,10 @@ export function WebsiteQuoteForm() {
   const [status, setStatus] = useState<"idle" | "submitting" | "error">("idle");
   const [message, setMessage] = useState("");
 
+  useEffect(() => {
+    trackSiteEvent("website_quote", "website_quote_view");
+  }, []);
+
   const inputClasses =
     "w-full rounded-lg border border-white/10 bg-[#041015] px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/32 focus:border-primary/55";
   const labelClasses = "mb-1.5 block text-[11px] font-black uppercase text-white/56";
@@ -244,6 +249,10 @@ export function WebsiteQuoteForm() {
       );
 
       trackFormSubmission("website_quote", "success", {
+        website_type: formData.website_type,
+        estimated_budget: formData.estimated_budget,
+      });
+      trackSiteEvent("website_quote", "website_quote_submit", {
         website_type: formData.website_type,
         estimated_budget: formData.estimated_budget,
       });

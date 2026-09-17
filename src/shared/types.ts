@@ -88,6 +88,19 @@ export type AdminAnalyticsOverview = {
   visits_over_time: Array<{ date: string; visitors: number; visits: number }>;
 };
 
+export type AdminFunnelStep = {
+  event_name: string;
+  label: string;
+  visitors: number;
+  pct_of_previous_step: number | null;
+  pct_of_first_step: number;
+};
+
+export type AdminFunnelOverview = {
+  date_range: { from: string; to: string };
+  funnels: Record<string, { label: string; steps: AdminFunnelStep[]; revenue: string | null }>;
+};
+
 export type ClientDashboardSnapshot = {
   client: {
     name: string;

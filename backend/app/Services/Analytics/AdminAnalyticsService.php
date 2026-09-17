@@ -2,8 +2,10 @@
 
 namespace App\Services\Analytics;
 
+use App\Models\AnalyticsFunnelEvent;
 use App\Models\AnalyticsPageView;
 use App\Models\AnalyticsVisit;
+use App\Services\Billing\Money;
 use Illuminate\Support\Carbon;
 
 class AdminAnalyticsService
@@ -15,8 +17,7 @@ class AdminAnalyticsService
      */
     public function overview(?string $from = null, ?string $to = null): array
     {
-        $rangeEnd = $to ? Carbon::parse($to)->endOfDay() : now();
-        $rangeStart = $from ? Carbon::parse($from)->startOfDay() : (clone $rangeEnd)->subDays(29)->startOfDay();
+        [$rangeStart, $rangeEnd] = $this->resolveRange($from, $to);
 
         $visits = AnalyticsVisit::query()->whereBetween('started_at', [$rangeStart, $rangeEnd]);
         $totalVisitors = (clone $visits)->distinct('visitor_id')->count('visitor_id');
@@ -89,5 +90,71 @@ class AdminAnalyticsService
             'top_pages' => $topPages,
             'visits_over_time' => $visitsOverTime,
         ];
+    }
+
+    /**
+     * Two independent funnels (see FunnelDefinitions) — each step's count is
+     * the number of distinct visitors who fired that event at least once in
+     * range, not a strict per-visitor linear path. That's a simplification
+     * (someone could view hosting plans without ever searching a domain
+     * first), but it's honest about volume and drop-off at each milestone,
+     * which is what matters for "where are we losing people".
+     */
+    public function funnels(?string $from = null, ?string $to = null): array
+    {
+        [$rangeStart, $rangeEnd] = $this->resolveRange($from, $to);
+
+        $funnels = [];
+        foreach (FunnelDefinitions::FUNNELS as $key => $definition) {
+            $steps = [];
+            $firstCount = null;
+            $previousCount = null;
+
+            foreach ($definition['steps'] as $eventName => $label) {
+                $count = AnalyticsFunnelEvent::query()
+                    ->where('funnel', $key)
+                    ->where('event_name', $eventName)
+                    ->whereBetween('created_at', [$rangeStart, $rangeEnd])
+                    ->distinct('visitor_id')
+                    ->count('visitor_id');
+
+                $firstCount ??= $count;
+
+                $steps[] = [
+                    'event_name' => $eventName,
+                    'label' => $label,
+                    'visitors' => $count,
+                    'pct_of_previous_step' => $previousCount === null ? null : ($previousCount > 0 ? round($count / $previousCount * 100, 1) : 0.0),
+                    'pct_of_first_step' => $firstCount > 0 ? round($count / $firstCount * 100, 1) : 0.0,
+                ];
+
+                $previousCount = $count;
+            }
+
+            $revenueKobo = (int) AnalyticsFunnelEvent::query()
+                ->where('funnel', $key)
+                ->where('event_name', 'purchase')
+                ->whereBetween('created_at', [$rangeStart, $rangeEnd])
+                ->sum('value_kobo');
+
+            $funnels[$key] = [
+                'label' => $definition['label'],
+                'steps' => $steps,
+                'revenue' => $revenueKobo > 0 ? Money::naira($revenueKobo) : null,
+            ];
+        }
+
+        return [
+            'date_range' => ['from' => $rangeStart->toDateString(), 'to' => $rangeEnd->toDateString()],
+            'funnels' => $funnels,
+        ];
+    }
+
+    private function resolveRange(?string $from, ?string $to): array
+    {
+        $rangeEnd = $to ? Carbon::parse($to)->endOfDay() : now();
+        $rangeStart = $from ? Carbon::parse($from)->startOfDay() : (clone $rangeEnd)->subDays(29)->startOfDay();
+
+        return [$rangeStart, $rangeEnd];
     }
 }

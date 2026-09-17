@@ -89,6 +89,7 @@ import {
   peekPendingPayment,
   clearPendingPayment,
 } from "../routing/pendingOrder";
+import { trackSiteEvent } from "../lib/siteAnalytics";
 import {
   trackPageView,
   trackEvent,
@@ -214,7 +215,10 @@ export function WebsiteCarePlansPage() {
     laravelApi<PublicHostingPlan[]>("/api/v1/public/hosting-plans")
       .then((data) => {
         setPlans(data);
-        if (data.length) trackPlanSelection("view", {});
+        if (data.length) {
+          trackPlanSelection("view", {});
+          trackSiteEvent("domain_hosting", "hosting_plan_view");
+        }
       })
       .catch(() => setPlans([]));
   }, []);
@@ -268,6 +272,7 @@ export function WebsiteCarePlansPage() {
                       const buttonText = plan.is_popular ? "Choose Business Care" : plan.cta_label || "Get Started";
                       trackPlanSelection("select", { plan_id: plan.slug, plan_name: plan.name });
                       trackPlanSelection("buy_click", { plan_id: plan.slug, plan_name: plan.name });
+                      trackSiteEvent("domain_hosting", "hosting_plan_buy_click", { plan_id: plan.slug, plan_name: plan.name });
                       trackCtaClick({ button_text: buttonText, page_section: "website_care_plans" });
                     }}
                     className={`mt-6 justify-center ${plan.is_popular ? "btn-primary" : "btn-outline"}`}

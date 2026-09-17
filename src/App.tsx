@@ -88,7 +88,7 @@ import {
   peekPendingPayment,
   clearPendingPayment,
 } from "./routing/pendingOrder";
-import { trackSiteVisit } from "./lib/siteAnalytics";
+import { trackSiteVisit, trackSiteEvent } from "./lib/siteAnalytics";
 import {
   trackPageView,
   trackEvent,
@@ -708,6 +708,7 @@ export function HostingSection() {
 
   useEffect(() => {
     trackPlanSelection("view", {});
+    trackSiteEvent("domain_hosting", "hosting_plan_view");
   }, []);
 
   useEffect(() => {
@@ -811,6 +812,7 @@ export function HostingSection() {
                   onClick={() => {
                     trackPlanSelection("select", { plan_id: plan.slug, plan_name: plan.name });
                     trackPlanSelection("buy_click", { plan_id: plan.slug, plan_name: plan.name });
+                    trackSiteEvent("domain_hosting", "hosting_plan_buy_click", { plan_id: plan.slug, plan_name: plan.name });
                     trackCtaClick({ button_text: plan.ctaLabel, page_section: "homepage_hosting" });
                     startHostingOrder(plan.slug);
                   }}
