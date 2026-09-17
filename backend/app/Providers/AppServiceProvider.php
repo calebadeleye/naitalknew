@@ -63,6 +63,8 @@ class AppServiceProvider extends ServiceProvider
 
         RateLimiter::for('website-quote', fn ($request) => Limit::perMinute(5)->by($request->ip()));
 
+        RateLimiter::for('tracking', fn ($request) => Limit::perMinute(60)->by($request->ip()));
+
         Gate::policy(HostingService::class, HostingServicePolicy::class);
         Gate::policy(MailboxRecord::class, MailboxRecordPolicy::class);
         Gate::policy(DatabaseRecord::class, DatabaseRecordPolicy::class);

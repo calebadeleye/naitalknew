@@ -88,6 +88,7 @@ import {
   peekPendingPayment,
   clearPendingPayment,
 } from "./routing/pendingOrder";
+import { trackSiteVisit } from "./lib/siteAnalytics";
 import {
   trackPageView,
   trackEvent,
@@ -1208,6 +1209,11 @@ export default function App() {
   // never double-count the very first render.
   useEffect(() => {
     trackPageView();
+    // First-party visit tracking (admin analytics dashboard) — public
+    // marketing/blog pages only, never the owner's own /admin or /client use.
+    if (!path.startsWith("/admin") && !path.startsWith("/client")) {
+      trackSiteVisit();
+    }
     return initScrollDepthTracking();
   }, []);
 

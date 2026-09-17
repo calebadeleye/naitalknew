@@ -103,7 +103,7 @@ import {
   initScrollDepthTracking,
 } from "../lib/analytics";
 import { captureAdAttribution } from "../lib/adAttribution";
-import type { LogoImage, ClientLogo, Project, Review, SiteContent, HostingPlanCard, ServiceCatalogItem, ClientOrderSummary, BankTransferDetails, PricingPackage, AdminDashboardMetric, AdminDashboardSnapshot, ClientDashboardSnapshot, ClientAuthMode, LaravelPage, AdminRecordsSectionId } from "../shared/types";
+import type { LogoImage, ClientLogo, Project, Review, SiteContent, HostingPlanCard, ServiceCatalogItem, ClientOrderSummary, BankTransferDetails, PricingPackage, AdminDashboardMetric, AdminDashboardSnapshot, AdminAnalyticsOverview, ClientDashboardSnapshot, ClientAuthMode, LaravelPage, AdminRecordsSectionId } from "../shared/types";
 import { LARAVEL_API_BASE_URL, laravelApi } from "../shared/api";
 import { parseNairaAmount, formatNaira, formatKobo, toDateInputValue, formatDate, formatDateTime, accountTypeLabel, clientStatusPillClass, hostingStatusPillClass, formatMb, catalogCategoryIcon, ISO_DATE_PATTERN } from "../shared/format";
 import { fallbackClientLogos, fallbackProjects, fallbackReviews, fallbackSiteContent, whatsappUrl } from "../shared/siteDefaults";
@@ -1204,6 +1204,213 @@ export function AdminDashboardOverview({
           </tbody>
         </table>
       </article>
+    </section>
+  );
+}
+
+function formatDurationApprox(totalSeconds: number): string {
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+}
+
+function VisitsOverTimeChart({ data }: { data: AdminAnalyticsOverview["visits_over_time"] }) {
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const width = 520;
+  const height = 220;
+  const padding = { top: 16, right: 16, bottom: 24, left: 16 };
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const maxVisitors = Math.max(1, ...data.map((point) => point.visitors));
+
+  const xFor = (index: number) => padding.left + (data.length <= 1 ? plotWidth / 2 : (index / (data.length - 1)) * plotWidth);
+  const yFor = (visitors: number) => padding.top + plotHeight - (visitors / maxVisitors) * plotHeight;
+
+  const linePoints = data.map((point, index) => `${xFor(index)},${yFor(point.visitors)}`).join(" L ");
+  const baseline = padding.top + plotHeight;
+  const areaPath = data.length ? `M ${xFor(0)},${baseline} L ${linePoints} L ${xFor(data.length - 1)},${baseline} Z` : "";
+
+  const hovered = hoverIndex !== null ? data[hoverIndex] : null;
+
+  return (
+    <div className="revenue-chart relative" aria-hidden={false} role="img" aria-label="Visitors over time">
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="h-64 w-full"
+        onMouseMove={(event) => {
+          if (!data.length) return;
+          const rect = event.currentTarget.getBoundingClientRect();
+          const relativeX = ((event.clientX - rect.left) / rect.width) * width;
+          const index = Math.round(((relativeX - padding.left) / plotWidth) * (data.length - 1));
+          setHoverIndex(Math.min(data.length - 1, Math.max(0, index)));
+        }}
+        onMouseLeave={() => setHoverIndex(null)}
+      >
+        <defs>
+          <linearGradient id="visitorsFill" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#9bea16" stopOpacity="0.4" />
+            <stop offset="100%" stopColor="#9bea16" stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        {data.length > 0 && (
+          <>
+            <path d={areaPath} fill="url(#visitorsFill)" />
+            <path d={`M ${linePoints}`} fill="none" stroke="#9bea16" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </>
+        )}
+        {hovered && hoverIndex !== null && (
+          <>
+            <line x1={xFor(hoverIndex)} x2={xFor(hoverIndex)} y1={padding.top} y2={padding.top + plotHeight} stroke="rgba(255,255,255,0.18)" strokeWidth="1" />
+            <circle cx={xFor(hoverIndex)} cy={yFor(hovered.visitors)} r="4" fill="#9bea16" stroke="#071014" strokeWidth="2" />
+          </>
+        )}
+      </svg>
+      {hovered && hoverIndex !== null && (
+        <div
+          className="pointer-events-none absolute rounded-md border border-white/10 bg-[#0b1720] px-2.5 py-1.5 text-xs shadow-lg"
+          style={{
+            left: `${(xFor(hoverIndex) / width) * 100}%`,
+            top: `${(yFor(hovered.visitors) / height) * 100}%`,
+            transform: "translate(-50%, -125%)",
+          }}
+        >
+          <p className="font-black text-white">{hovered.visitors} visitor{hovered.visitors === 1 ? "" : "s"}</p>
+          <p className="text-white/50">{formatDate(hovered.date)}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function AdminAnalyticsOverview({
+  data,
+  isLoading,
+  dateRange,
+  onDateRangeChange,
+}: {
+  data: AdminAnalyticsOverview | null;
+  isLoading: boolean;
+  dateRange?: { from: string; to: string } | null;
+  onDateRangeChange?: (range: { from: string; to: string } | null) => void;
+}) {
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const maxCountryVisits = Math.max(1, ...(data?.top_countries || []).map((row) => row.visits));
+  const maxPageViews = Math.max(1, ...(data?.top_pages || []).map((row) => row.views));
+
+  const tiles = [
+    { label: "Visitors", value: data ? data.total_visitors.toLocaleString() : "—", icon: Users, tone: "lime" },
+    { label: "Visits", value: data ? data.total_visits.toLocaleString() : "—", icon: Activity, tone: "cyan" },
+    { label: "Page Views", value: data ? data.total_page_views.toLocaleString() : "—", icon: Eye, tone: "violet" },
+    { label: "Avg. Time on Site", value: data ? formatDurationApprox(data.avg_session_duration_seconds) : "—", icon: Clock, tone: "gold" },
+  ];
+
+  return (
+    <section className="grid gap-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h2 className="text-3xl font-black text-white">Analytics</h2>
+          <p className="mt-2 text-sm text-white/58">
+            {isLoading ? "Loading visitor analytics..." : "First-party visitor analytics — no Google, no third-party script."}
+          </p>
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+            <label className="text-[10px] font-black uppercase text-white/45" htmlFor="analytics-range-from">
+              From
+            </label>
+            <input
+              id="analytics-range-from"
+              type="date"
+              className="bg-transparent text-xs font-bold text-white outline-none [color-scheme:dark]"
+              max={dateRange?.to || todayIso}
+              value={dateRange?.from || ""}
+              onChange={(event) => {
+                const from = event.target.value;
+                if (!from) {
+                  onDateRangeChange?.(null);
+                  return;
+                }
+                onDateRangeChange?.({ from, to: dateRange?.to && dateRange.to >= from ? dateRange.to : todayIso });
+              }}
+            />
+            <span className="text-white/20">–</span>
+            <label className="text-[10px] font-black uppercase text-white/45" htmlFor="analytics-range-to">
+              To
+            </label>
+            <input
+              id="analytics-range-to"
+              type="date"
+              className="bg-transparent text-xs font-bold text-white outline-none [color-scheme:dark]"
+              min={dateRange?.from}
+              max={todayIso}
+              value={dateRange?.to || ""}
+              onChange={(event) => {
+                const to = event.target.value;
+                if (!dateRange?.from || !to) return;
+                onDateRangeChange?.({ from: dateRange.from, to });
+              }}
+            />
+          </div>
+          {dateRange && (
+            <button type="button" className="btn-outline justify-center !min-h-9 !px-3 !text-[11px]" onClick={() => onDateRangeChange?.(null)}>
+              Clear range
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {tiles.map((tile) => {
+          const Icon = tile.icon;
+          return (
+            <article key={tile.label} className={`metric-card tone-${tile.tone}`}>
+              <div className="metric-icon"><Icon className="h-5 w-5" /></div>
+              <p className="mt-4 text-xs text-white/58">{tile.label}</p>
+              <h3 className="mt-2 text-2xl font-black text-white">{tile.value}</h3>
+            </article>
+          );
+        })}
+      </div>
+
+      <article className="dashboard-card">
+        <div className="flex items-center justify-between">
+          <h3>Visitors Over Time</h3>
+          <span>{data ? `${formatDate(data.date_range.from)} – ${formatDate(data.date_range.to)}` : ""}</span>
+        </div>
+        <VisitsOverTimeChart data={data?.visits_over_time || []} />
+      </article>
+
+      <div className="grid gap-5 xl:grid-cols-2">
+        <article className="dashboard-card">
+          <h3>Top Countries</h3>
+          <div className="mt-5 grid gap-4">
+            {data?.top_countries.length ? data.top_countries.map((row) => (
+              <div key={row.country} className="service-meter">
+                <span className="inline-flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-white/40" />
+                  {row.country}
+                </span>
+                <div><i style={{ width: `${(row.visits / maxCountryVisits) * 100}%` }} /></div>
+                <strong>{row.visits}</strong>
+              </div>
+            )) : <p className="text-sm text-white/40">No location data yet.</p>}
+          </div>
+        </article>
+
+        <article className="dashboard-card">
+          <h3>Top Pages</h3>
+          <div className="mt-5 grid gap-4">
+            {data?.top_pages.length ? data.top_pages.map((row) => (
+              <div key={row.path} className="service-meter">
+                <span className="truncate" title={row.path}>{row.path}</span>
+                <div><i style={{ width: `${(row.views / maxPageViews) * 100}%` }} /></div>
+                <strong>{row.views}</strong>
+              </div>
+            )) : <p className="text-sm text-white/40">No page view data yet.</p>}
+          </div>
+        </article>
+      </div>
     </section>
   );
 }
@@ -3733,6 +3940,7 @@ export const adminSectionGroups: Array<{ label: string; sections: AdminSectionDe
     label: "Overview",
     sections: [
       { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+      { id: "analytics", label: "Analytics", icon: Activity },
       { id: "naigrowth", label: "NaiGrowth", icon: Bot },
     ],
   },
@@ -4093,6 +4301,9 @@ export function AdminApp() {
   const [dashboardData, setDashboardData] = useState<AdminDashboardSnapshot | null>(null);
   const [isDashboardLoading, setIsDashboardLoading] = useState(false);
   const [dashboardDateRange, setDashboardDateRange] = useState<{ from: string; to: string } | null>(null);
+  const [analyticsData, setAnalyticsData] = useState<AdminAnalyticsOverview | null>(null);
+  const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(false);
+  const [analyticsDateRange, setAnalyticsDateRange] = useState<{ from: string; to: string } | null>(null);
   const [adminRecords, setAdminRecords] = useState<Partial<Record<AdminRecordsSectionId, LaravelPage>>>({});
   const [loadingRecords, setLoadingRecords] = useState<Partial<Record<AdminRecordsSectionId, boolean>>>({});
   const [recordFilters, setRecordFilters] = useState<Partial<Record<AdminRecordsSectionId, Record<string, string>>>>({});
@@ -4206,6 +4417,21 @@ export function AdminApp() {
       setMessage(error instanceof Error ? error.message : "Laravel dashboard could not be loaded");
     } finally {
       setIsDashboardLoading(false);
+    }
+  };
+
+  const loadAdminAnalytics = async (token = adminToken, range = analyticsDateRange) => {
+    if (!token) return;
+    setIsAnalyticsLoading(true);
+
+    try {
+      const query = range ? `?from=${range.from}&to=${range.to}` : "";
+      const data = await laravelApi<AdminAnalyticsOverview>(`/api/v1/admin/analytics/overview${query}`, token);
+      setAnalyticsData(data);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Analytics could not be loaded");
+    } finally {
+      setIsAnalyticsLoading(false);
     }
   };
 
@@ -4662,6 +4888,9 @@ export function AdminApp() {
     }
     if (isAuthenticated && activeSection === "pricing") {
       void loadPricingPackages();
+    }
+    if (isAuthenticated && activeSection === "analytics" && !analyticsData) {
+      void loadAdminAnalytics(adminToken);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSection, isAuthenticated, adminToken, recordFilters, recordPage]);
@@ -5220,6 +5449,18 @@ export function AdminApp() {
             onDateRangeChange={(range) => {
               setDashboardDateRange(range);
               void loadAdminDashboard(adminToken, range);
+            }}
+          />
+        )}
+
+        {activeSection === "analytics" && !routeClientId && !routeServiceId && (
+          <AdminAnalyticsOverview
+            data={analyticsData}
+            isLoading={isAnalyticsLoading}
+            dateRange={analyticsDateRange}
+            onDateRangeChange={(range) => {
+              setAnalyticsDateRange(range);
+              void loadAdminAnalytics(adminToken, range);
             }}
           />
         )}

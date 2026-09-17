@@ -10,6 +10,7 @@ use App\Models\PageSeoMetadata;
 use App\Models\ServiceStatus;
 use App\Services\Media\PexelsImageService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Read-only public endpoints for the marketing site's content pages (blog,
@@ -42,9 +43,16 @@ class ContentController extends Controller
         ]);
     }
 
-    public function blogShow(string $slug)
+    public function blogShow(Request $request, string $slug)
     {
         $post = BlogPost::query()->published()->where('slug', $slug)->firstOrFail();
+
+        // One increment per visitor per post per day, so refreshes and repeat
+        // reads within the same day don't inflate the count.
+        $viewKey = 'blog_post_viewed:'.$post->id.':'.hash('sha256', $request->ip());
+        if (Cache::add($viewKey, true, now()->addDay())) {
+            $post->increment('views_count');
+        }
 
         $related = BlogPost::query()->published()->where('id', '!=', $post->id)->orderByDesc('published_at')->limit(3)->get();
 
@@ -73,6 +81,7 @@ class ContentController extends Controller
             'published_at' => $post->published_at?->toDateString(),
             'updated_at' => $post->updated_at?->toDateString(),
             'reading_time_minutes' => $post->readingTimeMinutes(),
+            'views_count' => $post->views_count,
         ];
     }
 

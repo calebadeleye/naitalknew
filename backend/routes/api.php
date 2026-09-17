@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\Admin\AnalyticsController as AdminAnalyticsController;
 use App\Http\Controllers\Api\Admin\BlogPostController;
 use App\Http\Controllers\Api\Admin\ClientLifecycleController;
 use App\Http\Controllers\Api\Admin\DashboardController as AdminDashboardController;
@@ -48,6 +49,7 @@ use App\Http\Controllers\Api\Client\WalletFundingController;
 use App\Http\Controllers\Api\Client\WalletPaymentController;
 use App\Http\Controllers\Api\Public\CatalogController;
 use App\Http\Controllers\Api\Public\ContentController;
+use App\Http\Controllers\Api\Public\TrackingController;
 use App\Http\Controllers\Api\Public\DomainSearchController;
 use App\Http\Controllers\Api\Public\PaymentGatewayController;
 use App\Http\Controllers\Api\Public\WebsiteQuoteController as PublicWebsiteQuoteController;
@@ -75,6 +77,9 @@ Route::prefix('v1')->group(function (): void {
     Route::get('/public/seo-metadata', [ContentController::class, 'seoMetadata']);
     Route::get('/public/images/search', [ContentController::class, 'image'])->middleware('throttle:60,1');
     Route::post('/public/website-quote', [PublicWebsiteQuoteController::class, 'store'])->middleware('throttle:website-quote');
+
+    Route::post('/public/track/pageview', [TrackingController::class, 'pageview'])->middleware('throttle:tracking');
+    Route::post('/public/track/heartbeat', [TrackingController::class, 'heartbeat'])->middleware('throttle:tracking');
 
     Route::get('/payments/paystack/callback', [PaymentGatewayController::class, 'paystackCallback']);
     Route::post('/payments/paystack/webhook', [PaymentGatewayController::class, 'paystackWebhook']);
@@ -163,6 +168,7 @@ Route::prefix('v1')->group(function (): void {
 
         Route::middleware('role:super_admin,admin_staff')->prefix('admin')->group(function (): void {
             Route::get('/dashboard', AdminDashboardController::class);
+            Route::get('/analytics/overview', [AdminAnalyticsController::class, 'overview']);
             Route::get('/naigrowth/messages', [NaiGrowthController::class, 'index']);
             Route::post('/naigrowth/chat', [NaiGrowthController::class, 'chat']);
             Route::delete('/naigrowth/messages', [NaiGrowthController::class, 'clear']);

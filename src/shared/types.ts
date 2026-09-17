@@ -77,6 +77,17 @@ export type AdminDashboardSnapshot = {
   }>;
 };
 
+export type AdminAnalyticsOverview = {
+  date_range: { from: string; to: string };
+  total_visitors: number;
+  total_visits: number;
+  total_page_views: number;
+  avg_session_duration_seconds: number;
+  top_countries: Array<{ country: string; country_code: string | null; visits: number }>;
+  top_pages: Array<{ path: string; views: number; avg_duration_seconds: number }>;
+  visits_over_time: Array<{ date: string; visitors: number; visits: number }>;
+};
+
 export type ClientDashboardSnapshot = {
   client: {
     name: string;

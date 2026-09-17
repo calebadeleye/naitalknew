@@ -15,6 +15,7 @@ class BlogPost extends Model
         'featured_image_meta',
         'author_name',
         'status',
+        'views_count',
         'published_at',
         'seo_title',
         'seo_description',

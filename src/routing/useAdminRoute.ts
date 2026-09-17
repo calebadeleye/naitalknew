@@ -3,6 +3,7 @@ import { trackPageView } from "../lib/analytics";
 
 export type AdminSectionId =
   | "dashboard"
+  | "analytics"
   | "naigrowth"
   | "logo"
   | "clientLogos"
@@ -30,6 +31,7 @@ export type AdminSectionId =
 
 const SECTION_PATHS: Record<AdminSectionId, string> = {
   dashboard: "",
+  analytics: "analytics",
   naigrowth: "naigrowth",
   logo: "logo",
   clientLogos: "client-logos",

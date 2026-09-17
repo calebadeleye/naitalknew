@@ -156,6 +156,7 @@ export type PublicBlogSummary = {
   published_at: string | null;
   updated_at: string | null;
   reading_time_minutes: number;
+  views_count: number;
 };
 
 export const BlogCard: React.FC<{ post: PublicBlogSummary }> = ({ post }) => {
@@ -372,6 +373,10 @@ export function BlogDetailPage({ slug }: { slug: string }) {
             <span>{post.author_name}</span>
             {post.published_at && <time dateTime={post.published_at}>{formatDate(post.published_at)}</time>}
             <span>{post.reading_time_minutes} min read</span>
+            <span className="inline-flex items-center gap-1">
+              <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+              {post.views_count.toLocaleString()} views
+            </span>
           </div>
 
           <img
