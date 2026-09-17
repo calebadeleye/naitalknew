@@ -383,6 +383,18 @@ export function BlogDetailPage({ slug }: { slug: string }) {
           <div className="prose-content mt-8 grid gap-5 text-base leading-8 text-[#334138]">
             {post.content.split(/\n{2,}/).map((block, index) => {
               const trimmed = block.trim();
+              const image = trimmed.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
+              if (image) {
+                return (
+                  <img
+                    key={index}
+                    src={image[2]}
+                    alt={image[1]}
+                    loading="lazy"
+                    className="aspect-[16/9] w-full rounded-2xl object-cover"
+                  />
+                );
+              }
               const h3 = trimmed.match(/^###\s+(.+)$/);
               if (h3) {
                 return (
