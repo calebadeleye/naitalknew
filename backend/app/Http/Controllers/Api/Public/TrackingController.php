@@ -43,6 +43,26 @@ class TrackingController extends Controller
 
     private const MAX_PLAUSIBLE_PATH_LENGTH = 300;
 
+    /**
+     * Mirrors KNOWN_PREFIXES in src/seo/publicRoutes.mjs (itself kept in
+     * sync with the route if-chain in src/App.tsx) — the frontend's own
+     * source of truth for "is this URL part of the app at all," reused here
+     * so a scanner spoofing a normal browser User-Agent and guessing a
+     * plausible-but-fake path (e.g. "/industries/oil-gas-energy", never a
+     * real page here) can't pass as a visit just because its UA isn't
+     * obviously a bot. Keep this in sync when a public route is added or
+     * removed there.
+     */
+    private const KNOWN_PATH_PREFIXES = [
+        '/admin', '/client', '/domains', '/domain-registration', '/domain-transfer',
+        '/domain-renewal', '/domain-pricing', '/web-hosting', '/website-care-plans',
+        '/website-design', '/business-email-hosting', '/seo-services', '/blog',
+        '/knowledge-base', '/faqs', '/how-to-pay', '/service-status', '/about',
+        '/contact', '/portfolio', '/privacy-policy', '/terms-of-service', '/refund-policy',
+    ];
+
+    private const KNOWN_EXACT_PATHS = ['/', '/get-a-website', '/get-a-website/thank-you'];
+
     public function pageview(Request $request, GeoIpLookupService $geoIp)
     {
         $payload = $request->validate([
@@ -169,6 +189,23 @@ class TrackingController extends Controller
         $lowerPath = strtolower($path);
         foreach (self::SUSPICIOUS_PATH_MARKERS as $marker) {
             if (str_contains($lowerPath, $marker)) {
+                return true;
+            }
+        }
+
+        return ! $this->isKnownPath($path);
+    }
+
+    private function isKnownPath(string $path): bool
+    {
+        $pathname = rtrim(explode('?', $path, 2)[0], '/') ?: '/';
+
+        if (in_array($pathname, self::KNOWN_EXACT_PATHS, true)) {
+            return true;
+        }
+
+        foreach (self::KNOWN_PATH_PREFIXES as $prefix) {
+            if (str_starts_with($pathname, $prefix)) {
                 return true;
             }
         }
