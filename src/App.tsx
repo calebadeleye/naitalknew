@@ -1142,7 +1142,6 @@ export function PublicSite() {
         <Testimonials reviews={siteContent.reviews} />
         <Portfolio projects={projects} />
         <Process />
-        <AiBand />
         <Contact logo={siteContent.brand.logo} />
       </main>
       <Footer logo={siteContent.brand.logo} />

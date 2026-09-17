@@ -29,7 +29,6 @@ import {
   Gift,
   Globe2,
   HardDrive,
-  Headphones,
   HelpCircle,
   Home,
   Image as ImageIcon,
@@ -399,7 +398,7 @@ export const socialLinks = [
   [Linkedin, "LinkedIn", "https://www.linkedin.com/company/naitalk/"],
 ] as const;
 
-export const footerColumns: Array<{ title: string; links: Array<{ label: string; href: string }> }> = [
+export const footerColumns: Array<{ title: string; links: Array<{ label: string; href: string; external?: boolean }> }> = [
   {
     title: "Company",
     links: [
@@ -437,6 +436,7 @@ export const footerColumns: Array<{ title: string; links: Array<{ label: string;
       { label: "How to Pay", href: "/how-to-pay" },
       { label: "Service Status", href: "/service-status" },
       { label: "FAQs", href: "/faqs" },
+      { label: "Open a Ticket", href: whatsappUrl, external: true },
     ],
   },
 ];
@@ -495,21 +495,6 @@ export function Footer({ logo }: { logo: LogoImage }) {
                 </a>
               ))}
             </div>
-            <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-4">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-primary">
-                <Headphones className="h-4 w-4" />
-              </div>
-              <p className="mt-3 text-sm font-black text-white">Need Help?</p>
-              <p className="mt-1 text-xs leading-5 text-white/50">Our support team is ready to assist you.</p>
-              <a
-                href={whatsappUrl}
-                className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline"
-                onClick={() => trackEvent("whatsapp_click", { page_section: "footer" })}
-              >
-                Open a Ticket
-                <ArrowRight className="h-3 w-3" />
-              </a>
-            </div>
           </div>
 
           {footerColumns.map((column) => (
@@ -518,7 +503,14 @@ export function Footer({ logo }: { logo: LogoImage }) {
               <ul className="mt-4 grid gap-3 text-sm text-white/58">
                 {column.links.map((link) => (
                   <li key={link.label}>
-                    <a href={link.href} className="transition hover:text-primary">{link.label}</a>
+                    <a
+                      href={link.href}
+                      className="transition hover:text-primary"
+                      {...(link.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                      onClick={link.external ? () => trackEvent("outbound_link_click", { label: link.label, page_section: "footer" }) : undefined}
+                    >
+                      {link.label}
+                    </a>
                   </li>
                 ))}
               </ul>
