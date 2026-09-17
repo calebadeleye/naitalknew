@@ -46,12 +46,15 @@ import {
   MapPin,
   Menu,
   MessageCircle,
+  Monitor,
   MonitorSmartphone,
   MousePointer2,
   MoreVertical,
   PackageCheck,
   Palette,
   Pencil,
+  Smartphone,
+  Tablet,
   Phone,
   Plus,
   Power,
@@ -1336,6 +1339,8 @@ export function AdminAnalyticsOverview({
   const todayIso = new Date().toISOString().slice(0, 10);
   const maxCountryVisits = Math.max(1, ...(data?.top_countries || []).map((row) => row.visits));
   const maxPageViews = Math.max(1, ...(data?.top_pages || []).map((row) => row.views));
+  const maxDeviceVisits = Math.max(1, ...(data?.device_breakdown || []).map((row) => row.visits));
+  const deviceIcons: Record<string, typeof Monitor> = { desktop: Monitor, mobile: Smartphone, tablet: Tablet, unknown: MonitorSmartphone };
 
   const tiles = [
     { label: "Visitors", value: data ? data.total_visitors.toLocaleString() : "—", icon: Users, tone: "lime" },
@@ -1420,7 +1425,7 @@ export function AdminAnalyticsOverview({
         <VisitsOverTimeChart data={data?.visits_over_time || []} />
       </article>
 
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="grid gap-5 xl:grid-cols-3">
         <article className="dashboard-card">
           <h3>Top Countries</h3>
           <div className="mt-5 grid gap-4">
@@ -1447,6 +1452,25 @@ export function AdminAnalyticsOverview({
                 <strong>{row.views}</strong>
               </div>
             )) : <p className="text-sm text-white/40">No page view data yet.</p>}
+          </div>
+        </article>
+
+        <article className="dashboard-card">
+          <h3>Devices</h3>
+          <div className="mt-5 grid gap-4">
+            {data?.device_breakdown.length ? data.device_breakdown.map((row) => {
+              const Icon = deviceIcons[row.device_type] || MonitorSmartphone;
+              return (
+                <div key={row.device_type} className="service-meter">
+                  <span className="inline-flex items-center gap-1.5 capitalize">
+                    <Icon className="h-3.5 w-3.5 text-white/40" />
+                    {row.device_type}
+                  </span>
+                  <div><i style={{ width: `${(row.visits / maxDeviceVisits) * 100}%` }} /></div>
+                  <strong>{row.visits}</strong>
+                </div>
+              );
+            }) : <p className="text-sm text-white/40">No device data yet.</p>}
           </div>
         </article>
       </div>

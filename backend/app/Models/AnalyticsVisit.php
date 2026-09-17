@@ -12,6 +12,7 @@ class AnalyticsVisit extends Model
         'entry_path',
         'referrer',
         'user_agent',
+        'device_type',
         'country',
         'country_code',
         'city',

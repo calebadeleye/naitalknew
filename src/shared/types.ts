@@ -85,6 +85,7 @@ export type AdminAnalyticsOverview = {
   avg_session_duration_seconds: number;
   top_countries: Array<{ country: string; country_code: string | null; visits: number }>;
   top_pages: Array<{ path: string; views: number; avg_duration_seconds: number }>;
+  device_breakdown: Array<{ device_type: "desktop" | "mobile" | "tablet" | "unknown"; visits: number }>;
   visits_over_time: Array<{ date: string; visitors: number; visits: number }>;
 };
 

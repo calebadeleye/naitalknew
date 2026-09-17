@@ -64,6 +64,14 @@ class AdminAnalyticsService
                 'avg_duration_seconds' => (int) round($row->avg_duration_seconds),
             ]);
 
+        $deviceBreakdown = AnalyticsVisit::query()
+            ->whereBetween('started_at', [$rangeStart, $rangeEnd])
+            ->selectRaw("coalesce(device_type, 'unknown') as device_type, count(*) as visits")
+            ->groupBy('device_type')
+            ->orderByDesc('visits')
+            ->get()
+            ->map(fn ($row) => ['device_type' => $row->device_type, 'visits' => (int) $row->visits]);
+
         $visitorsByDay = AnalyticsVisit::query()
             ->whereBetween('started_at', [$rangeStart, $rangeEnd])
             ->selectRaw('DATE(started_at) as date, count(distinct visitor_id) as visitors, count(*) as visits')
@@ -93,6 +101,7 @@ class AdminAnalyticsService
             'avg_session_duration_seconds' => $avgSessionDurationSeconds,
             'top_countries' => $topCountries,
             'top_pages' => $topPages,
+            'device_breakdown' => $deviceBreakdown,
             'visits_over_time' => $visitsOverTime,
         ];
     }

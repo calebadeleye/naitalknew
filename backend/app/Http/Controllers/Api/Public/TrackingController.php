@@ -72,6 +72,7 @@ class TrackingController extends Controller
                 'entry_path' => $payload['path'],
                 'referrer' => $payload['referrer'] ?? null,
                 'user_agent' => substr((string) $request->userAgent(), 0, 500),
+                'device_type' => $this->detectDeviceType((string) $request->userAgent()),
                 'country' => $geo['country'],
                 'country_code' => $geo['country_code'],
                 'city' => $geo['city'],
@@ -137,6 +138,26 @@ class TrackingController extends Controller
         ]);
 
         return response()->json(['ok' => true], 201);
+    }
+
+    /**
+     * A deliberately simple, dependency-free classifier — good enough to
+     * split "mobile vs desktop vs tablet" for the admin analytics dashboard
+     * without pulling in a full user-agent parsing library.
+     */
+    private function detectDeviceType(string $userAgent): string
+    {
+        $ua = strtolower($userAgent);
+
+        if (str_contains($ua, 'ipad') || (str_contains($ua, 'android') && ! str_contains($ua, 'mobile'))) {
+            return 'tablet';
+        }
+
+        if (str_contains($ua, 'mobile') || str_contains($ua, 'iphone') || str_contains($ua, 'ipod') || str_contains($ua, 'windows phone')) {
+            return 'mobile';
+        }
+
+        return 'desktop';
     }
 
     private function looksLikeJunkPath(string $path): bool
