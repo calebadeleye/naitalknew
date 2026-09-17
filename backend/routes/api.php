@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\Admin\AnalyticsController as AdminAnalyticsController;
 use App\Http\Controllers\Api\Admin\BlogPostController;
+use App\Http\Controllers\Api\Admin\ChurnAnalyticsController;
 use App\Http\Controllers\Api\Admin\ClientLifecycleController;
 use App\Http\Controllers\Api\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Api\Admin\DomainAssignmentController;
@@ -169,6 +170,7 @@ Route::prefix('v1')->group(function (): void {
 
         Route::middleware('role:super_admin,admin_staff')->prefix('admin')->group(function (): void {
             Route::get('/dashboard', AdminDashboardController::class);
+            Route::get('/billing/renewals-overview', [ChurnAnalyticsController::class, 'overview']);
             Route::get('/analytics/overview', [AdminAnalyticsController::class, 'overview']);
             Route::get('/analytics/funnel', [AdminAnalyticsController::class, 'funnels']);
             Route::get('/naigrowth/messages', [NaiGrowthController::class, 'index']);

@@ -106,7 +106,7 @@ import {
   initScrollDepthTracking,
 } from "../lib/analytics";
 import { captureAdAttribution } from "../lib/adAttribution";
-import type { LogoImage, ClientLogo, Project, Review, SiteContent, HostingPlanCard, ServiceCatalogItem, ClientOrderSummary, BankTransferDetails, PricingPackage, AdminDashboardMetric, AdminDashboardSnapshot, AdminAnalyticsOverview, AdminFunnelOverview, ClientDashboardSnapshot, ClientAuthMode, LaravelPage, AdminRecordsSectionId } from "../shared/types";
+import type { LogoImage, ClientLogo, Project, Review, SiteContent, HostingPlanCard, ServiceCatalogItem, ClientOrderSummary, BankTransferDetails, PricingPackage, AdminDashboardMetric, AdminDashboardSnapshot, AdminAnalyticsOverview, AdminFunnelOverview, AdminRenewalOverview, ClientDashboardSnapshot, ClientAuthMode, LaravelPage, AdminRecordsSectionId } from "../shared/types";
 import { LARAVEL_API_BASE_URL, laravelApi } from "../shared/api";
 import { parseNairaAmount, formatNaira, formatKobo, toDateInputValue, formatDate, formatDateTime, accountTypeLabel, clientStatusPillClass, hostingStatusPillClass, formatMb, catalogCategoryIcon, ISO_DATE_PATTERN } from "../shared/format";
 import { fallbackClientLogos, fallbackProjects, fallbackReviews, fallbackSiteContent, whatsappUrl } from "../shared/siteDefaults";
@@ -959,12 +959,14 @@ export function AdminDashboardOverview({
   onNavigate,
   dateRange,
   onDateRangeChange,
+  renewalData,
 }: {
   data: AdminDashboardSnapshot | null;
   isLoading: boolean;
   onNavigate?: (section: string) => void;
   dateRange?: { from: string; to: string } | null;
   onDateRangeChange?: (range: { from: string; to: string } | null) => void;
+  renewalData?: AdminRenewalOverview | null;
 }) {
   const todayIso = new Date().toISOString().slice(0, 10);
   const dashboardMetrics = data?.metrics?.length
@@ -1207,6 +1209,51 @@ export function AdminDashboardOverview({
           </tbody>
         </table>
       </article>
+
+      {renewalData && (
+        <article className="dashboard-card">
+          <div className="flex items-center justify-between">
+            <h3>Renewals &amp; Churn</h3>
+            <span>{formatDate(renewalData.date_range.from)} – {formatDate(renewalData.date_range.to)}</span>
+          </div>
+          <div className="mt-5 grid gap-4 sm:grid-cols-3">
+            <div className="rounded-lg border border-white/8 bg-black/15 p-4">
+              <p className="text-xs text-white/54">Hosting Renewal Rate</p>
+              <p className="mt-2 text-2xl font-black text-white">
+                {renewalData.hosting.renewal_rate === null ? "—" : `${renewalData.hosting.renewal_rate}%`}
+              </p>
+              <p className="mt-1 text-xs text-white/40">{renewalData.hosting.renewed} of {renewalData.hosting.due} renewed</p>
+            </div>
+            <div className="rounded-lg border border-white/8 bg-black/15 p-4">
+              <p className="text-xs text-white/54">Revenue Lost to Churn</p>
+              <p className="mt-2 text-2xl font-black text-white">{renewalData.hosting.churned_revenue || "₦0"}</p>
+              <p className="mt-1 text-xs text-white/40">Unpaid hosting renewal invoices</p>
+            </div>
+            <div className="rounded-lg border border-white/8 bg-black/15 p-4">
+              <p className="text-xs text-white/54">Domain Renewal Rate</p>
+              <p className="mt-2 text-2xl font-black text-white">
+                {renewalData.domains.renewal_rate === null ? "—" : `${renewalData.domains.renewal_rate}%`}
+              </p>
+              <p className="mt-1 text-xs text-white/40">{renewalData.domains.renewed} of {renewalData.domains.due} renewed</p>
+            </div>
+          </div>
+
+          {renewalData.hosting.by_plan.length > 0 && (
+            <div className="mt-5 grid gap-4">
+              <p className="text-xs font-black uppercase text-white/45">By Plan</p>
+              {renewalData.hosting.by_plan.map((row) => (
+                <div key={row.plan} className="service-meter">
+                  <span className="truncate" title={row.plan}>{row.plan}</span>
+                  <div><i style={{ width: `${row.renewal_rate ?? 0}%` }} /></div>
+                  <strong>{row.renewal_rate === null ? "—" : `${row.renewal_rate}%`}</strong>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <p className="mt-4 text-xs leading-5 text-white/35">{renewalData.domains.note}</p>
+        </article>
+      )}
     </section>
   );
 }
@@ -4372,6 +4419,7 @@ export function AdminApp() {
   const [dashboardData, setDashboardData] = useState<AdminDashboardSnapshot | null>(null);
   const [isDashboardLoading, setIsDashboardLoading] = useState(false);
   const [dashboardDateRange, setDashboardDateRange] = useState<{ from: string; to: string } | null>(null);
+  const [renewalData, setRenewalData] = useState<AdminRenewalOverview | null>(null);
   const [analyticsData, setAnalyticsData] = useState<AdminAnalyticsOverview | null>(null);
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(false);
   const [analyticsDateRange, setAnalyticsDateRange] = useState<{ from: string; to: string } | null>(null);
@@ -4489,6 +4537,14 @@ export function AdminApp() {
       setMessage(error instanceof Error ? error.message : "Laravel dashboard could not be loaded");
     } finally {
       setIsDashboardLoading(false);
+    }
+
+    try {
+      const query = range ? `?from=${range.from}&to=${range.to}` : "";
+      const renewals = await laravelApi<AdminRenewalOverview>(`/api/v1/admin/billing/renewals-overview${query}`, token);
+      setRenewalData(renewals);
+    } catch {
+      // Non-critical — the rest of the dashboard still renders without it.
     }
   };
 
@@ -5522,6 +5578,7 @@ export function AdminApp() {
             isLoading={isDashboardLoading}
             onNavigate={(section) => navigateToSection(section as AdminSectionId)}
             dateRange={dashboardDateRange}
+            renewalData={renewalData}
             onDateRangeChange={(range) => {
               setDashboardDateRange(range);
               void loadAdminDashboard(adminToken, range);

@@ -89,6 +89,23 @@ export type AdminAnalyticsOverview = {
   visits_over_time: Array<{ date: string; visitors: number; visits: number }>;
 };
 
+export type AdminRenewalOverview = {
+  date_range: { from: string; to: string };
+  hosting: {
+    due: number;
+    renewed: number;
+    renewal_rate: number | null;
+    churned_revenue: string | null;
+    by_plan: Array<{ plan: string; due: number; renewed: number; renewal_rate: number | null }>;
+  };
+  domains: {
+    due: number;
+    renewed: number;
+    renewal_rate: number | null;
+    note: string;
+  };
+};
+
 export type AdminFunnelStep = {
   event_name: string;
   label: string;
