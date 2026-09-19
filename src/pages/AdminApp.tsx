@@ -1265,70 +1265,118 @@ function formatDurationApprox(totalSeconds: number): string {
   return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
 }
 
-function VisitsOverTimeChart({ data }: { data: AdminAnalyticsOverview["visits_over_time"] }) {
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  const width = 520;
-  const height = 220;
-  const padding = { top: 16, right: 16, bottom: 24, left: 16 };
-  const plotWidth = width - padding.left - padding.right;
-  const plotHeight = height - padding.top - padding.bottom;
-  const maxVisitors = Math.max(1, ...data.map((point) => point.visitors));
+function VisitsOverTimeChart({
+  data,
+  trackingStartedOn,
+}: {
+  data: AdminAnalyticsOverview["visits_over_time"];
+  trackingStartedOn?: string | null;
+}) {
+  // Days before the first visit was ever recorded aren't "zero visitors" —
+  // tracking simply didn't exist yet — so they're left off instead of drawn
+  // as an empty stretch.
+  const days = trackingStartedOn ? data.filter((day) => day.date >= trackingStartedOn) : data;
+  const hasEarlierDaysHidden = days.length < data.length;
+  const shortDate = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  const longDate = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  const plural = (count: number) => `${count} visitor${count === 1 ? "" : "s"}`;
 
-  const xFor = (index: number) => padding.left + (data.length <= 1 ? plotWidth / 2 : (index / (data.length - 1)) * plotWidth);
-  const yFor = (visitors: number) => padding.top + plotHeight - (visitors / maxVisitors) * plotHeight;
+  if (!days.length || days.every((day) => day.visitors === 0)) {
+    return <p className="mt-5 text-sm text-white/40">No visitors recorded in this period yet.</p>;
+  }
 
-  const linePoints = data.map((point, index) => `${xFor(index)},${yFor(point.visitors)}`).join(" L ");
-  const baseline = padding.top + plotHeight;
-  const areaPath = data.length ? `M ${xFor(0)},${baseline} L ${linePoints} L ${xFor(data.length - 1)},${baseline} Z` : "";
-
-  const hovered = hoverIndex !== null ? data[hoverIndex] : null;
+  const busiest = days.reduce((best, day) => (day.visitors > best.visitors ? day : best), days[0]);
+  const latest = days[days.length - 1];
+  const average = Math.round((days.reduce((sum, day) => sum + day.visitors, 0) / days.length) * 10) / 10;
+  const axisTop = Math.max(2, Math.ceil(busiest.visitors / 2) * 2);
+  const axisTicks = [axisTop, axisTop / 2, 0];
+  const labelEvery = days.length <= 7 ? 1 : Math.ceil(days.length / 6);
+  const showCounts = days.length <= 14;
 
   return (
-    <div className="revenue-chart relative" aria-hidden={false} role="img" aria-label="Visitors over time">
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="h-64 w-full"
-        onMouseMove={(event) => {
-          if (!data.length) return;
-          const rect = event.currentTarget.getBoundingClientRect();
-          const relativeX = ((event.clientX - rect.left) / rect.width) * width;
-          const index = Math.round(((relativeX - padding.left) / plotWidth) * (data.length - 1));
-          setHoverIndex(Math.min(data.length - 1, Math.max(0, index)));
-        }}
-        onMouseLeave={() => setHoverIndex(null)}
-      >
-        <defs>
-          <linearGradient id="visitorsFill" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#9bea16" stopOpacity="0.4" />
-            <stop offset="100%" stopColor="#9bea16" stopOpacity="0.02" />
-          </linearGradient>
-        </defs>
-        {data.length > 0 && (
-          <>
-            <path d={areaPath} fill="url(#visitorsFill)" />
-            <path d={`M ${linePoints}`} fill="none" stroke="#9bea16" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </>
-        )}
-        {hovered && hoverIndex !== null && (
-          <>
-            <line x1={xFor(hoverIndex)} x2={xFor(hoverIndex)} y1={padding.top} y2={padding.top + plotHeight} stroke="rgba(255,255,255,0.18)" strokeWidth="1" />
-            <circle cx={xFor(hoverIndex)} cy={yFor(hovered.visitors)} r="4" fill="#9bea16" stroke="#071014" strokeWidth="2" />
-          </>
-        )}
-      </svg>
-      {hovered && hoverIndex !== null && (
-        <div
-          className="pointer-events-none absolute rounded-md border border-white/10 bg-[#0b1720] px-2.5 py-1.5 text-xs shadow-lg"
-          style={{
-            left: `${(xFor(hoverIndex) / width) * 100}%`,
-            top: `${(yFor(hovered.visitors) / height) * 100}%`,
-            transform: "translate(-50%, -125%)",
-          }}
-        >
-          <p className="font-black text-white">{hovered.visitors} visitor{hovered.visitors === 1 ? "" : "s"}</p>
-          <p className="text-white/50">{formatDate(hovered.date)}</p>
+    <div className="mt-5">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-lg border border-white/8 bg-black/15 p-3">
+          <p className="text-[11px] text-white/50">Busiest day</p>
+          <p className="mt-1 text-lg font-black text-white">
+            {plural(busiest.visitors)} <span className="text-xs font-bold text-white/50">· {shortDate(busiest.date)}</span>
+          </p>
         </div>
-      )}
+        <div className="rounded-lg border border-white/8 bg-black/15 p-3">
+          <p className="text-[11px] text-white/50">Most recent day</p>
+          <p className="mt-1 text-lg font-black text-white">
+            {plural(latest.visitors)} <span className="text-xs font-bold text-white/50">· {shortDate(latest.date)}</span>
+          </p>
+        </div>
+        <div className="rounded-lg border border-white/8 bg-black/15 p-3">
+          <p className="text-[11px] text-white/50">Daily average</p>
+          <p className="mt-1 text-lg font-black text-white">{average} <span className="text-xs font-bold text-white/50">visitors a day</span></p>
+        </div>
+      </div>
+
+      <div
+        className="mt-8 flex gap-3"
+        role="img"
+        aria-label={`Visitors per day. Busiest day ${shortDate(busiest.date)} with ${plural(busiest.visitors)}.`}
+      >
+        <div className="flex h-56 shrink-0 flex-col justify-between pb-6 text-right text-[11px] font-bold leading-none text-white/40">
+          {axisTicks.map((tick) => (
+            <span key={tick}>{tick}</span>
+          ))}
+        </div>
+        <div className="relative h-56 flex-1">
+          <div className="absolute inset-x-0 top-0 bottom-6">
+            {[0, 50, 100].map((percent) => (
+              <div key={percent} className="absolute inset-x-0 border-t border-white/8" style={{ top: `${percent}%` }} />
+            ))}
+            <div className="absolute inset-0 flex items-end gap-1.5">
+              {days.map((day) => {
+                const heightPercent = (day.visitors / axisTop) * 100;
+                return (
+                  <div key={day.date} className="group relative flex h-full flex-1 items-end justify-center" title={`${longDate(day.date)} — ${plural(day.visitors)}`}>
+                    {showCounts && day.visitors > 0 && (
+                      <span className="absolute text-[11px] font-black text-white/80" style={{ bottom: `calc(${heightPercent}% + 4px)` }}>
+                        {day.visitors}
+                      </span>
+                    )}
+                    <div
+                      className={`w-full max-w-[56px] rounded-t-md transition ${day.visitors > 0 ? "bg-primary/85 group-hover:bg-primary" : "bg-white/10"}`}
+                      style={{ height: day.visitors > 0 ? `max(${heightPercent}%, 4px)` : "2px" }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <div className="absolute inset-x-0 bottom-0 flex h-6 items-end gap-1.5">
+            {days.map((day, index) => {
+              // Labels are anchored on the newest day and spaced evenly back
+              // from it, so the last two never crowd each other; the newest
+              // is right-aligned so it can't run past the card edge.
+              const isLabelled = (days.length - 1 - index) % labelEvery === 0;
+              const isNewest = index === days.length - 1;
+              return (
+                <div key={day.date} className="relative h-full flex-1">
+                  {isLabelled && (
+                    <span
+                      className={`absolute bottom-0 whitespace-nowrap text-[11px] font-bold text-white/40 ${
+                        days.length > 7 && isNewest ? "right-0" : "left-1/2 -translate-x-1/2"
+                      }`}
+                    >
+                      {shortDate(day.date)}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <p className="mt-3 text-xs leading-5 text-white/45">
+        Each bar is one day. Its height is how many different people visited your site that day.
+        {hasEarlierDaysHidden && trackingStartedOn ? ` Tracking started on ${shortDate(trackingStartedOn)}, so earlier days aren't shown.` : ""}
+      </p>
     </div>
   );
 }
@@ -1489,10 +1537,10 @@ export function AdminAnalyticsOverview({
 
       <article className="dashboard-card">
         <div className="flex items-center justify-between">
-          <h3>Visitors Over Time</h3>
+          <h3>Visitors Per Day</h3>
           <span>{data ? `${formatDate(data.date_range.from)} – ${formatDate(data.date_range.to)}` : ""}</span>
         </div>
-        <VisitsOverTimeChart data={data?.visits_over_time || []} />
+        <VisitsOverTimeChart data={data?.visits_over_time || []} trackingStartedOn={data?.tracking_started_on} />
       </article>
 
       <div className="grid gap-5 xl:grid-cols-3">

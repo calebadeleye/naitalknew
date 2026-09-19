@@ -89,6 +89,7 @@ export type AdminAnalyticsOverview = {
   visits_over_time: Array<{ date: string; visitors: number; visits: number }>;
   filtered_out: { suspected_bots: number; not_engaged: number };
   include_all: boolean;
+  tracking_started_on: string | null;
 };
 
 export type AdminRenewalOverview = {

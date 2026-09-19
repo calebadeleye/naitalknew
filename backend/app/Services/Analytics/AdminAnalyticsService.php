@@ -120,6 +120,9 @@ class AdminAnalyticsService
             'visits_over_time' => $visitsOverTime,
             'filtered_out' => $filteredOut,
             'include_all' => $includeAll,
+            // Earliest visit ever recorded, so the chart can leave off days
+            // from before tracking existed instead of showing them as empty.
+            'tracking_started_on' => ($firstVisitAt = AnalyticsVisit::query()->min('started_at')) ? Carbon::parse($firstVisitAt)->toDateString() : null,
         ];
     }
 
