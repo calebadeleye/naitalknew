@@ -87,6 +87,8 @@ export type AdminAnalyticsOverview = {
   top_pages: Array<{ path: string; views: number; avg_duration_seconds: number }>;
   device_breakdown: Array<{ device_type: "desktop" | "mobile" | "tablet" | "unknown"; visits: number }>;
   visits_over_time: Array<{ date: string; visitors: number; visits: number }>;
+  filtered_out: { suspected_bots: number; not_engaged: number };
+  include_all: boolean;
 };
 
 export type AdminRenewalOverview = {

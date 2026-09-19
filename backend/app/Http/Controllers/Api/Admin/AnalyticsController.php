@@ -13,9 +13,10 @@ class AnalyticsController extends Controller
         $payload = $request->validate([
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date', 'after_or_equal:from'],
+            'include_all' => ['nullable', 'boolean'],
         ]);
 
-        return response()->json($analytics->overview($payload['from'] ?? null, $payload['to'] ?? null));
+        return response()->json($analytics->overview($payload['from'] ?? null, $payload['to'] ?? null, $request->boolean('include_all')));
     }
 
     public function funnels(Request $request, AdminAnalyticsService $analytics)
@@ -23,8 +24,9 @@ class AnalyticsController extends Controller
         $payload = $request->validate([
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date', 'after_or_equal:from'],
+            'include_all' => ['nullable', 'boolean'],
         ]);
 
-        return response()->json($analytics->funnels($payload['from'] ?? null, $payload['to'] ?? null));
+        return response()->json($analytics->funnels($payload['from'] ?? null, $payload['to'] ?? null, $request->boolean('include_all')));
     }
 }

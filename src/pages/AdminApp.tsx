@@ -1376,12 +1376,16 @@ export function AdminAnalyticsOverview({
   dateRange,
   onDateRangeChange,
   funnelData,
+  includeAll = false,
+  onIncludeAllChange,
 }: {
   data: AdminAnalyticsOverview | null;
   isLoading: boolean;
   dateRange?: { from: string; to: string } | null;
   onDateRangeChange?: (range: { from: string; to: string } | null) => void;
   funnelData?: AdminFunnelOverview | null;
+  includeAll?: boolean;
+  onIncludeAllChange?: (includeAll: boolean) => void;
 }) {
   const todayIso = new Date().toISOString().slice(0, 10);
   const maxCountryVisits = Math.max(1, ...(data?.top_countries || []).map((row) => row.visits));
@@ -1450,6 +1454,25 @@ export function AdminAnalyticsOverview({
           )}
         </div>
       </div>
+
+      {data && (
+        <div className="flex flex-col gap-2 rounded-lg border border-white/8 bg-black/15 px-4 py-3 text-xs text-white/58 sm:flex-row sm:items-center sm:justify-between">
+          <p>
+            {includeAll
+              ? "Showing all traffic, including suspected bots and visits with no interaction."
+              : `Showing real visits only — ${data.filtered_out.suspected_bots} suspected bot${data.filtered_out.suspected_bots === 1 ? "" : "s"} and ${data.filtered_out.not_engaged} visit${data.filtered_out.not_engaged === 1 ? "" : "s"} with no interaction left out.`}
+          </p>
+          <label className="flex cursor-pointer items-center gap-2 font-bold text-white/72">
+            <input
+              type="checkbox"
+              className="h-3.5 w-3.5 accent-[#9bea16]"
+              checked={includeAll}
+              onChange={(event) => onIncludeAllChange?.(event.target.checked)}
+            />
+            Include filtered traffic
+          </label>
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {tiles.map((tile) => {
@@ -4423,6 +4446,7 @@ export function AdminApp() {
   const [analyticsData, setAnalyticsData] = useState<AdminAnalyticsOverview | null>(null);
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(false);
   const [analyticsDateRange, setAnalyticsDateRange] = useState<{ from: string; to: string } | null>(null);
+  const [analyticsIncludeAll, setAnalyticsIncludeAll] = useState(false);
   const [funnelData, setFunnelData] = useState<AdminFunnelOverview | null>(null);
   const [adminRecords, setAdminRecords] = useState<Partial<Record<AdminRecordsSectionId, LaravelPage>>>({});
   const [loadingRecords, setLoadingRecords] = useState<Partial<Record<AdminRecordsSectionId, boolean>>>({});
@@ -4548,12 +4572,18 @@ export function AdminApp() {
     }
   };
 
-  const loadAdminAnalytics = async (token = adminToken, range = analyticsDateRange) => {
+  const loadAdminAnalytics = async (token = adminToken, range = analyticsDateRange, includeAll = analyticsIncludeAll) => {
     if (!token) return;
     setIsAnalyticsLoading(true);
 
     try {
-      const query = range ? `?from=${range.from}&to=${range.to}` : "";
+      const params = new URLSearchParams();
+      if (range) {
+        params.set("from", range.from);
+        params.set("to", range.to);
+      }
+      if (includeAll) params.set("include_all", "1");
+      const query = params.toString() ? `?${params.toString()}` : "";
       const [overview, funnels] = await Promise.all([
         laravelApi<AdminAnalyticsOverview>(`/api/v1/admin/analytics/overview${query}`, token),
         laravelApi<AdminFunnelOverview>(`/api/v1/admin/analytics/funnel${query}`, token),
@@ -5592,6 +5622,11 @@ export function AdminApp() {
             isLoading={isAnalyticsLoading}
             dateRange={analyticsDateRange}
             funnelData={funnelData}
+            includeAll={analyticsIncludeAll}
+            onIncludeAllChange={(value) => {
+              setAnalyticsIncludeAll(value);
+              void loadAdminAnalytics(adminToken, analyticsDateRange, value);
+            }}
             onDateRangeChange={(range) => {
               setAnalyticsDateRange(range);
               void loadAdminAnalytics(adminToken, range);

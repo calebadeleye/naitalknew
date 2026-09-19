@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AnalyticsFunnelEvent;
 use App\Models\AnalyticsPageView;
 use App\Models\AnalyticsVisit;
+use App\Services\Analytics\BotSuspicionService;
 use App\Services\Analytics\FunnelDefinitions;
 use App\Services\Analytics\GeoIpLookupService;
 use Illuminate\Http\Request;
@@ -63,13 +64,14 @@ class TrackingController extends Controller
 
     private const KNOWN_EXACT_PATHS = ['/', '/get-a-website', '/get-a-website/thank-you'];
 
-    public function pageview(Request $request, GeoIpLookupService $geoIp)
+    public function pageview(Request $request, GeoIpLookupService $geoIp, BotSuspicionService $botSuspicion)
     {
         $payload = $request->validate([
             'visitor_id' => ['required', 'uuid'],
             'path' => ['required', 'string', 'max:500'],
             'title' => ['nullable', 'string', 'max:255'],
             'referrer' => ['nullable', 'string', 'max:500'],
+            'engagement_tracking' => ['nullable', 'boolean'],
         ]);
 
         if ($this->looksLikeBot($request) || $this->looksLikeJunkPath($payload['path'])) {
@@ -93,6 +95,9 @@ class TrackingController extends Controller
                 'referrer' => $payload['referrer'] ?? null,
                 'user_agent' => substr((string) $request->userAgent(), 0, 500),
                 'device_type' => $this->detectDeviceType((string) $request->userAgent()),
+                'engagement_tracked' => (bool) ($payload['engagement_tracking'] ?? false),
+                'suspected_bot_reason' => $botSuspicion->reasonFor($request->userAgent(), $geo['asn']),
+                'network' => $geo['network'],
                 'country' => $geo['country'],
                 'country_code' => $geo['country_code'],
                 'city' => $geo['city'],
@@ -100,6 +105,8 @@ class TrackingController extends Controller
                 'started_at' => $now,
                 'last_seen_at' => $now,
             ]);
+
+            $botSuspicion->flagUaBurst($visit);
         } else {
             $visit->update(['last_seen_at' => $now]);
         }
@@ -118,6 +125,7 @@ class TrackingController extends Controller
         $payload = $request->validate([
             'page_view_id' => ['required', 'integer', 'exists:analytics_page_views,id'],
             'duration_seconds' => ['required', 'integer', 'min:0', 'max:21600'],
+            'engaged' => ['nullable', 'boolean'],
         ]);
 
         $pageView = AnalyticsPageView::query()->find($payload['page_view_id']);
@@ -126,7 +134,13 @@ class TrackingController extends Controller
         }
 
         $pageView->update(['duration_seconds' => $payload['duration_seconds']]);
-        $pageView->visit()->update(['last_seen_at' => now()]);
+
+        $visit = $pageView->visit;
+        $visit->last_seen_at = now();
+        if (($payload['engaged'] ?? false) && ! $visit->engaged_at) {
+            $visit->engaged_at = now();
+        }
+        $visit->save();
 
         return response()->json(['ok' => true]);
     }

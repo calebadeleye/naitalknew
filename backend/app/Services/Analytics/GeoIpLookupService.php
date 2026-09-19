@@ -27,10 +27,12 @@ class GeoIpLookupService
         'country' => null,
         'country_code' => null,
         'city' => null,
+        'network' => null,
+        'asn' => null,
     ];
 
     /**
-     * @return array{country: ?string, country_code: ?string, city: ?string}
+     * @return array{country: ?string, country_code: ?string, city: ?string, network: ?string, asn: ?int}
      */
     public function lookup(string $ip): array
     {
@@ -41,7 +43,7 @@ class GeoIpLookupService
         $cacheKey = "geoip:{$ip}";
         $cached = Cache::get($cacheKey);
         if (is_array($cached)) {
-            return $cached;
+            return $cached + self::UNKNOWN_RESULT;
         }
 
         $result = $this->queryIpwhoIs($ip) ?? $this->queryGeolocationDb($ip);
@@ -56,7 +58,7 @@ class GeoIpLookupService
     }
 
     /**
-     * @return array{country: ?string, country_code: ?string, city: ?string}|null
+     * @return array{country: ?string, country_code: ?string, city: ?string, network: ?string, asn: ?int}|null
      */
     private function queryIpwhoIs(string $ip): ?array
     {
@@ -73,10 +75,15 @@ class GeoIpLookupService
                 return null;
             }
 
+            $asn = $body['connection']['asn'] ?? null;
+            $isp = $body['connection']['isp'] ?? $body['connection']['org'] ?? null;
+
             return [
                 'country' => $body['country'] ?? null,
                 'country_code' => $body['country_code'] ?? null,
                 'city' => $body['city'] ?? null,
+                'network' => $isp ? trim(($asn ? "AS{$asn} " : '').$isp) : null,
+                'asn' => $asn ? (int) $asn : null,
             ];
         } catch (\Throwable $exception) {
             Log::warning('GeoIP lookup via ipwho.is failed, trying fallback provider.', [
@@ -88,7 +95,7 @@ class GeoIpLookupService
     }
 
     /**
-     * @return array{country: ?string, country_code: ?string, city: ?string}|null
+     * @return array{country: ?string, country_code: ?string, city: ?string, network: ?string, asn: ?int}|null
      */
     private function queryGeolocationDb(string $ip): ?array
     {
@@ -109,6 +116,8 @@ class GeoIpLookupService
                 'country' => $body['country_name'] ?? null,
                 'country_code' => $body['country_code'] ?? null,
                 'city' => ($body['city'] ?? null) === 'Not found' ? null : ($body['city'] ?? null),
+                'network' => null,
+                'asn' => null,
             ];
         } catch (\Throwable $exception) {
             Log::warning('GeoIP lookup via geolocation-db.com fallback also failed, location will be unknown for this visit.', [

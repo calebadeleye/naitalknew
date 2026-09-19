@@ -11,6 +11,11 @@
 
 const VISITOR_ID_STORAGE_KEY = "naitalk_visitor_id";
 const HEARTBEAT_INTERVAL_MS = 15_000;
+// A visit only counts as a real person once the browser reports either an
+// interaction or this much active time on the page — automated browsers that
+// just load a page and leave never do either.
+const ENGAGED_DWELL_SECONDS = 10;
+const INTERACTION_EVENTS = ["scroll", "mousemove", "touchstart", "keydown", "pointerdown"] as const;
 
 let lastTrackedPath = "";
 let currentPageViewId: number | null = null;
@@ -18,6 +23,7 @@ let activeMs = 0;
 let activeSince = 0;
 let isActive = false;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+let hasInteracted = false;
 
 function apiBase(): string {
   return (import.meta.env.VITE_LARAVEL_API_URL as string | undefined)?.replace(/\/$/, "") || "http://127.0.0.1:8000";
@@ -56,7 +62,12 @@ function currentActiveSeconds(): number {
 function sendHeartbeat(useBeacon: boolean): void {
   if (currentPageViewId === null) return;
 
-  const body = JSON.stringify({ page_view_id: currentPageViewId, duration_seconds: currentActiveSeconds() });
+  const activeSeconds = currentActiveSeconds();
+  const body = JSON.stringify({
+    page_view_id: currentPageViewId,
+    duration_seconds: activeSeconds,
+    engaged: hasInteracted || activeSeconds >= ENGAGED_DWELL_SECONDS,
+  });
   const url = `${apiBase()}/api/v1/public/track/heartbeat`;
 
   try {
@@ -84,6 +95,19 @@ function handleVisibilityChange(): void {
   } else {
     resumeActiveTimer();
   }
+}
+
+function handleInteraction(): void {
+  if (hasInteracted) return;
+  hasInteracted = true;
+  INTERACTION_EVENTS.forEach((eventName) => window.removeEventListener(eventName, handleInteraction));
+  // Report right away rather than waiting for the next 15s heartbeat. If the
+  // pageview hasn't come back yet (no id), the flag is sent as soon as it does.
+  sendHeartbeat(false);
+}
+
+function attachInteractionListeners(): void {
+  INTERACTION_EVENTS.forEach((eventName) => window.addEventListener(eventName, handleInteraction, { passive: true }));
 }
 
 let listenersAttached = false;
@@ -157,7 +181,10 @@ export function trackSiteVisit(): void {
     path,
     title: document.title,
     referrer: document.referrer || undefined,
+    engagement_tracking: true,
   };
+
+  attachInteractionListeners();
 
   try {
     fetch(`${apiBase()}/api/v1/public/track/pageview`, {
@@ -170,6 +197,7 @@ export function trackSiteVisit(): void {
       .then((data: { page_view_id?: number } | null) => {
         if (!data?.page_view_id) return;
         currentPageViewId = data.page_view_id;
+        if (hasInteracted) sendHeartbeat(false);
         resumeActiveTimer();
         attachLifecycleListeners();
         stopHeartbeat();

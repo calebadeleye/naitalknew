@@ -14,21 +14,35 @@ class AdminAnalyticsService
      * $from/$to are optional inclusive date bounds (Y-m-d). When omitted,
      * the dashboard falls back to the trailing 30 days, matching
      * AdminDashboardService's convention for an unfiltered view.
+     *
+     * By default only "counted" visits are reported (see
+     * AnalyticsVisit::scopeCounted — no suspected bots, and real
+     * interaction where the browser can report it); $includeAll shows
+     * everything, and filtered_out says how much was left out and why.
      */
-    public function overview(?string $from = null, ?string $to = null): array
+    public function overview(?string $from = null, ?string $to = null, bool $includeAll = false): array
     {
         [$rangeStart, $rangeEnd] = $this->resolveRange($from, $to);
 
-        $visits = AnalyticsVisit::query()->whereBetween('started_at', [$rangeStart, $rangeEnd]);
+        $countedOnly = fn ($query) => $includeAll ? $query : $query->counted();
+
+        $visits = $countedOnly(AnalyticsVisit::query())->whereBetween('started_at', [$rangeStart, $rangeEnd]);
         $totalVisitors = (clone $visits)->distinct('visitor_id')->count('visitor_id');
         $totalVisits = (clone $visits)->count();
 
         $pageViews = AnalyticsPageView::query()
-            ->whereBetween('viewed_at', [$rangeStart, $rangeEnd]);
+            ->whereBetween('viewed_at', [$rangeStart, $rangeEnd])
+            ->when(! $includeAll, fn ($query) => $query->whereIn('analytics_visit_id', AnalyticsVisit::query()->counted()->select('id')));
         $totalPageViews = (clone $pageViews)->count();
 
+        $inRange = fn () => AnalyticsVisit::query()->whereBetween('started_at', [$rangeStart, $rangeEnd]);
+        $filteredOut = [
+            'suspected_bots' => $inRange()->whereNotNull('suspected_bot_reason')->count(),
+            'not_engaged' => $inRange()->whereNull('suspected_bot_reason')->where('engagement_tracked', true)->whereNull('engaged_at')->count(),
+        ];
+
         $avgSessionDurationSeconds = (int) round(
-            AnalyticsVisit::query()
+            $countedOnly(AnalyticsVisit::query())
                 ->whereBetween('analytics_visits.started_at', [$rangeStart, $rangeEnd])
                 ->join('analytics_page_views', 'analytics_page_views.analytics_visit_id', '=', 'analytics_visits.id')
                 ->selectRaw('analytics_visits.id, sum(analytics_page_views.duration_seconds) as session_duration')
@@ -37,7 +51,7 @@ class AdminAnalyticsService
                 ->avg('session_duration') ?? 0
         );
 
-        $topCountries = AnalyticsVisit::query()
+        $topCountries = $countedOnly(AnalyticsVisit::query())
             ->whereBetween('started_at', [$rangeStart, $rangeEnd])
             ->whereNotNull('country')
             ->selectRaw('country, country_code, count(*) as visits')
@@ -53,6 +67,7 @@ class AdminAnalyticsService
         // so campaign-level detail isn't lost, just not shown in this report.
         $topPages = AnalyticsPageView::query()
             ->whereBetween('viewed_at', [$rangeStart, $rangeEnd])
+            ->when(! $includeAll, fn ($query) => $query->whereIn('analytics_visit_id', AnalyticsVisit::query()->counted()->select('id')))
             ->selectRaw("SUBSTRING_INDEX(path, '?', 1) as clean_path, count(*) as views, avg(duration_seconds) as avg_duration_seconds")
             ->groupBy('clean_path')
             ->orderByDesc('views')
@@ -64,7 +79,7 @@ class AdminAnalyticsService
                 'avg_duration_seconds' => (int) round($row->avg_duration_seconds),
             ]);
 
-        $deviceBreakdown = AnalyticsVisit::query()
+        $deviceBreakdown = $countedOnly(AnalyticsVisit::query())
             ->whereBetween('started_at', [$rangeStart, $rangeEnd])
             ->selectRaw("coalesce(device_type, 'unknown') as device_type, count(*) as visits")
             ->groupBy('device_type')
@@ -72,7 +87,7 @@ class AdminAnalyticsService
             ->get()
             ->map(fn ($row) => ['device_type' => $row->device_type, 'visits' => (int) $row->visits]);
 
-        $visitorsByDay = AnalyticsVisit::query()
+        $visitorsByDay = $countedOnly(AnalyticsVisit::query())
             ->whereBetween('started_at', [$rangeStart, $rangeEnd])
             ->selectRaw('DATE(started_at) as date, count(distinct visitor_id) as visitors, count(*) as visits')
             ->groupBy('date')
@@ -103,6 +118,8 @@ class AdminAnalyticsService
             'top_pages' => $topPages,
             'device_breakdown' => $deviceBreakdown,
             'visits_over_time' => $visitsOverTime,
+            'filtered_out' => $filteredOut,
+            'include_all' => $includeAll,
         ];
     }
 
@@ -120,9 +137,11 @@ class AdminAnalyticsService
      * fields keep their "first_step" name for API stability; a step with no
      * previous-step traffic to compare against reports null, not 0%.
      */
-    public function funnels(?string $from = null, ?string $to = null): array
+    public function funnels(?string $from = null, ?string $to = null, bool $includeAll = false): array
     {
         [$rangeStart, $rangeEnd] = $this->resolveRange($from, $to);
+
+        $withoutBots = fn ($query) => $includeAll ? $query : $query->whereNotIn('visitor_id', $this->visitorsWithoutCountedVisits());
 
         $funnels = [];
         foreach (FunnelDefinitions::FUNNELS as $key => $definition) {
@@ -131,7 +150,7 @@ class AdminAnalyticsService
             $previousCount = null;
 
             foreach ($definition['steps'] as $eventName => $label) {
-                $count = AnalyticsFunnelEvent::query()
+                $count = $withoutBots(AnalyticsFunnelEvent::query())
                     ->where('funnel', $key)
                     ->where('event_name', $eventName)
                     ->whereBetween('created_at', [$rangeStart, $rangeEnd])
@@ -153,7 +172,7 @@ class AdminAnalyticsService
                 $previousCount = $count;
             }
 
-            $revenueKobo = (int) AnalyticsFunnelEvent::query()
+            $revenueKobo = (int) $withoutBots(AnalyticsFunnelEvent::query())
                 ->where('funnel', $key)
                 ->where('event_name', 'purchase')
                 ->whereBetween('created_at', [$rangeStart, $rangeEnd])
@@ -170,6 +189,21 @@ class AdminAnalyticsService
             'date_range' => ['from' => $rangeStart->toDateString(), 'to' => $rangeEnd->toDateString()],
             'funnels' => $funnels,
         ];
+    }
+
+    /**
+     * Visitors who have visits on record but none that count (all flagged as
+     * bots, or never interacted) — their funnel events are left out. Visitors
+     * with no visits at all are kept on purpose: a customer who only ever uses
+     * the client portal (which isn't visit-tracked) must still have their
+     * checkout and purchase counted.
+     */
+    private function visitorsWithoutCountedVisits()
+    {
+        return AnalyticsVisit::query()
+            ->select('visitor_id')
+            ->groupBy('visitor_id')
+            ->havingRaw('sum(case when suspected_bot_reason is null and (engagement_tracked = 0 or engaged_at is not null) then 1 else 0 end) = 0');
     }
 
     private function resolveRange(?string $from, ?string $to): array
