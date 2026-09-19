@@ -113,6 +113,12 @@ class AdminAnalyticsService
      * (someone could view hosting plans without ever searching a domain
      * first), but it's honest about volume and drop-off at each milestone,
      * which is what matters for "where are we losing people".
+     *
+     * Because visitors can enter mid-funnel, the 100% baseline is the first
+     * step that actually has visitors (not blindly step 1) — otherwise a
+     * funnel nobody enters at its first step reads as all zeros. Percent
+     * fields keep their "first_step" name for API stability; a step with no
+     * previous-step traffic to compare against reports null, not 0%.
      */
     public function funnels(?string $from = null, ?string $to = null): array
     {
@@ -121,7 +127,7 @@ class AdminAnalyticsService
         $funnels = [];
         foreach (FunnelDefinitions::FUNNELS as $key => $definition) {
             $steps = [];
-            $firstCount = null;
+            $baselineCount = null;
             $previousCount = null;
 
             foreach ($definition['steps'] as $eventName => $label) {
@@ -132,14 +138,16 @@ class AdminAnalyticsService
                     ->distinct('visitor_id')
                     ->count('visitor_id');
 
-                $firstCount ??= $count;
+                if ($baselineCount === null && $count > 0) {
+                    $baselineCount = $count;
+                }
 
                 $steps[] = [
                     'event_name' => $eventName,
                     'label' => $label,
                     'visitors' => $count,
-                    'pct_of_previous_step' => $previousCount === null ? null : ($previousCount > 0 ? round($count / $previousCount * 100, 1) : 0.0),
-                    'pct_of_first_step' => $firstCount > 0 ? round($count / $firstCount * 100, 1) : 0.0,
+                    'pct_of_previous_step' => $previousCount ? round($count / $previousCount * 100, 1) : null,
+                    'pct_of_first_step' => $baselineCount ? round($count / $baselineCount * 100, 1) : 0.0,
                 ];
 
                 $previousCount = $count;

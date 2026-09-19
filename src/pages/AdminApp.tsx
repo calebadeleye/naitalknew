@@ -1334,7 +1334,7 @@ function VisitsOverTimeChart({ data }: { data: AdminAnalyticsOverview["visits_ov
 }
 
 const FunnelChart: React.FC<{ funnel: AdminFunnelOverview["funnels"][string] }> = ({ funnel }) => {
-  const firstStepVisitors = funnel.steps[0]?.visitors || 0;
+  const hasTraffic = funnel.steps.some((step) => step.visitors > 0);
 
   return (
     <article className="dashboard-card">
@@ -1354,13 +1354,13 @@ const FunnelChart: React.FC<{ funnel: AdminFunnelOverview["funnels"][string] }> 
               <span className="font-bold text-white/80">{step.label}</span>
               <span className="text-white/50">
                 <strong className="font-black text-white">{step.visitors.toLocaleString()}</strong>{" "}
-                {firstStepVisitors > 0 && `(${step.pct_of_first_step}%)`}
+                {hasTraffic && `(${step.pct_of_first_step}%)`}
               </span>
             </div>
             <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-white/10">
               <div
                 className="h-full rounded-full bg-primary transition-all"
-                style={{ width: `${firstStepVisitors > 0 ? step.pct_of_first_step : 0}%` }}
+                style={{ width: `${hasTraffic ? Math.min(100, step.pct_of_first_step) : 0}%` }}
               />
             </div>
           </div>

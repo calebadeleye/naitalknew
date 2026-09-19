@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useMemo, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowRight,
@@ -705,10 +705,35 @@ export function AiBand() {
 
 export function HostingSection() {
   const [plans, setPlans] = useState<HostingPlanCard[]>(fallbackHostingPlans);
+  const sectionRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     trackPlanSelection("view", {});
-    trackSiteEvent("domain_hosting", "hosting_plan_view");
+  }, []);
+
+  // The funnel's "viewed plans" step should mean the plans were actually
+  // seen, not just that the homepage loaded — so it waits for this section
+  // to scroll into view (once per page load). GA4's own view event above is
+  // left as-is so Google-side numbers don't shift.
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section || typeof IntersectionObserver === "undefined") {
+      trackSiteEvent("domain_hosting", "hosting_plan_view");
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          trackSiteEvent("domain_hosting", "hosting_plan_view");
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.1 },
+    );
+    observer.observe(section);
+
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -740,7 +765,7 @@ export function HostingSection() {
   }, []);
 
   return (
-    <section id="hosting" className="section-pad pt-10">
+    <section id="hosting" ref={sectionRef} className="section-pad pt-10">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="hosting-hero">
           <div className="max-w-xl">
