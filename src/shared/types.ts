@@ -92,6 +92,14 @@ export type AdminAnalyticsOverview = {
   tracking_started_on: string | null;
 };
 
+export type AdminServicePagesOverview = {
+  date_range: { from: string; to: string };
+  verification_started_on: string | null;
+  groups: Array<{ key: string; label: string; verified_visitors: number; verified_views: number; total_views: number; bot_views: number }>;
+  pages: Array<{ path: string; group: string; verified: number; unverifiable: number; bounced: number; bots: number; total: number }>;
+  totals: { verified_visitors: number; verified: number; unverifiable: number; bounced: number; bots: number; total: number };
+};
+
 export type AdminRenewalOverview = {
   date_range: { from: string; to: string };
   hosting: {

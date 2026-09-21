@@ -106,7 +106,7 @@ import {
   initScrollDepthTracking,
 } from "../lib/analytics";
 import { captureAdAttribution } from "../lib/adAttribution";
-import type { LogoImage, ClientLogo, Project, Review, SiteContent, HostingPlanCard, ServiceCatalogItem, ClientOrderSummary, BankTransferDetails, PricingPackage, AdminDashboardMetric, AdminDashboardSnapshot, AdminAnalyticsOverview, AdminFunnelOverview, AdminRenewalOverview, ClientDashboardSnapshot, ClientAuthMode, LaravelPage, AdminRecordsSectionId } from "../shared/types";
+import type { LogoImage, ClientLogo, Project, Review, SiteContent, HostingPlanCard, ServiceCatalogItem, ClientOrderSummary, BankTransferDetails, PricingPackage, AdminDashboardMetric, AdminDashboardSnapshot, AdminAnalyticsOverview, AdminFunnelOverview, AdminRenewalOverview, AdminServicePagesOverview, ClientDashboardSnapshot, ClientAuthMode, LaravelPage, AdminRecordsSectionId } from "../shared/types";
 import { LARAVEL_API_BASE_URL, laravelApi } from "../shared/api";
 import { parseNairaAmount, formatNaira, formatKobo, toDateInputValue, formatDate, formatDateTime, accountTypeLabel, clientStatusPillClass, hostingStatusPillClass, formatMb, catalogCategoryIcon, ISO_DATE_PATTERN } from "../shared/format";
 import { fallbackClientLogos, fallbackProjects, fallbackReviews, fallbackSiteContent, whatsappUrl } from "../shared/siteDefaults";
@@ -1418,12 +1418,95 @@ const FunnelChart: React.FC<{ funnel: AdminFunnelOverview["funnels"][string] }> 
   );
 };
 
+function ServicePagesCard({ data }: { data: AdminServicePagesOverview }) {
+  const { totals, groups, pages } = data;
+  const shortDate = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
+
+  return (
+    <article className="dashboard-card min-w-0">
+      <div className="flex items-center justify-between">
+        <h3>Service Pages — Real Visitors</h3>
+        <span>{formatDate(data.date_range.from)} – {formatDate(data.date_range.to)}</span>
+      </div>
+      <p className="mt-2 text-xs leading-5 text-white/50">
+        Who is actually looking at the pages that sell hosting, domains and websites. A visitor is "verified" when they scrolled, moved or
+        tapped and did not come from a known bot network.
+        {data.verification_started_on
+          ? ` This check only exists from ${shortDate(data.verification_started_on)}; earlier visits can't be told apart from bots.`
+          : " This check hasn't started recording yet."}
+      </p>
+
+      {totals.total === 0 ? (
+        <p className="mt-5 text-sm text-white/40">No service-page visits in this period.</p>
+      ) : (
+        <>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            {groups.map((group) => (
+              <div key={group.key} className="rounded-lg border border-white/8 bg-black/15 p-4">
+                <p className="text-xs text-white/54">{group.label}</p>
+                <p className="mt-2 text-2xl font-black text-white">
+                  {group.verified_visitors} <span className="text-xs font-bold text-white/50">verified {group.verified_visitors === 1 ? "person" : "people"}</span>
+                </p>
+                <p className="mt-1 text-xs text-white/40">
+                  {plural(group.total_views, "page view")} in total · {group.bot_views} from bots
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5 overflow-x-auto">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Page</th>
+                  <th title="Scrolled, moved or tapped, and not from a bot network">Verified</th>
+                  <th title="Visits before verification began — can't tell a person from a script">Can't verify (older)</th>
+                  <th title="Loaded the page and left without interacting">Left at once</th>
+                  <th title="Flagged automatically as a suspected bot">Bots</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pages.map((page, index) => (
+                  <React.Fragment key={page.path}>
+                    {(index === 0 || pages[index - 1].group !== page.group) && (
+                      <tr>
+                        <td colSpan={6} className="!pb-1 !pt-4 text-[10px] font-black uppercase text-white/40">{page.group}</td>
+                      </tr>
+                    )}
+                    <tr>
+                      <td>{page.path}</td>
+                      <td className={page.verified > 0 ? "font-black text-primary" : "text-white/40"}>{page.verified}</td>
+                      <td>{page.unverifiable}</td>
+                      <td>{page.bounced}</td>
+                      <td>{page.bots}</td>
+                      <td>{page.total}</td>
+                    </tr>
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="mt-3 text-xs leading-5 text-white/40">
+            {plural(totals.verified_visitors, "verified person")}
+            {" "}across {plural(totals.total, "service-page view")}: {totals.verified} verified, {totals.unverifiable} can't be verified, {totals.bounced} left at once, {totals.bots} from bots.
+            "Verified" is a strong sign, not proof — a bot that fakes interaction from an unlisted network could still be counted.
+          </p>
+        </>
+      )}
+    </article>
+  );
+}
+
 export function AdminAnalyticsOverview({
   data,
   isLoading,
   dateRange,
   onDateRangeChange,
   funnelData,
+  servicePagesData,
   includeAll = false,
   onIncludeAllChange,
 }: {
@@ -1432,6 +1515,7 @@ export function AdminAnalyticsOverview({
   dateRange?: { from: string; to: string } | null;
   onDateRangeChange?: (range: { from: string; to: string } | null) => void;
   funnelData?: AdminFunnelOverview | null;
+  servicePagesData?: AdminServicePagesOverview | null;
   includeAll?: boolean;
   onIncludeAllChange?: (includeAll: boolean) => void;
 }) {
@@ -1534,6 +1618,8 @@ export function AdminAnalyticsOverview({
           );
         })}
       </div>
+
+      {servicePagesData && <ServicePagesCard data={servicePagesData} />}
 
       <article className="dashboard-card">
         <div className="flex items-center justify-between">
@@ -4496,6 +4582,7 @@ export function AdminApp() {
   const [analyticsDateRange, setAnalyticsDateRange] = useState<{ from: string; to: string } | null>(null);
   const [analyticsIncludeAll, setAnalyticsIncludeAll] = useState(false);
   const [funnelData, setFunnelData] = useState<AdminFunnelOverview | null>(null);
+  const [servicePagesData, setServicePagesData] = useState<AdminServicePagesOverview | null>(null);
   const [adminRecords, setAdminRecords] = useState<Partial<Record<AdminRecordsSectionId, LaravelPage>>>({});
   const [loadingRecords, setLoadingRecords] = useState<Partial<Record<AdminRecordsSectionId, boolean>>>({});
   const [recordFilters, setRecordFilters] = useState<Partial<Record<AdminRecordsSectionId, Record<string, string>>>>({});
@@ -4632,12 +4719,15 @@ export function AdminApp() {
       }
       if (includeAll) params.set("include_all", "1");
       const query = params.toString() ? `?${params.toString()}` : "";
-      const [overview, funnels] = await Promise.all([
+      const rangeOnlyQuery = range ? `?from=${range.from}&to=${range.to}` : "";
+      const [overview, funnels, servicePages] = await Promise.all([
         laravelApi<AdminAnalyticsOverview>(`/api/v1/admin/analytics/overview${query}`, token),
         laravelApi<AdminFunnelOverview>(`/api/v1/admin/analytics/funnel${query}`, token),
+        laravelApi<AdminServicePagesOverview>(`/api/v1/admin/analytics/service-pages${rangeOnlyQuery}`, token),
       ]);
       setAnalyticsData(overview);
       setFunnelData(funnels);
+      setServicePagesData(servicePages);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Analytics could not be loaded");
     } finally {
@@ -5670,6 +5760,7 @@ export function AdminApp() {
             isLoading={isAnalyticsLoading}
             dateRange={analyticsDateRange}
             funnelData={funnelData}
+            servicePagesData={servicePagesData}
             includeAll={analyticsIncludeAll}
             onIncludeAllChange={(value) => {
               setAnalyticsIncludeAll(value);

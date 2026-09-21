@@ -173,6 +173,7 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/billing/renewals-overview', [ChurnAnalyticsController::class, 'overview']);
             Route::get('/analytics/overview', [AdminAnalyticsController::class, 'overview']);
             Route::get('/analytics/funnel', [AdminAnalyticsController::class, 'funnels']);
+            Route::get('/analytics/service-pages', [AdminAnalyticsController::class, 'servicePages']);
             Route::get('/naigrowth/messages', [NaiGrowthController::class, 'index']);
             Route::post('/naigrowth/chat', [NaiGrowthController::class, 'chat']);
             Route::delete('/naigrowth/messages', [NaiGrowthController::class, 'clear']);
