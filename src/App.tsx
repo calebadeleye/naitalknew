@@ -776,7 +776,7 @@ export function HostingSection() {
   }, []);
 
   return (
-    <section id="hosting" ref={sectionRef} className="section-pad pt-10">
+    <section id="hosting" ref={sectionRef} className="section-pad pt-10 pb-2 sm:pb-4 lg:pb-6">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="hosting-hero">
           <div className="max-w-xl">
