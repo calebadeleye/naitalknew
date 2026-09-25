@@ -39,7 +39,7 @@ class InvoiceDetailApiTest extends TestCase
         $token = $this->registerVerifiedClient('vat-check-client@example.test');
 
         $checkout = $this->withToken($token)->postJson('/api/v1/client/orders/hosting', [
-            'plan_slug' => 'business-website-care',
+            'plan_slug' => 'professional-website-care',
             'billing_cycle' => 'annual',
             'primary_domain' => 'vat-check-example.com',
             'terms_accepted' => true,
@@ -58,7 +58,7 @@ class InvoiceDetailApiTest extends TestCase
         $token = $this->registerVerifiedClient('invoice-view-client@example.test');
 
         $checkout = $this->withToken($token)->postJson('/api/v1/client/orders/hosting', [
-            'plan_slug' => 'business-website-care',
+            'plan_slug' => 'professional-website-care',
             'billing_cycle' => 'annual',
             'primary_domain' => 'invoice-view-example.com',
             'terms_accepted' => true,

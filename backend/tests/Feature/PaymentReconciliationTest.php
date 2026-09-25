@@ -56,7 +56,7 @@ class PaymentReconciliationTest extends TestCase
         $token = $this->registerVerifiedClient($clientEmail);
 
         $checkout = $this->withToken($token)->postJson('/api/v1/client/orders/hosting', [
-            'plan_slug' => 'business-website-care',
+            'plan_slug' => 'professional-website-care',
             'billing_cycle' => 'annual',
             'primary_domain' => str_replace(['@', '.'], '-', $clientEmail).'.com',
             'terms_accepted' => true,

@@ -109,7 +109,7 @@ class ContentSeeder extends Seeder
             ['dashboard-overview', 'Getting Started with Your Client Dashboard', 'A quick tour of your dashboard so you know where everything lives before you start managing services.',
                 "Your client dashboard is the home base for everything you do with NAI TALK — it's the first thing you see after logging in.\n\nAt the top, you'll find a summary of your account: active services, wallet balance, outstanding balance, and your next renewal date, so you always know where things stand at a glance.\n\nThe sidebar gives you quick access to every area: your services, orders and invoices, domains, wallet, saved payment methods, your profile, and support tickets. Nothing is more than one click away.\n\nIf you're new, start by checking your Services Catalog to see what's available, then head to My Profile to make sure your business details and communication preferences are set up the way you want them."],
             ['services-catalog', 'How to Order Hosting and Manage Services', 'How to browse plans, place a hosting order, and manage the services you already have.',
-                "Ordering hosting takes just a few steps. From the Services Catalog, choose the Website Care Plan that fits your business size, select monthly or annual billing, and add your domain (new or existing).\n\nOnce you review and confirm your order, an invoice is created automatically — you can pay right away with a card, bank transfer, or your NAI TALK wallet, or pay later before the due date.\n\nAfter payment, your service is provisioned automatically and appears under 'My Orders' with its status. From there, you can manage your hosting, add email accounts, and view usage at any time."],
+                "Ordering hosting takes just a few steps. From the Services Catalog, choose the Website Care Plan that fits your business size, choose annual billing, and add your domain (new or existing).\n\nOnce you review and confirm your order, an invoice is created automatically — you can pay right away with a card, bank transfer, or your NAI TALK wallet, or pay later before the due date.\n\nAfter payment, your service is provisioned automatically and appears under 'My Orders' with its status. From there, you can manage your hosting, add email accounts, and view usage at any time."],
             ['domains-dns', 'How to Search and Register a Domain', 'Step-by-step: searching for a domain, checking availability, and completing registration.',
                 "Go to Search Domains from your dashboard (or the public /domains page) and type the name you want. We check availability in real time against the domain registry, so what you see is accurate.\n\nIf it's available, you'll see the registration price and can choose to buy the domain only, or bundle it with a hosting plan in one checkout. If it's taken, we'll suggest similar available alternatives so you're not stuck.\n\nOnce paid, your domain is registered and appears under My Domains, where you can manage auto-renewal, link hosting, or start a transfer at any time."],
             ['domains-dns', 'How to Transfer a Domain', 'What you need before starting a domain transfer, and what happens during the process.',
@@ -169,11 +169,11 @@ class ContentSeeder extends Seeder
                 ['Can I move my existing website to NAI TALK?', 'Yes, we can help migrate an existing website — get in touch and our team will guide you through it.'],
             ],
             'Website Care' => [
-                ['What is Website Care?', 'A monthly or yearly plan that bundles hosting, security, backups, professional email, and support — so your website stays online, safe, and looked after without you needing any technical knowledge.'],
-                ['Which Website Care plan should I choose?', 'Starter suits a simple single-site business, Business Care (our most popular) suits growing businesses needing more email accounts and priority support, and Premium suits businesses wanting the most frequent checks and support.'],
+                ['What is Website Care?', 'An annual plan that bundles hosting, security, backups, unlimited professional business email accounts, and support — so your website stays online, safe, and looked after without you needing any technical knowledge.'],
+                ['Which Website Care plan should I choose?', 'Starter suits a simple single-site business, Business (our most popular) suits growing businesses that want security monitoring and priority support, Professional suits businesses running up to three websites, and Premium suits businesses running up to five websites that want the most frequent checks and hands-on support. Every plan includes unlimited professional business email accounts.'],
             ],
             'Payments' => [
-                ['Can I pay monthly?', 'Yes, most plans offer monthly or annual billing — annual billing usually works out cheaper over the year.'],
+                ['Can I pay monthly?', 'Website Care plans are billed annually, so your website, email and support stay covered all year without monthly renewals to remember.'],
                 ['What payment methods do you accept?', 'Card payments via Paystack or Flutterwave, direct bank transfer, and your NAI TALK wallet balance.'],
                 ['What if I overpay or underpay an invoice?', 'Overpayments are automatically credited to your wallet for future use. Underpayments simply leave the remaining balance outstanding until it\'s settled.'],
             ],
@@ -183,7 +183,7 @@ class ContentSeeder extends Seeder
             ],
             'Support' => [
                 ['How do I contact support?', 'Chat with us on WhatsApp anytime, or raise a support ticket from your client dashboard describing your issue.'],
-                ['Is support included in my plan?', 'Yes, every Website Care plan includes support, with priority response times on Business and Premium plans.'],
+                ['Is support included in my plan?', 'Yes, every Website Care plan includes support, with priority response times on the Business, Professional and Premium plans.'],
             ],
             'Website Design' => [
                 ['How long does a website take to build?', 'It depends on complexity, but most business websites are ready within a few weeks once content and requirements are confirmed.'],
@@ -191,7 +191,7 @@ class ContentSeeder extends Seeder
             ],
             'Email' => [
                 ['What is business email?', 'A professional email address using your own domain (like info@yourbusiness.com) instead of a free Gmail or Yahoo address — it looks more credible and is fully under your control.'],
-                ['Is business email included in Website Care Plans?', 'Yes, every plan includes at least one professional business email account, with higher plans including more.'],
+                ['Is business email included in Website Care Plans?', 'Yes. Every plan includes unlimited professional business email accounts. Storage is subject to your plan\'s allocated resources and fair-use/server policies.'],
             ],
         ];
 

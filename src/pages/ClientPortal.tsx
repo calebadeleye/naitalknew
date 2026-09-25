@@ -106,6 +106,7 @@ import {
 import { captureAdAttribution } from "../lib/adAttribution";
 import type { LogoImage, ClientLogo, Project, Review, SiteContent, HostingPlanCard, ServiceCatalogItem, ClientOrderSummary, BankTransferDetails, PricingPackage, AdminDashboardMetric, AdminDashboardSnapshot, ClientDashboardSnapshot, ClientAuthMode, LaravelPage, AdminRecordsSectionId } from "../shared/types";
 import { LARAVEL_API_BASE_URL, laravelApi } from "../shared/api";
+import { toHostingPlanCard, UNLIMITED_EMAIL_ACCOUNTS } from "../shared/websiteCare";
 import { parseNairaAmount, formatNaira, formatKobo, toDateInputValue, formatDate, formatDateTime, accountTypeLabel, clientStatusPillClass, hostingStatusPillClass, formatMb, catalogCategoryIcon, ISO_DATE_PATTERN } from "../shared/format";
 import { fallbackClientLogos, fallbackProjects, fallbackReviews, fallbackSiteContent, whatsappUrl } from "../shared/siteDefaults";
 import { Logo, Navbar, Footer, FloatingWhatsApp, SectionHeader, socialLinks, paymentBadges, footerColumns } from "../shared/PublicLayout";
@@ -489,7 +490,7 @@ export function HostingManagePanel({
               <div className="hosting-stat-card-value">
                 {isCapacity ? formatMb(usedNum) : usedNum}
                 {" "}
-                <small>/ {isCapacity ? formatMb(limitNum) : limitNum}</small>
+                <small>/ {isCapacity ? formatMb(limitNum) : index === 2 && limitNum >= UNLIMITED_EMAIL_ACCOUNTS ? "Unlimited" : limitNum}</small>
               </div>
               <div className="hosting-progress-track">
                 <div className="hosting-progress-fill" style={{ width: `${percent}%` }} />
@@ -497,6 +498,8 @@ export function HostingManagePanel({
               <div className="hosting-stat-card-foot">
                 {!usage
                   ? "No usage data yet"
+                  : index === 2 && limitNum >= UNLIMITED_EMAIL_ACCOUNTS
+                    ? "Unlimited accounts"
                   : limitNum > usedNum
                     ? `${isCapacity ? formatMb(limitNum - usedNum) : limitNum - usedNum} Available`
                     : "Limit reached"}
@@ -789,7 +792,7 @@ export function HostingManagePanel({
             <div className="hosting-summary-row"><span>Primary Domain</span><strong>{overview.primary_domain}</strong></div>
             <div className="hosting-summary-row"><span>Web Space</span><strong>{formatMb(usage?.disk_quota_mb ?? 0)}</strong></div>
             <div className="hosting-summary-row"><span>Bandwidth</span><strong>{formatMb(usage?.bandwidth_quota_mb ?? 0)} / month</strong></div>
-            <div className="hosting-summary-row"><span>Email Accounts</span><strong>{usage?.email_accounts_used ?? 0} / {usage?.email_accounts_limit ?? 0}</strong></div>
+            <div className="hosting-summary-row"><span>Email Accounts</span><strong>{usage?.email_accounts_used ?? 0} / {(usage?.email_accounts_limit ?? 0) >= UNLIMITED_EMAIL_ACCOUNTS ? "Unlimited" : usage?.email_accounts_limit ?? 0}</strong></div>
             <div className="hosting-summary-row"><span>Databases</span><strong>{usage?.databases_used ?? 0} / {usage?.databases_limit ?? 0}</strong></div>
             <div className="hosting-summary-row"><span>SSH/SFTP Accounts</span><strong>{usage?.ftp_accounts_used ?? 0} / {usage?.ftp_accounts_limit ?? 0}</strong></div>
             <div className="hosting-summary-row"><span>Last Synced</span><strong>{overview.last_synced_at ? formatDateTime(overview.last_synced_at) : "Never"}</strong></div>
@@ -2454,9 +2457,9 @@ export function DomainAddHostingPage({
   onPayByBankTransfer: (invoiceNumber: string) => Promise<void>;
 }) {
   const [domain, setDomain] = useState<DomainRow | null>(null);
-  const [plans, setPlans] = useState<Array<{ name: string; slug: string; monthly: string; annual: string }>>([]);
+  const [plans, setPlans] = useState<Array<{ name: string; slug: string; annual: string }>>([]);
   const [planSlug, setPlanSlug] = useState("");
-  const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("annual");
+  const billingCycle = "annual";
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [order, setOrder] = useState<DomainCheckoutResult | null>(null);
 
@@ -2472,7 +2475,6 @@ export function DomainAddHostingPage({
         const mapped = (data || []).map((plan) => ({
           name: String(plan.name || "Website Care Plan"),
           slug: String(plan.slug || ""),
-          monthly: String(plan.monthly_price || "₦0"),
           annual: String(plan.annual_price || "₦0"),
         }));
         setPlans(mapped);
@@ -2554,25 +2556,9 @@ export function DomainAddHostingPage({
               <div className="min-w-0 flex-1">
                 <p>{plan.name}</p>
               </div>
-              <strong>{billingCycle === "monthly" ? plan.monthly : plan.annual}</strong>
+              <strong>{plan.annual}</strong>
             </label>
           ))}
-        </div>
-
-        <div className="mt-5 flex items-center gap-3">
-          <span className="text-sm font-bold text-white/68">Billing cycle</span>
-          <div className="inline-flex overflow-hidden rounded-lg border border-white/10">
-            {(["monthly", "annual"] as const).map((cycle) => (
-              <button
-                key={cycle}
-                type="button"
-                className={`px-4 py-2 text-xs font-black uppercase ${billingCycle === cycle ? "bg-primary text-on-primary" : "bg-transparent text-white/60"}`}
-                onClick={() => setBillingCycle(cycle)}
-              >
-                {cycle}
-              </button>
-            ))}
-          </div>
         </div>
 
         <button type="button" className="btn-primary mt-6 w-full justify-center" disabled={isSubmitting || !planSlug} onClick={() => void submit()}>
@@ -3602,17 +3588,7 @@ export function ClientPortal() {
     ])
       .then(([plans, planAddOns]) => {
         if (Array.isArray(plans) && plans.length) {
-          const mapped = plans.map((plan) => ({
-            name: String(plan.name || "Website Care Plan"),
-            slug: String(plan.slug || ""),
-            audience: String(plan.short_description || "Website care for your business"),
-            monthly: String(plan.monthly_price || "₦0"),
-            annual: String(plan.annual_price || "₦0"),
-            featured: Boolean(plan.is_popular),
-            badge: plan.display_badge ? String(plan.display_badge) : null,
-            ctaLabel: plan.cta_label ? String(plan.cta_label) : "Choose plan",
-            features: [] as string[],
-          }));
+          const mapped = plans.map((plan) => ({ ...toHostingPlanCard(plan), features: [] as string[] }));
           setHostingPlans(mapped);
           setOrderDraft((current) => ({ ...current, plan_slug: current.plan_slug || mapped[0]?.slug || "" }));
         }
@@ -4318,9 +4294,9 @@ export function ClientPortal() {
 
     const selectedPlan = hostingPlans.find((plan) => plan.slug === orderDraft.plan_slug);
     const selectedAddOns = addOns.filter((addOn) => orderDraft.add_ons.includes(addOn.slug));
-    const planAmount = selectedPlan ? parseNairaAmount(orderDraft.billing_cycle === "monthly" ? selectedPlan.monthly : selectedPlan.annual) : 0;
+    const planAmount = selectedPlan ? parseNairaAmount(selectedPlan.annual) : 0;
     const addOnsAmount = selectedAddOns.reduce(
-      (sum, addOn) => sum + parseNairaAmount(orderDraft.billing_cycle === "monthly" ? addOn.monthly_price : addOn.annual_price),
+      (sum, addOn) => sum + parseNairaAmount(addOn.annual_price),
       0,
     );
     const domainRegistrationAmount =
@@ -4395,25 +4371,9 @@ export function ClientPortal() {
                       </p>
                       <small>{plan.audience}</small>
                     </div>
-                    <strong>{orderDraft.billing_cycle === "monthly" ? plan.monthly : plan.annual}</strong>
+                    <strong>{plan.annual}</strong>
                   </label>
                 ))}
-              </div>
-
-              <div className="mt-5 flex items-center gap-3">
-                <span className="text-sm font-bold text-white/68">Billing cycle</span>
-                <div className="inline-flex overflow-hidden rounded-lg border border-white/10">
-                  {(["monthly", "annual"] as const).map((cycle) => (
-                    <button
-                      key={cycle}
-                      type="button"
-                      className={`px-4 py-2 text-xs font-black uppercase ${orderDraft.billing_cycle === cycle ? "bg-primary text-on-primary" : "bg-transparent text-white/60"}`}
-                      onClick={() => setOrderDraft((current) => ({ ...current, billing_cycle: cycle }))}
-                    >
-                      {cycle}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               {addOns.length > 0 && (
@@ -4438,7 +4398,7 @@ export function ClientPortal() {
                         <div className="min-w-0 flex-1">
                           <p>{addOn.name}</p>
                         </div>
-                        <strong>{orderDraft.billing_cycle === "monthly" ? addOn.monthly_price : addOn.annual_price}</strong>
+                        <strong>{addOn.annual_price}</strong>
                       </label>
                     ))}
                   </div>
@@ -4450,14 +4410,14 @@ export function ClientPortal() {
               <h2>Order Summary</h2>
               <p className="mt-4 text-sm text-white/52">{selectedPlan?.name || "No plan selected"}</p>
               <p className="mt-1 text-sm text-white/68">
-                {selectedPlan ? (orderDraft.billing_cycle === "monthly" ? selectedPlan.monthly : selectedPlan.annual) : "₦0"}
+                {selectedPlan ? (selectedPlan.annual) : "₦0"}
               </p>
               {selectedAddOns.length > 0 && (
                 <div className="mt-4 grid gap-2 border-t border-white/10 pt-4 text-sm text-white/68">
                   {selectedAddOns.map((addOn) => (
                     <div key={addOn.slug} className="flex items-center justify-between gap-2">
                       <span>{addOn.name}</span>
-                      <span>{orderDraft.billing_cycle === "monthly" ? addOn.monthly_price : addOn.annual_price}</span>
+                      <span>{addOn.annual_price}</span>
                     </div>
                   ))}
                 </div>

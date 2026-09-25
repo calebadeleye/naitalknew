@@ -94,7 +94,7 @@ class DomainController extends Controller
 
         $payload = $request->validate([
             'plan_slug' => ['required', 'string', 'exists:hosting_plans,slug'],
-            'billing_cycle' => ['required', 'in:monthly,annual'],
+            'billing_cycle' => ['required', 'in:annual'],
             'add_ons' => ['array'],
             'add_ons.*' => ['string', 'exists:hosting_add_ons,slug'],
             'auto_renew' => ['boolean'],

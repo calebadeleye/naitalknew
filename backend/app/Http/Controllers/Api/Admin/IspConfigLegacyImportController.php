@@ -81,7 +81,7 @@ class IspConfigLegacyImportController extends Controller
     public function migrateToPackage(Request $request, HostingService $service)
     {
         $payload = $request->validate([
-            'target_package_slug' => ['required', 'string', Rule::in(['starter-website-care', 'business-website-care', 'premium-website-care'])],
+            'target_package_slug' => ['required', 'string', Rule::in(['starter-website-care', 'business-website-care', 'professional-website-care', 'premium-website-care'])],
             'reason' => ['nullable', 'string', 'max:1000'],
         ]);
 
@@ -119,7 +119,7 @@ class IspConfigLegacyImportController extends Controller
     public function notifyUpgrade(Request $request, HostingService $service)
     {
         $payload = $request->validate([
-            'target_package_slug' => ['required', 'string', Rule::in(['starter-website-care', 'business-website-care', 'premium-website-care'])],
+            'target_package_slug' => ['required', 'string', Rule::in(['starter-website-care', 'business-website-care', 'professional-website-care', 'premium-website-care'])],
         ]);
 
         $targetPlan = HostingPlan::query()->where('slug', $payload['target_package_slug'])->firstOrFail();

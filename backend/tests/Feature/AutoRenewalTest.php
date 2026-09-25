@@ -45,7 +45,7 @@ class AutoRenewalTest extends TestCase
         User::query()->where('email', $email)->firstOrFail()->forceFill(['email_verified_at' => now()])->save();
 
         $checkout = $this->withToken($token)->postJson('/api/v1/client/orders/hosting', [
-            'plan_slug' => 'business-website-care',
+            'plan_slug' => 'professional-website-care',
             'billing_cycle' => 'annual',
             'primary_domain' => str_replace(['@', '.'], '-', $email).'.com',
             'auto_renew' => true,

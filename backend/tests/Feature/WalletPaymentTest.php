@@ -40,7 +40,7 @@ class WalletPaymentTest extends TestCase
         $token = $this->registerVerifiedClient($email);
 
         $checkout = $this->withToken($token)->postJson('/api/v1/client/orders/hosting', [
-            'plan_slug' => 'business-website-care',
+            'plan_slug' => 'professional-website-care',
             'billing_cycle' => 'annual',
             'primary_domain' => str_replace(['@', '.'], '-', $email).'.com',
             'terms_accepted' => true,

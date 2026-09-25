@@ -10,6 +10,14 @@ class HostingPlan extends Model
 {
     use HasFactory;
 
+    /**
+     * Stand-in for "unlimited" email accounts. Mailbox limits are enforced
+     * numerically (see MailboxRecordPolicy), so unlimited is stored as a
+     * ceiling no real client reaches instead of a special case in every check.
+     * Display code (portal) shows any limit at or above this as "Unlimited".
+     */
+    public const UNLIMITED_EMAIL_ACCOUNTS = 9999;
+
     protected $fillable = [
         'name',
         'slug',

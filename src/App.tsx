@@ -113,6 +113,7 @@ import type {
   HostingPlanCard,
 } from "./shared/types";
 import { laravelApi } from "./shared/api";
+import { WEBSITE_CARE_HEADLINE, WEBSITE_CARE_SUBTEXT, PlanBadge, PlanHighlights, PlanFeatureList, WebsiteCareComparisonTable, toHostingPlanCard } from "./shared/websiteCare";
 import { catalogCategoryIcon, formatNaira } from "./shared/format";
 import {
   fallbackClientLogos,
@@ -194,63 +195,85 @@ export const fallbackHostingPlans: HostingPlanCard[] = [
   {
     name: "Starter Website Care",
     slug: "starter-website-care",
-    audience: "Basic website care for small businesses, personal brands, churches, schools, landing pages, and simple company websites.",
-    monthly: "₦5,000",
-    annual: "₦50,000",
+    audience: "Reliable hosting for small businesses, startups, churches, personal brands and portfolio websites.",
+    annual: "₦25,000",
+    storage: "10GB",
+    websites: 1,
     featured: false,
     badge: null,
-    ctaLabel: "Start Basic",
+    ctaLabel: "Get Starter",
     features: [
+      "SSL certificate",
       "Website hosting",
-      "Website security lock / SSL",
-      "1 professional business email",
-      "Weekly website backup",
-      "Basic website support",
-      "Renewal reminders",
+      "Weekly backups",
+      "Basic technical support",
+      "DNS and domain assistance",
       "Website recovery support",
-      "Peace of mind",
+      "Renewal reminders",
     ],
   },
   {
     name: "Business Website Care",
     slug: "business-website-care",
-    audience: "Recommended for growing businesses that need reliable website care, business email, backup protection, faster support, and peace of mind.",
-    monthly: "₦10,000",
-    annual: "₦100,000",
+    audience: "Everything a growing business needs to stay online: regular backups, security monitoring, health checks and priority support.",
+    annual: "₦50,000",
+    storage: "25GB",
+    websites: 1,
     featured: true,
     badge: "Most Popular",
-    ctaLabel: "Choose Business Care",
+    ctaLabel: "Choose Business",
     features: [
-      "Everything in Starter",
-      "Up to 5 professional business emails",
+      "SSL certificate",
+      "Regular backups",
+      "Security monitoring",
+      "Website health checks",
+      "Priority technical support",
+      "Minor website and content updates",
+      "Website recovery support",
+      "DNS assistance",
+    ],
+  },
+  {
+    name: "Professional Website Care",
+    slug: "professional-website-care",
+    audience: "For businesses running several websites that want daily backups, performance monitoring and migration help.",
+    annual: "₦100,000",
+    storage: "50GB",
+    websites: 3,
+    featured: false,
+    badge: null,
+    ctaLabel: "Get Professional",
+    features: [
+      "SSL certificate",
+      "Daily backups",
+      "Security monitoring",
+      "Website health checks",
       "Priority support",
-      "Regular website health checks",
-      "Stronger backup protection",
-      "Basic security monitoring",
-      "Faster issue resolution",
-      "Minor content update assistance",
-      "Peace of mind support",
+      "Minor content updates",
+      "Performance monitoring",
+      "Website migration assistance",
     ],
   },
   {
     name: "Premium Website Care",
     slug: "premium-website-care",
-    audience: "Full website care for businesses that want priority support, frequent backups, security review, performance review, and more managed assistance.",
-    monthly: "₦18,000",
+    audience: "Full website care for established businesses: frequent backups, security reviews, monthly health checks and hands-on maintenance.",
     annual: "₦180,000",
+    storage: "100GB",
+    websites: 5,
     featured: false,
     badge: null,
-    ctaLabel: "Get Premium Care",
+    ctaLabel: "Get Premium",
     features: [
-      "Everything in Business",
-      "Up to 30 professional business emails",
-      "Frequent website backups",
-      "Monthly website checkup",
+      "SSL certificate",
+      "Frequent backups",
+      "Security reviews",
+      "Performance monitoring",
+      "Monthly website health checks",
       "Priority issue resolution",
-      "Security review",
-      "Performance review",
-      "More content update assistance",
-      "Maximum peace of mind",
+      "Content assistance",
+      "Website maintenance",
+      "Website migration assistance",
     ],
   },
 ];
@@ -743,19 +766,7 @@ export function HostingSection() {
       .then((data) => {
         if (!isMounted || !Array.isArray(data) || !data.length) return;
 
-        setPlans(
-          data.map((plan) => ({
-            name: String(plan.name || "Website Care Plan"),
-            slug: String(plan.slug || ""),
-            audience: String(plan.short_description || "Website care for your business"),
-            monthly: String(plan.monthly_price || "₦0"),
-            annual: String(plan.annual_price || "₦0"),
-            featured: Boolean(plan.is_popular),
-            badge: plan.display_badge ? String(plan.display_badge) : null,
-            ctaLabel: plan.cta_label ? String(plan.cta_label) : "Choose plan",
-            features: Array.isArray(plan.public_features) ? plan.public_features.map(String) : [],
-          })),
-        );
+        setPlans(data.map(toHostingPlanCard));
       })
       .catch(() => setPlans(fallbackHostingPlans));
 
@@ -778,7 +789,7 @@ export function HostingSection() {
               focus on running your business instead of worrying about servers.
             </p>
             <div className="mt-5 grid gap-2 text-sm text-white/74 sm:grid-cols-2">
-              {["99.9% uptime guarantee", "Free SSL certificate", "Regular backups", "Real support when you need it"].map((item) => (
+              {["99.9% uptime guarantee", "Free SSL certificate", "Unlimited business email", "Real support when you need it"].map((item) => (
                 <div key={item} className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-primary" />
                   {item}
@@ -807,31 +818,21 @@ export function HostingSection() {
 
         <div id="hosting-packages" className="mt-12">
           <div className="mx-auto max-w-2xl text-center">
-            <h3 className="text-3xl font-black text-white">Website Care Plans for Growing Businesses</h3>
-            <p className="mt-3 text-sm leading-6 text-white/58">
-              No technical stress. No confusing server settings. We keep your website online, secure,
-              backed up, and supported so you can focus on running your business.
-            </p>
+            <h3 className="text-3xl font-black text-white">{WEBSITE_CARE_HEADLINE}</h3>
+            <p className="mt-3 text-sm leading-6 text-white/58">{WEBSITE_CARE_SUBTEXT}</p>
           </div>
-          <div className="mt-8 grid gap-4 lg:grid-cols-3">
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {plans.map((plan) => (
-              <article key={plan.name} className={plan.featured ? "hosting-plan featured" : "hosting-plan"}>
-                {plan.badge && <span className="hosting-badge">{plan.badge}</span>}
-                <h4 className="text-xl font-black text-white">{plan.name}</h4>
-                <p className="mt-2 min-h-10 text-sm text-white/58">{plan.audience}</p>
-                <div className="mt-6 flex items-end gap-1">
-                  <span className="text-3xl font-black text-white">{plan.monthly}</span>
-                  <span className="pb-1 text-xs text-white/48">/month</span>
+              <article key={plan.slug || plan.name} className={`${plan.featured ? "hosting-plan featured" : "hosting-plan"} flex flex-col`}>
+                {plan.badge && <PlanBadge label={plan.badge} />}
+                <h4 className="text-xl font-black text-white xl:min-h-[3.5rem]">{plan.name}</h4>
+                <p className="mt-2 min-h-10 text-sm text-white/58 xl:min-h-[5.5rem]">{plan.audience}</p>
+                <div className="mt-5 flex items-end gap-1">
+                  <span className="text-3xl font-black text-white">{plan.annual}</span>
+                  <span className="pb-1 text-xs text-white/48">/year</span>
                 </div>
-                <p className="mt-1 text-xs text-primary">{plan.annual}/year</p>
-                <div className="mt-6 grid gap-3">
-                  {plan.features.map((feature) => (
-                    <div key={feature} className="flex items-center gap-2 text-sm text-white/68">
-                      <CheckCircle2 className="h-4 w-4 text-primary" />
-                      {feature}
-                    </div>
-                  ))}
-                </div>
+                <PlanHighlights plan={plan} />
+                <PlanFeatureList features={plan.features} className="mt-5 flex-1" />
                 <button
                   type="button"
                   onClick={() => {
@@ -848,6 +849,7 @@ export function HostingSection() {
               </article>
             ))}
           </div>
+          <WebsiteCareComparisonTable plans={plans} />
         </div>
       </div>
     </section>

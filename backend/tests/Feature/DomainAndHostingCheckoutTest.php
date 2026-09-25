@@ -20,6 +20,19 @@ class DomainAndHostingCheckoutTest extends TestCase
         $this->fakeIspConfig();
     }
 
+    public function test_monthly_billing_is_no_longer_accepted_for_hosting_orders(): void
+    {
+        $this->seed();
+        ['token' => $token] = $this->registerVerifiedDomainClient('monthly-rejected@example.test');
+
+        $this->withToken($token)->postJson('/api/v1/client/orders/hosting', [
+            'plan_slug' => 'starter-website-care',
+            'billing_cycle' => 'monthly',
+            'primary_domain' => 'monthlytest.com',
+            'terms_accepted' => true,
+        ])->assertStatus(422)->assertJsonValidationErrors('billing_cycle');
+    }
+
     public function test_domain_and_hosting_order_creates_separate_line_items_with_correct_combined_vat(): void
     {
         $this->seed();
@@ -36,8 +49,8 @@ class DomainAndHostingCheckoutTest extends TestCase
             'register_domain' => true,
         ])->assertCreated();
 
-        // Domain ₦23,000 + hosting ₦100,000 = ₦123,000 subtotal, 7.5% VAT => ₦132,225.
-        $this->assertSame(13_222_500, $checkout->json('invoice.total_kobo'));
+        // Domain ₦23,000 + hosting ₦50,000 = ₦73,000 subtotal, 7.5% VAT => ₦78,475.
+        $this->assertSame(7_847_500, $checkout->json('invoice.total_kobo'));
 
         $lineItems = collect($checkout->json('invoice.line_items'))->pluck('description');
         $this->assertTrue($lineItems->contains('Domain Registration — newbizsite.com'));

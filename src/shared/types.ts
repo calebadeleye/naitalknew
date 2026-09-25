@@ -169,8 +169,9 @@ export type HostingPlanCard = {
   name: string;
   slug: string;
   audience: string;
-  monthly: string;
   annual: string;
+  storage: string;
+  websites: number;
   featured: boolean;
   badge: string | null;
   ctaLabel: string;

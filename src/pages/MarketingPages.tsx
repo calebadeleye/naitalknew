@@ -113,6 +113,7 @@ import { PublicPage, PublicBreadcrumbs, usePublicImage, MarketingHero, Marketing
 import { goToDomainCheckout, DomainPromoBadge, TldPriceCard, DomainFeatureItem, DomainSearchBar, DomainSearchSection, DomainGlobeIllustration } from "../shared/domainWidgets";
 import type { DomainFeature, PublicTldPricingRow } from "../shared/domainWidgets";
 import { Portfolio } from "../App";
+import { WEBSITE_CARE_HEADLINE, WEBSITE_CARE_SUBTEXT, PlanBadge, PlanHighlights, PlanFeatureList, WebsiteCareComparisonTable, toHostingPlanCard } from "../shared/websiteCare";
 
 export function WebHostingPage() {
   return (
@@ -149,7 +150,7 @@ export function WebHostingPage() {
           <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {[
               [ShieldCheck, "Website security", "SSL and security protection included, so your site and your customers stay safe."],
-              [Mail, "Professional email", "A business email address that matches your domain, included on every plan."],
+              [Mail, "Professional email", "Unlimited professional business email accounts on your own domain, included on every plan."],
               [RefreshCw, "Automatic backups", "Regular backups mean your website can always be restored if something goes wrong."],
               [Headphones, "Real support", "Reach a real person by WhatsApp or support ticket whenever you need help."],
             ].map(([Icon, title, description]) => (
@@ -186,7 +187,7 @@ export function WebHostingPage() {
 
       <MarketingCtaBand
         title="See our Website Care Plans"
-        subtitle="Hosting, security, backups, email and support — bundled into one simple monthly or yearly plan."
+        subtitle="Hosting, security, backups, email and support — bundled into one simple annual plan."
         ctaLabel="View Plans"
         ctaHref="/website-care-plans"
         dark
@@ -195,26 +196,13 @@ export function WebHostingPage() {
   );
 }
 
-export type PublicHostingPlan = {
-  name: string;
-  slug: string;
-  short_description: string;
-  monthly_price: string;
-  annual_price: string;
-  is_popular: boolean;
-  is_recommended: boolean;
-  display_badge: string | null;
-  cta_label: string;
-  public_features: string[];
-};
-
 export function WebsiteCarePlansPage() {
-  const [plans, setPlans] = useState<PublicHostingPlan[] | null>(null);
+  const [plans, setPlans] = useState<HostingPlanCard[] | null>(null);
 
   useEffect(() => {
-    laravelApi<PublicHostingPlan[]>("/api/v1/public/hosting-plans")
+    laravelApi<Array<Record<string, unknown>>>("/api/v1/public/hosting-plans")
       .then((data) => {
-        setPlans(data);
+        setPlans(data.map(toHostingPlanCard));
         if (data.length) {
           trackPlanSelection("view", {});
           trackSiteEvent("domain_hosting", "hosting_plan_view");
@@ -229,60 +217,51 @@ export function WebsiteCarePlansPage() {
       <section className="pub-section-dark">
         <div className="mx-auto max-w-3xl px-4 pt-14 text-center sm:px-6 lg:px-8">
           <span className="eyebrow">Website Care Plans</span>
-          <h1 className="mt-4 text-4xl font-black text-white sm:text-5xl">Website Care Plans for Growing Businesses</h1>
-          <p className="mt-4 text-base leading-7 text-white/62 sm:text-lg">
-            No technical stress. We keep your website online, secure, backed up, and supported so you can focus on running your business.
-          </p>
+          <h1 className="mt-4 text-4xl font-black text-white sm:text-5xl">{WEBSITE_CARE_HEADLINE}</h1>
+          <p className="mt-4 text-base leading-7 text-white/62 sm:text-lg">{WEBSITE_CARE_SUBTEXT}</p>
         </div>
 
-        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
           {plans === null ? (
             <p className="text-center text-sm text-white/55">Loading plans...</p>
           ) : plans.length === 0 ? (
             <p className="text-center text-sm font-bold text-white/55">Plans are temporarily unavailable. Please contact support.</p>
           ) : (
-            <div className="grid gap-6 lg:grid-cols-3">
-              {plans.map((plan) => (
-                <div
-                  key={plan.slug}
-                  className={`pub-card-dark flex flex-col ${plan.is_popular ? "border-2 border-primary shadow-[0_25px_60px_rgba(155,234,22,0.18)] lg:-translate-y-3" : ""}`}
-                >
-                  {plan.is_popular && (
-                    <span className="mb-3 inline-flex w-fit items-center rounded-full bg-primary px-3 py-1 text-[10px] font-black uppercase text-on-primary">
-                      {plan.display_badge || "Most Popular"}
-                    </span>
-                  )}
-                  <h2 className="text-xl font-black text-white">{plan.name}</h2>
-                  <p className="mt-1 text-sm text-white/62">{plan.short_description}</p>
-                  <div className="mt-4">
-                    <p className="text-3xl font-black text-white">{plan.monthly_price}<span className="text-sm font-bold text-white/55">/month</span></p>
-                    <p className="text-sm text-white/55">{plan.annual_price}/year</p>
-                  </div>
-                  <ul className="mt-6 grid flex-1 gap-2.5 text-sm text-white/72">
-                    {(plan.public_features || []).map((feature) => (
-                      <li key={feature} className="flex gap-2">
-                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                        {feature}
-                      </li>
-                    ))}
-                  </ul>
-                  <a
-                    href={`/client/order/hosting?plan=${plan.slug}`}
-                    onClick={() => {
-                      const buttonText = plan.is_popular ? "Choose Business Care" : plan.cta_label || "Get Started";
-                      trackPlanSelection("select", { plan_id: plan.slug, plan_name: plan.name });
-                      trackPlanSelection("buy_click", { plan_id: plan.slug, plan_name: plan.name });
-                      trackSiteEvent("domain_hosting", "hosting_plan_buy_click", { plan_id: plan.slug, plan_name: plan.name });
-                      trackCtaClick({ button_text: buttonText, page_section: "website_care_plans" });
-                    }}
-                    className={`mt-6 justify-center ${plan.is_popular ? "btn-primary" : "btn-outline"}`}
-                  >
-                    {plan.is_popular ? "Choose Business Care" : plan.cta_label || "Get Started"}
-                    <ArrowRight className="h-4 w-4" />
-                  </a>
-                </div>
-              ))}
-            </div>
+            <>
+              <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+                {plans.map((plan) => {
+                  const ctaText = plan.ctaLabel || "Get Started";
+
+                  return (
+                    <div
+                      key={plan.slug}
+                      className={`pub-card-dark relative flex flex-col ${plan.featured ? "border-2 border-primary shadow-[0_25px_60px_rgba(155,234,22,0.18)] xl:-translate-y-3" : ""}`}
+                    >
+                      {plan.featured && <PlanBadge label={plan.badge || "Most Popular"} />}
+                      <h2 className="text-xl font-black text-white xl:min-h-[3.5rem]">{plan.name}</h2>
+                      <p className="mt-1 text-sm text-white/62 xl:min-h-[5.5rem]">{plan.audience}</p>
+                      <p className="mt-4 text-3xl font-black text-white">{plan.annual}<span className="text-sm font-bold text-white/55">/year</span></p>
+                      <PlanHighlights plan={plan} />
+                      <PlanFeatureList features={plan.features} className="mt-5 flex-1" />
+                      <a
+                        href={`/client/order/hosting?plan=${plan.slug}`}
+                        onClick={() => {
+                          trackPlanSelection("select", { plan_id: plan.slug, plan_name: plan.name });
+                          trackPlanSelection("buy_click", { plan_id: plan.slug, plan_name: plan.name });
+                          trackSiteEvent("domain_hosting", "hosting_plan_buy_click", { plan_id: plan.slug, plan_name: plan.name });
+                          trackCtaClick({ button_text: ctaText, page_section: "website_care_plans" });
+                        }}
+                        className={`mt-6 justify-center ${plan.featured ? "btn-primary" : "btn-outline"}`}
+                      >
+                        {ctaText}
+                        <ArrowRight className="h-4 w-4" />
+                      </a>
+                    </div>
+                  );
+                })}
+              </div>
+              <WebsiteCareComparisonTable plans={plans} />
+            </>
           )}
         </div>
       </section>
@@ -424,7 +403,7 @@ export function BusinessEmailHostingPage() {
                 <PackageCheck className="h-5 w-5" />
               </div>
               <h3 className="mt-4 text-base font-black text-white">Included in Website Care</h3>
-              <p className="mt-2 text-sm leading-6 text-white/62">Every plan includes at least one business email account, with higher plans including more.</p>
+              <p className="mt-2 text-sm leading-6 text-white/62">Every plan includes unlimited professional business email accounts on your domain.</p>
             </div>
             <div className="pub-card-dark">
               <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">

@@ -59,7 +59,7 @@ export function consumePendingOrder(): PendingOrder | null {
   try {
     const parsed = JSON.parse(raw);
     if (typeof parsed?.plan === "string") {
-      return { plan: parsed.plan, billing_cycle: parsed.billing_cycle === "monthly" ? "monthly" : "annual" };
+      return { plan: parsed.plan, billing_cycle: "annual" };
     }
   } catch {
     // ignore malformed session data

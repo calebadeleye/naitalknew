@@ -22,16 +22,16 @@ class WebsiteCarePackagesTest extends TestCase
         ])->assertOk()->json('token');
     }
 
-    public function test_seeder_creates_the_three_website_care_packages_in_order(): void
+    public function test_seeder_creates_the_four_website_care_packages_in_order(): void
     {
         (new HostingPlanSeeder())->run();
 
-        // Three public Website Care packages + one hidden internal
+        // Four public Website Care packages + one hidden internal
         // "Legacy Hosting + SSL" package for imported ISPConfig clients.
-        $this->assertDatabaseCount('hosting_plans', 4);
+        $this->assertDatabaseCount('hosting_plans', 5);
 
         $slugs = HostingPlan::query()->orderBy('sort_order')->pluck('slug')->all();
-        $this->assertSame(['starter-website-care', 'business-website-care', 'premium-website-care', 'legacy-hosting-ssl'], $slugs);
+        $this->assertSame(['starter-website-care', 'business-website-care', 'professional-website-care', 'premium-website-care', 'legacy-hosting-ssl'], $slugs);
     }
 
     public function test_running_the_seeder_twice_does_not_duplicate_packages(): void
@@ -39,7 +39,7 @@ class WebsiteCarePackagesTest extends TestCase
         (new HostingPlanSeeder())->run();
         (new HostingPlanSeeder())->run();
 
-        $this->assertDatabaseCount('hosting_plans', 4);
+        $this->assertDatabaseCount('hosting_plans', 5);
     }
 
     public function test_business_website_care_is_marked_popular_and_recommended(): void
@@ -85,9 +85,9 @@ class WebsiteCarePackagesTest extends TestCase
             'is_active' => true,
         ]);
         // Deactivating the legacy plan must never delete it — hosting_services
-        // still points at it via a restrictOnDelete() foreign key. 3 Website
+        // still points at it via a restrictOnDelete() foreign key. 4 Website
         // Care + 1 hidden Legacy Hosting + SSL + the pre-existing "business" row.
-        $this->assertDatabaseCount('hosting_plans', 5);
+        $this->assertDatabaseCount('hosting_plans', 6);
     }
 
     public function test_public_pricing_page_hides_technical_fields(): void
@@ -97,7 +97,7 @@ class WebsiteCarePackagesTest extends TestCase
         $response = $this->getJson('/api/v1/public/hosting-plans')->assertOk();
 
         foreach ($response->json() as $plan) {
-            foreach (['ssh_access', 'sftp_access', 'bandwidth_policy', 'storage_allocation', 'php_version', 'websites', 'databases', 'internal_limits', 'configuration_json'] as $technicalKey) {
+            foreach (['ssh_access', 'sftp_access', 'bandwidth_policy', 'php_version', 'databases', 'internal_limits', 'configuration_json'] as $technicalKey) {
                 $this->assertArrayNotHasKey($technicalKey, $plan, "Public pricing payload should not expose \"{$technicalKey}\".");
             }
 
@@ -119,24 +119,47 @@ class WebsiteCarePackagesTest extends TestCase
         $this->assertSame('Most Popular', $business['display_badge']);
         $this->assertTrue($business['is_popular']);
         $this->assertTrue($business['is_recommended']);
-        $this->assertSame('Choose Business Care', $business['cta_label']);
-        $this->assertContains('Priority support', $business['public_features']);
-        $this->assertContains('Peace of mind support', $business['public_features']);
+        $this->assertSame('Choose Business', $business['cta_label']);
+        $this->assertContains('Priority technical support', $business['public_features']);
+        $this->assertContains('Security monitoring', $business['public_features']);
     }
 
-    public function test_monthly_and_yearly_prices_display_correctly(): void
+    public function test_annual_prices_storage_and_unlimited_email_display_correctly(): void
     {
         (new HostingPlanSeeder())->run();
 
         $response = $this->getJson('/api/v1/public/hosting-plans')->assertOk();
         $plans = collect($response->json())->keyBy('slug');
 
-        $this->assertSame('₦5,000', $plans['starter-website-care']['monthly_price']);
-        $this->assertSame('₦50,000', $plans['starter-website-care']['annual_price']);
-        $this->assertSame('₦10,000', $plans['business-website-care']['monthly_price']);
-        $this->assertSame('₦100,000', $plans['business-website-care']['annual_price']);
-        $this->assertSame('₦18,000', $plans['premium-website-care']['monthly_price']);
-        $this->assertSame('₦180,000', $plans['premium-website-care']['annual_price']);
+        $expected = [
+            'starter-website-care' => ['₦25,000', 1, '10GB'],
+            'business-website-care' => ['₦50,000', 1, '25GB'],
+            'professional-website-care' => ['₦100,000', 3, '50GB'],
+            'premium-website-care' => ['₦180,000', 5, '100GB'],
+        ];
+
+        $this->assertSame(array_keys($expected), $plans->keys()->all());
+
+        foreach ($expected as $slug => [$annual, $websites, $storage]) {
+            $this->assertSame($annual, $plans[$slug]['annual_price'], $slug);
+            $this->assertSame($websites, $plans[$slug]['websites'], $slug);
+            $this->assertSame($storage, $plans[$slug]['storage_allocation'], $slug);
+            $this->assertTrue($plans[$slug]['unlimited_email'], $slug);
+        }
+    }
+
+    public function test_unlimited_email_is_enforced_as_a_ceiling_and_storage_matches_the_plan(): void
+    {
+        (new HostingPlanSeeder())->run();
+
+        $disk = ['starter-website-care' => 10, 'business-website-care' => 25, 'professional-website-care' => 50, 'premium-website-care' => 100];
+
+        foreach ($disk as $slug => $gb) {
+            $configuration = HostingPlan::query()->where('slug', $slug)->firstOrFail()->configuration();
+
+            $this->assertSame(HostingPlan::UNLIMITED_EMAIL_ACCOUNTS, $configuration['max_email_accounts'], $slug);
+            $this->assertSame($gb * 1024, $configuration['disk_quota_mb'], $slug);
+        }
     }
 
     public function test_internal_limits_are_preserved_for_provisioning_but_not_public(): void
@@ -145,7 +168,7 @@ class WebsiteCarePackagesTest extends TestCase
 
         $business = HostingPlan::query()->where('slug', 'business-website-care')->firstOrFail();
 
-        $this->assertSame(15, $business->internal_limits['business_emails']);
+        $this->assertSame('unlimited', $business->internal_limits['business_emails']);
         $this->assertTrue($business->internal_limits['priority_support']);
         $this->assertFalse($business->internal_limits['ssh_access']);
         $this->assertTrue($business->internal_limits['sftp_access']);
@@ -164,7 +187,7 @@ class WebsiteCarePackagesTest extends TestCase
     {
         (new HostingPlanSeeder())->run();
 
-        foreach (['starter-website-care', 'business-website-care', 'premium-website-care', 'legacy-hosting-ssl'] as $slug) {
+        foreach (['starter-website-care', 'business-website-care', 'professional-website-care', 'premium-website-care', 'legacy-hosting-ssl'] as $slug) {
             $plan = HostingPlan::query()->where('slug', $slug)->firstOrFail();
             $configuration = $plan->configuration();
 
@@ -185,8 +208,8 @@ class WebsiteCarePackagesTest extends TestCase
         $this->assertSame('Most Popular', $business['display_badge']);
         $this->assertTrue($business['is_popular']);
         $this->assertTrue($business['is_recommended']);
-        $this->assertSame(15, $business['internal_limits']['business_emails']);
-        $this->assertSame('₦10,000', $business['monthly_price']);
+        $this->assertSame('unlimited', $business['internal_limits']['business_emails']);
+        $this->assertSame('₦50,000', $business['annual_price']);
     }
 
     public function test_admin_can_update_a_package_including_badge_and_public_features(): void

@@ -19,7 +19,7 @@ class CheckoutController extends Controller
 
         $payload = $request->validate([
             'plan_slug' => ['required', 'string', 'exists:hosting_plans,slug'],
-            'billing_cycle' => ['required', 'in:monthly,annual'],
+            'billing_cycle' => ['required', 'in:annual'],
             'primary_domain' => ['required', 'string', 'max:255', DomainNameValidator::rule()],
             'add_ons' => ['array'],
             'add_ons.*' => ['string', 'exists:hosting_add_ons,slug'],
