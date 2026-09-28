@@ -197,7 +197,9 @@ class WebsiteSettingsService
         // The one thing here that is NOT read from ISPConfig's own record: a
         // live TLS handshake against the domain, checking what certificate is
         // really being served. See LiveCertificateChecker for why.
-        $sslActive = ($site['ssl'] ?? 'n') === 'y' && $domain && $this->certificateChecker->isActive($domain);
+        $certificate = $domain ? $this->certificateChecker->check($domain) : ['active' => false, 'expires_at' => null];
+        $sslActive = ($site['ssl'] ?? 'n') === 'y' && $certificate['active'];
+        $sslExpiresAt = $certificate['expires_at'];
         $sslMode = self::sslModeFromSite($site, $service->website_ssl_mode);
         $proxy = self::proxyFromSite($site['apache_directives'] ?? null);
         $syncedAt = now();
@@ -205,6 +207,7 @@ class WebsiteSettingsService
         $service->forceFill([
             'website_php_enabled' => $phpEnabled,
             'website_ssl_active' => $sslActive,
+            'website_ssl_expires_at' => $sslExpiresAt,
             'website_ssl_mode' => $sslMode,
             'website_reverse_proxy_enabled' => $proxy['enabled'],
             'website_reverse_proxy_port' => $proxy['port'],

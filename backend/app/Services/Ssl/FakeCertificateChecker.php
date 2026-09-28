@@ -2,27 +2,46 @@
 
 namespace App\Services\Ssl;
 
+use Illuminate\Support\Carbon;
+
 /**
- * Test double: reports a domain as having working SSL only once the test
- * has explicitly said so, without ever touching the network.
+ * Test double: reports a domain's certificate status only once the test has
+ * explicitly said so, without ever touching the network.
  */
 class FakeCertificateChecker extends LiveCertificateChecker
 {
-    /** @var array<string, bool> */
-    private array $activeDomains = [];
+    /** @var array<string, ?Carbon> domain => expiry (null domain never marked = absent from array) */
+    private array $expiresAt = [];
 
-    public function markActive(string $domain): void
+    /**
+     * Marks the domain as having a currently-working certificate, expiring
+     * 60 days out unless a specific date is given.
+     */
+    public function markActive(string $domain, ?Carbon $expiresAt = null): void
     {
-        $this->activeDomains[strtolower($domain)] = true;
+        $this->expiresAt[strtolower($domain)] = $expiresAt ?? now()->addDays(60);
+    }
+
+    /** Marks the domain as having a certificate that has already expired. */
+    public function markExpired(string $domain, ?Carbon $expiredAt = null): void
+    {
+        $this->expiresAt[strtolower($domain)] = $expiredAt ?? now()->subDays(5);
     }
 
     public function markInactive(string $domain): void
     {
-        unset($this->activeDomains[strtolower($domain)]);
+        unset($this->expiresAt[strtolower($domain)]);
+    }
+
+    public function check(string $domain, int $timeoutSeconds = 4): array
+    {
+        $expiresAt = $this->expiresAt[strtolower($domain)] ?? null;
+
+        return ['active' => $expiresAt !== null && $expiresAt->isFuture(), 'expires_at' => $expiresAt];
     }
 
     public function isActive(string $domain, int $timeoutSeconds = 4): bool
     {
-        return $this->activeDomains[strtolower($domain)] ?? false;
+        return $this->check($domain, $timeoutSeconds)['active'];
     }
 }

@@ -18,6 +18,7 @@ export type AdminSectionId =
   | "payments"
   | "support"
   | "provisioning"
+  | "sslCertificates"
   | "ispconfigMappings"
   | "ispconfigImport"
   | "auditLogs"
@@ -46,6 +47,7 @@ const SECTION_PATHS: Record<AdminSectionId, string> = {
   payments: "payments",
   support: "support",
   provisioning: "provisioning",
+  sslCertificates: "ssl-certificates",
   ispconfigMappings: "ispconfig-mappings",
   ispconfigImport: "ispconfig-import",
   auditLogs: "audit-logs",

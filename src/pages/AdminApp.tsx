@@ -3390,6 +3390,129 @@ export function AdminVatSettingsPanel({ adminToken }: { adminToken: string }) {
   );
 }
 
+type AdminSslCertificateRow = {
+  hosting_service_id: number;
+  domain: string | null;
+  client: string | null;
+  plan: string | null;
+  ssl_active: boolean;
+  ssl_expires_at: string | null;
+  days_remaining: number | null;
+  status: "active" | "expiring_soon" | "not_active" | "unchecked";
+  checked_at: string | null;
+};
+
+const SSL_STATUS_LABEL: Record<AdminSslCertificateRow["status"], string> = {
+  active: "Active",
+  expiring_soon: "Expiring Soon",
+  not_active: "Not Active",
+  unchecked: "Not Checked Yet",
+};
+
+const SSL_STATUS_PILL_CLASS: Record<AdminSslCertificateRow["status"], string> = {
+  active: "status-pill paid",
+  expiring_soon: "status-pill pending",
+  not_active: "status-pill failed",
+  unchecked: "status-pill",
+};
+
+export function AdminSslCertificatesPage({ adminToken }: { adminToken: string }) {
+  const [rows, setRows] = useState<AdminSslCertificateRow[] | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const load = React.useCallback(() => {
+    laravelApi<{ data: AdminSslCertificateRow[] }>("/api/v1/admin/ssl-certificates", adminToken)
+      .then((response) => setRows(response.data))
+      .catch(() => setNotice("Could not load the SSL overview."));
+  }, [adminToken]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const refresh = async () => {
+    setIsRefreshing(true);
+    setNotice(null);
+
+    try {
+      const response = await laravelApi<{ message: string; data: AdminSslCertificateRow[] }>("/api/v1/admin/ssl-certificates/refresh", adminToken, {
+        method: "POST",
+      });
+      setRows(response.data);
+      setNotice("Refresh queued — checking every site's live certificate now. Reload in a minute or two to see final results.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not queue a refresh.");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const problemCount = (rows || []).filter((row) => row.status !== "active").length;
+
+  return (
+    <section className="admin-panel">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-black">SSL Certificates</h2>
+          <p className="mt-1 max-w-2xl text-sm text-white/55">
+            What each website's SSL certificate actually is right now — checked by connecting to the domain directly, not by trusting ISPConfig's
+            "SSL enabled" flag. That flag can read as on for weeks after the real certificate has silently expired.
+          </p>
+        </div>
+        <button type="button" className="btn-outline justify-center !text-[11px]" disabled={isRefreshing} onClick={() => void refresh()}>
+          <RefreshCw className={isRefreshing ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+          {isRefreshing ? "Queuing..." : "Recheck All Sites"}
+        </button>
+      </div>
+
+      {notice && <p className="mt-4 text-sm font-bold text-primary">{notice}</p>}
+
+      {rows === null ? (
+        <div className="mt-6 rounded-lg border border-white/10 bg-black/20 p-6 text-sm font-bold text-white/60">Loading...</div>
+      ) : rows.length === 0 ? (
+        <div className="mt-6 rounded-lg border border-white/10 bg-black/20 p-6 text-sm font-bold text-white/60">No provisioned websites yet.</div>
+      ) : (
+        <>
+          {problemCount > 0 && (
+            <p className="mt-4 rounded-lg border border-yellow-500/25 bg-yellow-500/10 p-3 text-xs font-semibold text-yellow-200">
+              {problemCount} of {rows.length} site{rows.length === 1 ? "" : "s"} need attention (not active, expiring soon, or never checked).
+            </p>
+          )}
+          <div className="mt-4 overflow-x-auto rounded-lg border border-white/10">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Domain</th>
+                  <th>Client</th>
+                  <th>Plan</th>
+                  <th>Status</th>
+                  <th>Expires</th>
+                  <th>Days Left</th>
+                  <th>Last Checked</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.hosting_service_id}>
+                    <td className="font-bold text-white">{row.domain || "—"}</td>
+                    <td>{row.client || "—"}</td>
+                    <td>{row.plan || "—"}</td>
+                    <td><span className={SSL_STATUS_PILL_CLASS[row.status]}>{SSL_STATUS_LABEL[row.status]}</span></td>
+                    <td>{row.ssl_expires_at ? formatDate(row.ssl_expires_at) : "—"}</td>
+                    <td>{row.days_remaining === null ? "—" : row.days_remaining < 0 ? `${Math.abs(row.days_remaining)} ago` : row.days_remaining}</td>
+                    <td className="text-white/45">{row.checked_at ? formatDateTime(row.checked_at) : "Never"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
 export function AdminDomainPricingSettingsPanel({
   adminToken,
   onSynced,
@@ -4334,6 +4457,7 @@ export const adminSectionGroups: Array<{ label: string; sections: AdminSectionDe
     sections: [
       { id: "support", label: "Support", icon: MessageCircle },
       { id: "provisioning", label: "Provisioning", icon: Settings },
+      { id: "sslCertificates", label: "SSL Certificates", icon: ShieldCheck },
       { id: "ispconfigMappings", label: "ISPConfig", icon: Server },
       { id: "ispconfigImport", label: "ISPConfig Import", icon: Upload },
       { id: "auditLogs", label: "Audit Logs", icon: ShieldCheck },
@@ -6229,6 +6353,8 @@ export function AdminApp() {
         )}
 
         {activeSection === "domainPricing" && !routeClientId && !routeServiceId && <AdminDomainPricingPage adminToken={adminToken} />}
+
+        {activeSection === "sslCertificates" && !routeClientId && !routeServiceId && <AdminSslCertificatesPage adminToken={adminToken} />}
 
         {activeSection === "domainAssignments" && !routeClientId && !routeServiceId && <AdminDomainAssignmentPage adminToken={adminToken} />}
 

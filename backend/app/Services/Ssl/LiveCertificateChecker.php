@@ -2,6 +2,8 @@
 
 namespace App\Services\Ssl;
 
+use Illuminate\Support\Carbon;
+
 /**
  * The ground truth for "does this site actually have working SSL": connects
  * to the domain over TLS itself and checks what certificate is really being
@@ -11,11 +13,38 @@ namespace App\Services\Ssl;
  * certificate data for Let's Encrypt-issued certificates (confirmed against
  * a live site with a valid, working certificate whose `ssl_cert` field came
  * back empty over SOAP) — so a field-based check would wrongly tell a client
- * their working site has no SSL.
+ * their working site has no SSL. The same live check also caught a site
+ * whose auto-renewal had silently failed for weeks while ISPConfig's own
+ * "SSL enabled" flag still read true.
  */
 class LiveCertificateChecker
 {
+    /**
+     * @return array{active: bool, expires_at: ?Carbon}
+     */
+    public function check(string $domain, int $timeoutSeconds = 4): array
+    {
+        $parsed = $this->handshake($domain, $timeoutSeconds);
+
+        if ($parsed === null) {
+            return ['active' => false, 'expires_at' => null];
+        }
+
+        $expiresAt = isset($parsed['validTo_time_t']) ? Carbon::createFromTimestamp((int) $parsed['validTo_time_t']) : null;
+        $active = $expiresAt !== null && $expiresAt->isFuture() && $this->certificateCoversDomain($domain, $parsed);
+
+        return ['active' => $active, 'expires_at' => $expiresAt];
+    }
+
     public function isActive(string $domain, int $timeoutSeconds = 4): bool
+    {
+        return $this->check($domain, $timeoutSeconds)['active'];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function handshake(string $domain, int $timeoutSeconds): ?array
     {
         $context = stream_context_create(['ssl' => [
             'capture_peer_cert' => true,
@@ -29,7 +58,7 @@ class LiveCertificateChecker
         $client = @stream_socket_client("ssl://{$domain}:443", $errno, $errstr, $timeoutSeconds, STREAM_CLIENT_CONNECT, $context);
 
         if (! $client) {
-            return false;
+            return null;
         }
 
         try {
@@ -37,20 +66,12 @@ class LiveCertificateChecker
             $cert = $params['options']['ssl']['peer_certificate'] ?? null;
 
             if (! $cert) {
-                return false;
+                return null;
             }
 
             $parsed = openssl_x509_parse($cert);
 
-            if (! is_array($parsed)) {
-                return false;
-            }
-
-            if ((int) ($parsed['validTo_time_t'] ?? 0) <= time()) {
-                return false;
-            }
-
-            return $this->certificateCoversDomain($domain, $parsed);
+            return is_array($parsed) ? $parsed : null;
         } finally {
             fclose($client);
         }

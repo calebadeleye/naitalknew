@@ -60,6 +60,7 @@ class HostingService extends Model
         'ispconfig_active',
         'website_php_enabled',
         'website_ssl_active',
+        'website_ssl_expires_at',
         'website_ssl_mode',
         'website_reverse_proxy_enabled',
         'website_reverse_proxy_port',
@@ -71,6 +72,7 @@ class HostingService extends Model
         return [
             'website_php_enabled' => 'boolean',
             'website_ssl_active' => 'boolean',
+            'website_ssl_expires_at' => 'datetime',
             'website_reverse_proxy_enabled' => 'boolean',
             'website_settings_synced_at' => 'datetime',
             'starts_at' => 'date',

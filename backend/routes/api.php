@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\Admin\FaqController;
 use App\Http\Controllers\Api\Admin\HostingPlanController;
 use App\Http\Controllers\Api\Admin\HostingServiceLifecycleController;
 use App\Http\Controllers\Api\Admin\BillingSettingsController as AdminBillingSettingsController;
+use App\Http\Controllers\Api\Admin\SslCertificateController;
 use App\Http\Controllers\Api\Admin\InvoiceController as AdminInvoiceController;
 use App\Http\Controllers\Api\Admin\InvoicePaymentController as AdminInvoicePaymentController;
 use App\Http\Controllers\Api\Admin\IspConfigLegacyImportController;
@@ -181,6 +182,8 @@ Route::prefix('v1')->group(function (): void {
         Route::middleware('role:super_admin,admin_staff')->prefix('admin')->group(function (): void {
             Route::get('/dashboard', AdminDashboardController::class);
             Route::get('/billing/renewals-overview', [ChurnAnalyticsController::class, 'overview']);
+            Route::get('/ssl-certificates', [SslCertificateController::class, 'index']);
+            Route::post('/ssl-certificates/refresh', [SslCertificateController::class, 'refresh']);
             Route::get('/settings/billing', [AdminBillingSettingsController::class, 'show']);
             Route::put('/settings/billing', [AdminBillingSettingsController::class, 'update']);
             Route::get('/analytics/overview', [AdminAnalyticsController::class, 'overview']);

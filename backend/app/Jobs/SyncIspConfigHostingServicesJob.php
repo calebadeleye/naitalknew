@@ -90,10 +90,12 @@ class SyncIspConfigHostingServicesJob implements ShouldQueue
 
                         if ($service = $mapping->hostingService) {
                             $domain = $remote['domain'] ?? $service->primary_domain;
+                            $certificate = $domain ? $certificateChecker->check($domain) : ['active' => false, 'expires_at' => null];
 
                             $service->forceFill([
                                 'website_php_enabled' => WebsiteSettingsService::phpEnabledFromSite($remote),
-                                'website_ssl_active' => ($remote['ssl'] ?? 'n') === 'y' && $domain && $certificateChecker->isActive($domain),
+                                'website_ssl_active' => ($remote['ssl'] ?? 'n') === 'y' && $certificate['active'],
+                                'website_ssl_expires_at' => $certificate['expires_at'],
                                 'website_ssl_mode' => WebsiteSettingsService::sslModeFromSite($remote, $service->website_ssl_mode),
                                 'website_settings_synced_at' => now(),
                             ])->save();

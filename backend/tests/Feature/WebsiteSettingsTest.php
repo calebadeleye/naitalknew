@@ -7,6 +7,7 @@ use App\Jobs\SyncIspConfigHostingServicesJob;
 use App\Models\HostingService;
 use App\Models\User;
 use App\Services\Ssl\FakeCertificateChecker;
+use Illuminate\Support\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\Concerns\CreatesHostingFixtures;
@@ -101,13 +102,15 @@ class WebsiteSettingsTest extends TestCase
 
         // ISPConfig issues the certificate asynchronously — simulate that by
         // having a real TLS handshake with the domain now succeed.
-        $checker->markActive($service->fresh()->primary_domain);
+        $expiresAt = now()->addDays(90);
+        $checker->markActive($service->fresh()->primary_domain, $expiresAt);
 
         $this->withToken($token)->getJson("/api/v1/client/services/{$service->id}/website")
             ->assertOk()
             ->assertJsonPath('ssl.mode', 'free')
             ->assertJsonPath('ssl.active', true);
         $this->assertTrue($service->fresh()->website_ssl_active);
+        $this->assertSame($expiresAt->timestamp, $service->fresh()->website_ssl_expires_at->timestamp);
 
         $this->withToken($token)->getJson('/api/v1/client/dashboard')->assertJsonPath('services.0.needs_ssl_setup', false);
     }
