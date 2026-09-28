@@ -6,6 +6,7 @@ use App\Jobs\ProvisionHostingServiceJob;
 use App\Jobs\SyncIspConfigHostingServicesJob;
 use App\Models\HostingService;
 use App\Models\User;
+use App\Services\Ssl\FakeCertificateChecker;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\Concerns\CreatesHostingFixtures;
@@ -15,6 +16,14 @@ use Tests\TestCase;
 class WebsiteSettingsTest extends TestCase
 {
     use CreatesHostingFixtures, FakesIspConfig, RefreshDatabase;
+
+    private function fakeCertificateChecker(): FakeCertificateChecker
+    {
+        $checker = new FakeCertificateChecker;
+        $this->app->instance(\App\Services\Ssl\LiveCertificateChecker::class, $checker);
+
+        return $checker;
+    }
 
     private function provisionedService($fake): HostingService
     {
@@ -36,6 +45,7 @@ class WebsiteSettingsTest extends TestCase
     public function test_website_settings_start_off_right_after_provisioning_and_the_dashboard_flags_ssl(): void
     {
         $fake = $this->fakeIspConfig();
+        $this->fakeCertificateChecker();
         $service = $this->provisionedService($fake);
         $token = $this->clientToken($service);
 
@@ -57,6 +67,7 @@ class WebsiteSettingsTest extends TestCase
     public function test_client_can_turn_php_on_and_off_and_it_is_reflected_in_ispconfig(): void
     {
         $fake = $this->fakeIspConfig();
+        $this->fakeCertificateChecker();
         $service = $this->provisionedService($fake);
         $token = $this->clientToken($service);
         $websiteId = (int) $service->ispConfigServiceMappings()->first()->ispconfig_website_id;
@@ -76,9 +87,9 @@ class WebsiteSettingsTest extends TestCase
     public function test_client_can_request_free_ssl_and_activation_shows_once_ispconfig_has_issued_it(): void
     {
         $fake = $this->fakeIspConfig();
+        $checker = $this->fakeCertificateChecker();
         $service = $this->provisionedService($fake);
         $token = $this->clientToken($service);
-        $websiteId = (int) $service->ispConfigServiceMappings()->first()->ispconfig_website_id;
 
         $this->withToken($token)->postJson("/api/v1/client/services/{$service->id}/website/ssl/free")
             ->assertOk()
@@ -88,9 +99,9 @@ class WebsiteSettingsTest extends TestCase
 
         $this->assertFalse($service->fresh()->website_ssl_active);
 
-        // ISPConfig issues the certificate asynchronously — simulate that here.
-        $sid = $fake->login();
-        $fake->sitesWebDomainUpdate($sid, 1, $websiteId, ['ssl_cert' => '-----BEGIN CERTIFICATE-----FAKE-----END CERTIFICATE-----']);
+        // ISPConfig issues the certificate asynchronously — simulate that by
+        // having a real TLS handshake with the domain now succeed.
+        $checker->markActive($service->fresh()->primary_domain);
 
         $this->withToken($token)->getJson("/api/v1/client/services/{$service->id}/website")
             ->assertOk()
@@ -101,9 +112,10 @@ class WebsiteSettingsTest extends TestCase
         $this->withToken($token)->getJson('/api/v1/client/dashboard')->assertJsonPath('services.0.needs_ssl_setup', false);
     }
 
-    public function test_client_can_install_a_matching_custom_certificate_immediately(): void
+    public function test_client_can_install_a_matching_custom_certificate(): void
     {
         $fake = $this->fakeIspConfig();
+        $checker = $this->fakeCertificateChecker();
         $service = $this->provisionedService($fake);
         $token = $this->clientToken($service);
         [$cert, $key] = $this->generateSelfSignedPair();
@@ -113,15 +125,23 @@ class WebsiteSettingsTest extends TestCase
             'private_key' => $key,
         ])->assertOk()
             ->assertJsonPath('ssl.mode', 'custom')
-            ->assertJsonPath('ssl.active', true);
+            // The certificate was only just installed on the server — a
+            // client isn't proven "active" until a handshake actually shows it.
+            ->assertJsonPath('ssl.active', false);
 
         $this->assertSame('custom', $service->fresh()->website_ssl_mode);
+
+        $checker->markActive($service->fresh()->primary_domain);
+
+        $this->withToken($token)->getJson("/api/v1/client/services/{$service->id}/website")
+            ->assertOk()->assertJsonPath('ssl.active', true);
         $this->assertTrue($service->fresh()->website_ssl_active);
     }
 
     public function test_custom_ssl_is_rejected_when_the_key_does_not_match_the_certificate(): void
     {
         $fake = $this->fakeIspConfig();
+        $this->fakeCertificateChecker();
         $service = $this->provisionedService($fake);
         $token = $this->clientToken($service);
         [$cert] = $this->generateSelfSignedPair();
@@ -138,6 +158,7 @@ class WebsiteSettingsTest extends TestCase
     public function test_client_can_turn_ssl_off(): void
     {
         $fake = $this->fakeIspConfig();
+        $this->fakeCertificateChecker();
         $service = $this->provisionedService($fake);
         $token = $this->clientToken($service);
 
@@ -149,6 +170,7 @@ class WebsiteSettingsTest extends TestCase
     public function test_client_can_set_and_remove_a_reverse_proxy_without_touching_other_apache_directives(): void
     {
         $fake = $this->fakeIspConfig();
+        $this->fakeCertificateChecker();
         $service = $this->provisionedService($fake);
         $token = $this->clientToken($service);
         $websiteId = (int) $service->ispConfigServiceMappings()->first()->ispconfig_website_id;
@@ -179,6 +201,7 @@ class WebsiteSettingsTest extends TestCase
     public function test_a_proxy_port_already_used_by_another_website_is_rejected(): void
     {
         $fake = $this->fakeIspConfig();
+        $this->fakeCertificateChecker();
         $serviceA = $this->provisionedService($fake);
         $serviceB = $this->provisionedService($fake);
         $tokenA = $this->clientToken($serviceA);
@@ -194,6 +217,7 @@ class WebsiteSettingsTest extends TestCase
     public function test_client_cannot_manage_another_clients_website(): void
     {
         $fake = $this->fakeIspConfig();
+        $this->fakeCertificateChecker();
         $service = $this->provisionedService($fake);
         $intruder = User::factory()->create(['role' => 'client', 'account_status' => 'active', 'email_verified_at' => now(), 'password' => Hash::make('secret-password')]);
         $token = $this->postJson('/api/v1/auth/login', ['email' => $intruder->email, 'password' => 'secret-password'])->assertOk()->json('token');
@@ -205,6 +229,7 @@ class WebsiteSettingsTest extends TestCase
     public function test_the_periodic_sync_job_refreshes_cached_settings_without_the_client_visiting_the_page(): void
     {
         $fake = $this->fakeIspConfig();
+        $checker = $this->fakeCertificateChecker();
         $service = $this->provisionedService($fake);
         $websiteId = (int) $service->ispConfigServiceMappings()->first()->ispconfig_website_id;
 
@@ -212,9 +237,9 @@ class WebsiteSettingsTest extends TestCase
         $fake->sitesWebDomainUpdate($sid, 1, $websiteId, [
             'ssl' => 'y',
             'ssl_letsencrypt' => 'y',
-            'ssl_cert' => '-----BEGIN CERTIFICATE-----FAKE-----END CERTIFICATE-----',
             'php' => 'php-fpm',
         ]);
+        $checker->markActive($service->primary_domain);
 
         SyncIspConfigHostingServicesJob::dispatchSync($service->id);
 
@@ -222,6 +247,21 @@ class WebsiteSettingsTest extends TestCase
         $this->assertTrue($service->website_ssl_active);
         $this->assertSame('free', $service->website_ssl_mode);
         $this->assertTrue($service->website_php_enabled);
+    }
+
+    public function test_the_periodic_sync_job_does_not_mark_ssl_active_on_ispconfigs_say_so_alone(): void
+    {
+        $fake = $this->fakeIspConfig();
+        $this->fakeCertificateChecker();
+        $service = $this->provisionedService($fake);
+        $websiteId = (int) $service->ispConfigServiceMappings()->first()->ispconfig_website_id;
+
+        $sid = $fake->login();
+        $fake->sitesWebDomainUpdate($sid, 1, $websiteId, ['ssl' => 'y', 'ssl_letsencrypt' => 'y']);
+
+        SyncIspConfigHostingServicesJob::dispatchSync($service->id);
+
+        $this->assertFalse($service->fresh()->website_ssl_active);
     }
 
     /**

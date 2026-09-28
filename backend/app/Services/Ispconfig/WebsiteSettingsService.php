@@ -5,6 +5,7 @@ namespace App\Services\Ispconfig;
 use App\Models\HostingService;
 use App\Models\IspConfigServiceMapping;
 use App\Services\Ispconfig\Exceptions\IspConfigApiException;
+use App\Services\Ssl\LiveCertificateChecker;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -29,7 +30,10 @@ class WebsiteSettingsService
 
     private const PROXY_BLOCK_END = '# END NAI-TALK-PROXY';
 
-    public function __construct(private readonly IspConfigClient $ispConfig) {}
+    public function __construct(
+        private readonly IspConfigClient $ispConfig,
+        private readonly LiveCertificateChecker $certificateChecker = new LiveCertificateChecker,
+    ) {}
 
     /**
      * @return array{php: array{enabled: bool}, ssl: array{enabled: bool, mode: ?string, active: bool, domain: ?string}, proxy: array{enabled: bool, port: ?int}, synced_at: string}
@@ -188,8 +192,12 @@ class WebsiteSettingsService
      */
     private function cache(HostingService $service, array $site): array
     {
+        $domain = $site['domain'] ?? $service->primary_domain;
         $phpEnabled = self::phpEnabledFromSite($site);
-        $sslActive = self::sslActiveFromSite($site);
+        // The one thing here that is NOT read from ISPConfig's own record: a
+        // live TLS handshake against the domain, checking what certificate is
+        // really being served. See LiveCertificateChecker for why.
+        $sslActive = ($site['ssl'] ?? 'n') === 'y' && $domain && $this->certificateChecker->isActive($domain);
         $sslMode = self::sslModeFromSite($site, $service->website_ssl_mode);
         $proxy = self::proxyFromSite($site['apache_directives'] ?? null);
         $syncedAt = now();
@@ -219,17 +227,6 @@ class WebsiteSettingsService
     public static function phpEnabledFromSite(array $site): bool
     {
         return ! in_array($site['php'] ?? 'no', ['no', '', null], true);
-    }
-
-    /**
-     * A certificate is genuinely serving the site once ISPConfig has one on
-     * file for it — true for a completed free-SSL issuance or an uploaded
-     * custom one; false while a free-SSL request is still pending or SSL is
-     * off altogether.
-     */
-    public static function sslActiveFromSite(array $site): bool
-    {
-        return trim((string) ($site['ssl_cert'] ?? '')) !== '';
     }
 
     public static function sslModeFromSite(array $site, ?string $cachedMode): ?string

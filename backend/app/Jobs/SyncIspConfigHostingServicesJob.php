@@ -7,6 +7,7 @@ use App\Models\ProvisioningLog;
 use App\Services\Ispconfig\Exceptions\IspConfigApiException;
 use App\Services\Ispconfig\IspConfigClient;
 use App\Services\Ispconfig\WebsiteSettingsService;
+use App\Services\Ssl\LiveCertificateChecker;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -23,7 +24,7 @@ class SyncIspConfigHostingServicesJob implements ShouldQueue
     {
     }
 
-    public function handle(IspConfigClient $client): void
+    public function handle(IspConfigClient $client, LiveCertificateChecker $certificateChecker): void
     {
         $query = IspConfigServiceMapping::query()->whereNotNull('ispconfig_website_id');
 
@@ -38,7 +39,7 @@ class SyncIspConfigHostingServicesJob implements ShouldQueue
         $sessionId = $client->login();
 
         try {
-            $query->chunkById(100, function ($mappings) use ($client, $sessionId): void {
+            $query->chunkById(100, function ($mappings) use ($client, $sessionId, $certificateChecker): void {
                 foreach ($mappings as $mapping) {
                     try {
                         $remote = $client->sitesWebDomainGet($sessionId, (int) $mapping->ispconfig_website_id);
@@ -88,9 +89,11 @@ class SyncIspConfigHostingServicesJob implements ShouldQueue
                         ])->save();
 
                         if ($service = $mapping->hostingService) {
+                            $domain = $remote['domain'] ?? $service->primary_domain;
+
                             $service->forceFill([
                                 'website_php_enabled' => WebsiteSettingsService::phpEnabledFromSite($remote),
-                                'website_ssl_active' => WebsiteSettingsService::sslActiveFromSite($remote),
+                                'website_ssl_active' => ($remote['ssl'] ?? 'n') === 'y' && $domain && $certificateChecker->isActive($domain),
                                 'website_ssl_mode' => WebsiteSettingsService::sslModeFromSite($remote, $service->website_ssl_mode),
                                 'website_settings_synced_at' => now(),
                             ])->save();
