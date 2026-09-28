@@ -87,7 +87,10 @@ class InvoiceController extends Controller
         abort_if(! $client, 404, 'Client profile not found.');
         abort_if($invoice->client_id !== $client->id, 404);
 
-        $bankTransferPayment = Payment::query()->where('invoice_id', $invoice->id)->where('gateway', 'bank_transfer')->latest('id')->first();
+        // Only a transfer still waiting to be reconciled counts: once an instalment
+        // has been applied its row is 'paid' history, and reporting that status
+        // made the page show an upload form the API then refused.
+        $bankTransferPayment = Payment::query()->where('invoice_id', $invoice->id)->where('gateway', 'bank_transfer')->whereNull('reconciled_at')->latest('id')->first();
         $breakdown = (new InvoiceBreakdown)->build($invoice);
 
         return [

@@ -317,4 +317,50 @@ class ManualInvoiceAndLegacyMigrationTest extends TestCase
         $this->artisan('clients:create-with-sites', ['email' => 'new@example.test', '--domain' => ['not-mine.test']] + $args)->assertFailed();
         $this->assertDatabaseMissing('users', ['email' => 'new@example.test']);
     }
+
+    public function test_client_can_upload_proof_for_the_balance_after_a_part_payment_was_approved(): void
+    {
+        Notification::fake();
+        \Illuminate\Support\Facades\Storage::fake('local');
+        $this->seed();
+        ['token' => $clientToken, 'client' => $client] = $this->registerVerifiedDomainClient('balance-proof@example.test');
+        $adminToken = $this->domainAdminToken();
+        $invoiceNumber = $this->createManualInvoice($adminToken, $client->id, 12_000_000)->json('data.invoice_number');
+
+        // The client sends ₦70,000 with proof; the admin approves it.
+        $this->app['auth']->forgetGuards();
+        $this->withToken($clientToken)->postJson("/api/v1/client/invoices/{$invoiceNumber}/pay/bank-transfer")->assertOk();
+        $this->withToken($clientToken)->post("/api/v1/client/invoices/{$invoiceNumber}/pay/bank-transfer/proof", [
+            'receipt' => \Illuminate\Http\UploadedFile::fake()->create('first.pdf', 20, 'application/pdf'),
+            'amount_kobo' => 7_000_000,
+        ], ['Accept' => 'application/json'])->assertOk();
+        $this->app['auth']->forgetGuards();
+        $this->withToken($adminToken)->postJson("/api/v1/admin/invoices/{$invoiceNumber}/mark-paid", ['amount_kobo' => 7_000_000])->assertOk();
+
+        // Back on the invoice page: nothing is "pending", so the payment options show again...
+        $this->app['auth']->forgetGuards();
+        $this->withToken($clientToken)->getJson("/api/v1/client/invoices/{$invoiceNumber}")
+            ->assertOk()
+            ->assertJsonPath('status', 'partially_paid')
+            ->assertJsonPath('bank_transfer_status', null)
+            ->assertJsonPath('balance_due', '₦50,000');
+
+        // ...and even without re-selecting bank transfer, proof for the ₦50,000 balance is accepted.
+        $this->withToken($clientToken)->post("/api/v1/client/invoices/{$invoiceNumber}/pay/bank-transfer/proof", [
+            'receipt' => \Illuminate\Http\UploadedFile::fake()->create('second.pdf', 20, 'application/pdf'),
+        ], ['Accept' => 'application/json'])->assertOk();
+
+        $this->withToken($clientToken)->getJson("/api/v1/client/invoices/{$invoiceNumber}")->assertJsonPath('bank_transfer_status', 'pending_review');
+
+        $this->app['auth']->forgetGuards();
+        $this->withToken($adminToken)->postJson("/api/v1/admin/invoices/{$invoiceNumber}/mark-paid")->assertOk();
+
+        $invoice = Invoice::where('invoice_number', $invoiceNumber)->firstOrFail();
+        $this->assertSame('paid', $invoice->status);
+        $this->assertSame(12_000_000, $invoice->amount_paid_kobo);
+        $payments = $invoice->payments()->where('gateway', 'bank_transfer')->orderBy('id')->get();
+        $this->assertCount(2, $payments);
+        $this->assertNotNull($payments[1]->receipt_path);
+        $this->assertNotSame($payments[0]->receipt_path, $payments[1]->receipt_path);
+    }
 }

@@ -1360,7 +1360,7 @@ export function ClientInvoicePage({
                 <p className="mt-2"><strong className="text-white">Bank:</strong> {bankTransferInfo?.bank_name || invoice.bank_transfer.bank_name}</p>
                 <p className="mt-1"><strong className="text-white">Account name:</strong> {bankTransferInfo?.account_name || invoice.bank_transfer.account_name}</p>
                 <p className="mt-1"><strong className="text-white">Account number:</strong> {bankTransferInfo?.account_number || invoice.bank_transfer.account_number}</p>
-                <p className="mt-1"><strong className="text-white">Amount:</strong> {bankTransferInfo?.amount || invoice.total}</p>
+                <p className="mt-1"><strong className="text-white">Amount:</strong> {bankTransferInfo?.amount || invoice.balance_due || invoice.total}</p>
                 <p className="mt-1"><strong className="text-white">Reference:</strong> {bankTransferInfo?.reference || invoice.invoice_number}</p>
                 {bankTransferInfo?.message && <p className="mt-3 text-white/60">{bankTransferInfo.message}</p>}
 
@@ -1376,7 +1376,7 @@ export function ClientInvoicePage({
                     min={0}
                     step="0.01"
                     inputMode="decimal"
-                    placeholder={`Leave blank if you paid the full ${bankTransferInfo?.amount || invoice.total}`}
+                    placeholder={`Leave blank if you paid the full ${bankTransferInfo?.amount || invoice.balance_due || invoice.total}`}
                     className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none focus:border-primary/50"
                     value={amountPaidNaira}
                     onChange={(event) => setAmountPaidNaira(event.target.value)}

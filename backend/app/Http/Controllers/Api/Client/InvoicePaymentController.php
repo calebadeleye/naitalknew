@@ -106,9 +106,11 @@ class InvoicePaymentController extends Controller
             'amount_kobo' => ['nullable', 'integer', 'min:1', 'max:'.$outstandingKobo],
         ]);
 
-        $payment = $invoice->payments()->where('gateway', 'bank_transfer')->whereNull('reconciled_at')->latest('id')->first();
-
-        abort_if(! $payment, 422, 'Please select bank transfer as your payment method before uploading proof of payment.');
+        // Uploading proof is itself the client saying "I paid by bank transfer",
+        // so open the payment here if none is waiting — e.g. when they come back
+        // to send the balance after an earlier instalment was already approved.
+        $payment = $invoice->payments()->where('gateway', 'bank_transfer')->whereNull('reconciled_at')->latest('id')->first()
+            ?? $invoice->openBankTransferPayment('awaiting_bank_transfer', $outstandingKobo);
 
         $path = $payload['receipt']->store('receipts', 'local');
 
