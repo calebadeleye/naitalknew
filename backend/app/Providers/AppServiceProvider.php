@@ -13,6 +13,9 @@ use App\Policies\MailboxRecordPolicy;
 use App\Services\Ispconfig\FakeIspConfigClient;
 use App\Services\Ispconfig\IspConfigClient;
 use App\Services\Ispconfig\SoapIspConfigClient;
+use App\Services\FileManager\FakeFileManagerTransport;
+use App\Services\FileManager\FileManagerTransport;
+use App\Services\FileManager\Phpseclib3FileManagerTransport;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
@@ -39,6 +42,10 @@ class AppServiceProvider extends ServiceProvider
                 remotePassword: $config['remote_password'],
                 verifySsl: $config['verify_ssl'],
             );
+        });
+
+        $this->app->bind(FileManagerTransport::class, function ($app) {
+            return $app->environment('testing') ? new FakeFileManagerTransport : new Phpseclib3FileManagerTransport;
         });
     }
 

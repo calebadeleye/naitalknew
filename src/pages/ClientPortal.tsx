@@ -8,7 +8,6 @@ import {
   ArrowUpRight,
   Activity,
   BadgeCheck,
-  BarChart3,
   Bell,
   BookOpen,
   Bot,
@@ -23,6 +22,10 @@ import {
   CreditCard,
   Database,
   Download,
+  File as FileIcon,
+  FileArchive,
+  Folder,
+  FolderPlus,
   ExternalLink,
   Eye,
   Facebook,
@@ -40,7 +43,6 @@ import {
   Linkedin,
   List,
   Loader2,
-  LockKeyhole,
   LogOut,
   Mail,
   MapPin,
@@ -308,7 +310,15 @@ export type HostingFtpAccount = {
   last_synced_at: string | null;
 };
 
-export type HostingTabName = "overview" | "email" | "databases" | "ftp" | "website" | "access";
+export type HostingTabName = "overview" | "email" | "databases" | "ftp" | "website";
+
+export type FileManagerEntry = {
+  name: string;
+  type: "file" | "dir" | "other";
+  size: number;
+  modified_at: number;
+  permissions: number | null;
+};
 
 export type WebsiteSettings = {
   php: { enabled: boolean };
@@ -350,6 +360,15 @@ export function HostingManagePanel({
   const [customSslCert, setCustomSslCert] = useState("");
   const [customSslKey, setCustomSslKey] = useState("");
   const [customSslBundle, setCustomSslBundle] = useState("");
+  const [fileManagerPath, setFileManagerPath] = useState("");
+  const [fileEntries, setFileEntries] = useState<FileManagerEntry[] | null>(null);
+  const [isLoadingFiles, setIsLoadingFiles] = useState(false);
+  const [isFilesProvisioning, setIsFilesProvisioning] = useState(false);
+  const [isFileActionBusy, setIsFileActionBusy] = useState(false);
+  const [showHiddenFiles, setShowHiddenFiles] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const fileUploadInputRef = React.useRef<HTMLInputElement>(null);
   const [data, setData] = useState<HostingManageOverview | null>(null);
   const [mailboxes, setMailboxes] = useState<{ items: HostingMailbox[]; limit: number } | null>(null);
   const [databases, setDatabases] = useState<{ items: HostingDatabase[]; limit: number } | null>(null);
@@ -456,6 +475,159 @@ export function HostingManagePanel({
       { method: "PUT", body: JSON.stringify({ port }) },
       port ? `Requests to your site now go to your app on port ${port}.` : "Reverse proxy turned off — your site serves normally again.",
     );
+  };
+
+  const loadFiles = React.useCallback(
+    async (path: string = fileManagerPath, hidden: boolean = showHiddenFiles) => {
+      setIsLoadingFiles(true);
+      try {
+        const response = await laravelApi<{ ready: boolean; path?: string; entries?: FileManagerEntry[] }>(
+          `${base}/files?path=${encodeURIComponent(path)}&hidden=${hidden ? "1" : "0"}`,
+          token,
+        );
+        if (response.ready) {
+          setIsFilesProvisioning(false);
+          setFileManagerPath(response.path ?? path);
+          setFileEntries(response.entries ?? []);
+        } else {
+          setIsFilesProvisioning(true);
+          setFileEntries(null);
+        }
+      } catch (error) {
+        toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not load your files." });
+      } finally {
+        setIsLoadingFiles(false);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [base, token, toast],
+  );
+
+  useEffect(() => {
+    if (tab === "overview" && fileEntries === null && !isLoadingFiles) {
+      void loadFiles("", false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  const openFolder = (name: string) => {
+    const nextPath = fileManagerPath ? `${fileManagerPath}/${name}` : name;
+    void loadFiles(nextPath, showHiddenFiles);
+  };
+
+  const goToBreadcrumb = (index: number) => {
+    const segments = fileManagerPath.split("/").filter(Boolean);
+    void loadFiles(segments.slice(0, index).join("/"), showHiddenFiles);
+  };
+
+  const toggleHiddenFiles = () => {
+    const next = !showHiddenFiles;
+    setShowHiddenFiles(next);
+    void loadFiles(fileManagerPath, next);
+  };
+
+  const handleFileUploadSelected = async (fileList: FileList | null) => {
+    const file = fileList?.[0];
+    if (!file) return;
+
+    setIsFileActionBusy(true);
+    try {
+      const formData = new FormData();
+      formData.append("path", fileManagerPath);
+      formData.append("file", file);
+      const response = await fetch(`${LARAVEL_API_BASE_URL}${base}/files/upload`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || "Upload failed.");
+      toast.push({ type: "success", message: `Uploaded ${file.name}.` });
+      await loadFiles(fileManagerPath, showHiddenFiles);
+    } catch (error) {
+      toast.push({ type: "error", message: error instanceof Error ? error.message : "Upload failed." });
+    } finally {
+      setIsFileActionBusy(false);
+      if (fileUploadInputRef.current) fileUploadInputRef.current.value = "";
+    }
+  };
+
+  const handleExtractZip = async (name: string) => {
+    setIsFileActionBusy(true);
+    try {
+      const zipPath = fileManagerPath ? `${fileManagerPath}/${name}` : name;
+      const response = await laravelApi<{ ok: boolean; message: string }>(`${base}/files/extract`, token, {
+        method: "POST",
+        body: JSON.stringify({ path: zipPath }),
+      });
+      toast.push({ type: response.ok ? "success" : "error", message: response.message });
+      await loadFiles(fileManagerPath, showHiddenFiles);
+    } catch (error) {
+      toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not extract that zip file." });
+    } finally {
+      setIsFileActionBusy(false);
+    }
+  };
+
+  const handleCreateFolder = async () => {
+    const name = newFolderName.trim();
+    if (!name) return;
+
+    setIsCreatingFolder(true);
+    try {
+      await laravelApi(`${base}/files/mkdir`, token, {
+        method: "POST",
+        body: JSON.stringify({ path: fileManagerPath, name }),
+      });
+      toast.push({ type: "success", message: `Folder "${name}" created.` });
+      setNewFolderName("");
+      await loadFiles(fileManagerPath, showHiddenFiles);
+    } catch (error) {
+      toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not create that folder." });
+    } finally {
+      setIsCreatingFolder(false);
+    }
+  };
+
+  const handleDeleteEntry = async (name: string) => {
+    const targetPath = fileManagerPath ? `${fileManagerPath}/${name}` : name;
+    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+
+    setIsFileActionBusy(true);
+    try {
+      const response = await fetch(`${LARAVEL_API_BASE_URL}${base}/files`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ path: targetPath }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || "Could not delete that.");
+      toast.push({ type: "success", message: `Deleted "${name}".` });
+      await loadFiles(fileManagerPath, showHiddenFiles);
+    } catch (error) {
+      toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not delete that." });
+    } finally {
+      setIsFileActionBusy(false);
+    }
+  };
+
+  const handleDownloadEntry = async (name: string) => {
+    try {
+      const targetPath = fileManagerPath ? `${fileManagerPath}/${name}` : name;
+      const response = await fetch(`${LARAVEL_API_BASE_URL}${base}/files/download?path=${encodeURIComponent(targetPath)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error("Could not download that file.");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = name;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not download that file." });
+    }
   };
 
   const handleRefresh = async () => {
@@ -601,12 +773,11 @@ export function HostingManagePanel({
       <div className="hosting-tabs">
         {(
           [
-            ["overview", BarChart3, "Overview"],
+            ["overview", Folder, "Files"],
             ["email", Mail, "Email Accounts"],
             ["databases", Database, "Databases"],
             ["ftp", KeyRound, "SSH/SFTP"],
             ["website", Globe2, "Website"],
-            ["access", LockKeyhole, "Access Details"],
           ] as [HostingTabName, React.ComponentType<{ className?: string }>, string][]
         ).map(([id, Icon, label]) => (
           <button key={id} type="button" className={tab === id ? "hosting-tab active" : "hosting-tab"} onClick={() => setTab(id)}>
@@ -620,13 +791,179 @@ export function HostingManagePanel({
         <section className="portal-card">
           {tab === "overview" && (
             <div>
-              <h2>Overview</h2>
-              <p className="mt-3 text-sm text-white/54">
-                {overview.primary_domain} is currently <strong className="text-white">{overview.status}</strong> on the {overview.plan} package,
-                billed {overview.billing_cycle}.
-              </p>
-              {!capabilities.email_accounts_enabled && !capabilities.databases_enabled && !capabilities.ftp_sftp_enabled && (
-                <p className="mt-3 text-sm text-white/40">This package does not include email, database, or SSH/SFTP management.</p>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2>Files</h2>
+                  <p className="mt-1 text-sm text-white/54">
+                    {overview.primary_domain} is currently <strong className="text-white">{overview.status}</strong> on the {overview.plan}{" "}
+                    package, billed {overview.billing_cycle}.
+                  </p>
+                </div>
+                {!isFilesProvisioning && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={fileUploadInputRef}
+                      type="file"
+                      className="hidden"
+                      onChange={(event) => void handleFileUploadSelected(event.target.files)}
+                    />
+                    <button
+                      type="button"
+                      className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[11px]"
+                      disabled={isFileActionBusy}
+                      onClick={() => void loadFiles(fileManagerPath, showHiddenFiles)}
+                    >
+                      <RefreshCw className={isLoadingFiles ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
+                      Refresh
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-primary !min-h-9 !px-3 !py-1.5 !text-[11px]"
+                      disabled={isFileActionBusy}
+                      onClick={() => fileUploadInputRef.current?.click()}
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      Upload File
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {isFilesProvisioning ? (
+                <div className="mt-6 rounded-lg border border-primary/25 bg-primary/5 p-4 text-sm text-white/72">
+                  <p className="font-black text-white">Setting up your file manager...</p>
+                  <p className="mt-1 text-white/60">This takes about a minute the first time. Please try again shortly.</p>
+                  <button
+                    type="button"
+                    className="btn-outline mt-4 !min-h-9 !px-3 !py-1.5 !text-[11px]"
+                    disabled={isLoadingFiles}
+                    onClick={() => void loadFiles("", showHiddenFiles)}
+                  >
+                    <RefreshCw className={isLoadingFiles ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
+                    Try Again
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                    <nav className="flex flex-wrap items-center gap-1 text-xs font-bold text-white/60">
+                      <button type="button" className="rounded px-2 py-1 hover:bg-white/10 hover:text-white" onClick={() => goToBreadcrumb(0)}>
+                        Home
+                      </button>
+                      {fileManagerPath
+                        .split("/")
+                        .filter(Boolean)
+                        .map((segment, index, segments) => (
+                          <span key={`${segment}-${index}`} className="flex items-center gap-1">
+                            <span className="text-white/30">/</span>
+                            <button
+                              type="button"
+                              className={`rounded px-2 py-1 hover:bg-white/10 hover:text-white ${index === segments.length - 1 ? "text-white" : ""}`}
+                              onClick={() => goToBreadcrumb(index + 1)}
+                            >
+                              {segment}
+                            </button>
+                          </span>
+                        ))}
+                    </nav>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label className="flex items-center gap-2 text-xs font-bold text-white/60">
+                        <input type="checkbox" checked={showHiddenFiles} onChange={toggleHiddenFiles} />
+                        Show hidden files
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={newFolderName}
+                          onChange={(event) => setNewFolderName(event.target.value)}
+                          placeholder="New folder name"
+                          className="h-9 rounded-lg border border-white/10 bg-black/30 px-3 text-xs text-white outline-none focus:border-primary/50"
+                        />
+                        <button
+                          type="button"
+                          className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[11px]"
+                          disabled={isCreatingFolder || !newFolderName.trim()}
+                          onClick={() => void handleCreateFolder()}
+                        >
+                          <FolderPlus className="h-3.5 w-3.5" />
+                          Create
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="hosting-table-wrap mt-4">
+                    <table className="hosting-table">
+                      <thead>
+                        <tr>
+                          <th>Name</th>
+                          <th>Size</th>
+                          <th>Modified</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(fileEntries || []).map((entry) => {
+                          const isZip = entry.type === "file" && entry.name.toLowerCase().endsWith(".zip");
+                          const EntryIcon = entry.type === "dir" ? Folder : isZip ? FileArchive : FileIcon;
+
+                          return (
+                            <tr key={entry.name}>
+                              <td className="font-bold text-white">
+                                {entry.type === "dir" ? (
+                                  <button type="button" className="flex items-center gap-2 hover:text-primary" onClick={() => openFolder(entry.name)}>
+                                    <EntryIcon className="h-4 w-4 shrink-0 text-primary" />
+                                    {entry.name}
+                                  </button>
+                                ) : (
+                                  <span className="flex items-center gap-2">
+                                    <EntryIcon className="h-4 w-4 shrink-0 text-white/50" />
+                                    {entry.name}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="text-white/40">{entry.type === "dir" ? "—" : formatMb(Math.max(1, Math.round(entry.size / (1024 * 1024))))}</td>
+                              <td className="text-white/40">{entry.modified_at ? formatDateTime(new Date(entry.modified_at * 1000).toISOString()) : "—"}</td>
+                              <td>
+                                <div className="flex items-center justify-end gap-2">
+                                  {isZip && (
+                                    <button
+                                      type="button"
+                                      className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                                      disabled={isFileActionBusy}
+                                      onClick={() => void handleExtractZip(entry.name)}
+                                    >
+                                      Unzip
+                                    </button>
+                                  )}
+                                  {entry.type === "file" && (
+                                    <button
+                                      type="button"
+                                      className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                                      onClick={() => void handleDownloadEntry(entry.name)}
+                                    >
+                                      <Download className="h-3.5 w-3.5" />
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                                    disabled={isFileActionBusy}
+                                    onClick={() => void handleDeleteEntry(entry.name)}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    {fileEntries && fileEntries.length === 0 && <p className="mt-4 text-sm text-white/40">This folder is empty.</p>}
+                    {isLoadingFiles && !fileEntries && <p className="mt-4 text-sm text-white/40">Loading your files...</p>}
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -978,15 +1315,6 @@ export function HostingManagePanel({
             </div>
           )}
 
-          {tab === "access" && (
-            <div>
-              <h2>Access Details</h2>
-              <p className="mt-3 text-sm text-white/54">
-                For security, server-level and ISPConfig administrative credentials are never shown in the client portal. Use the actions in the
-                Email Accounts, Databases, and SSH/SFTP tabs above to manage access for this service.
-              </p>
-            </div>
-          )}
         </section>
 
         <aside className="portal-card">

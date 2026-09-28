@@ -40,6 +40,7 @@ use App\Http\Controllers\Api\Client\Hosting\DatabaseController;
 use App\Http\Controllers\Api\Client\Hosting\FtpAccountController;
 use App\Http\Controllers\Api\Client\Hosting\HostingControlPanelController;
 use App\Http\Controllers\Api\Client\Hosting\MailboxController;
+use App\Http\Controllers\Api\Client\Hosting\FileManagerController;
 use App\Http\Controllers\Api\Client\Hosting\WebsiteSettingsController;
 use App\Http\Controllers\Api\Client\InvoiceController;
 use App\Http\Controllers\Api\Client\InvoicePaymentController;
@@ -175,6 +176,13 @@ Route::prefix('v1')->group(function (): void {
                     Route::post('/website/ssl/custom', [WebsiteSettingsController::class, 'installCustomSsl'])->middleware('throttle:hosting-resource-create');
                     Route::delete('/website/ssl', [WebsiteSettingsController::class, 'disableSsl'])->middleware('throttle:hosting-manual-sync');
                     Route::put('/website/proxy', [WebsiteSettingsController::class, 'updateProxy'])->middleware('throttle:hosting-manual-sync');
+
+                    Route::get('/files', [FileManagerController::class, 'index']);
+                    Route::post('/files/upload', [FileManagerController::class, 'upload'])->middleware('throttle:hosting-resource-create');
+                    Route::post('/files/extract', [FileManagerController::class, 'extract'])->middleware('throttle:hosting-resource-create');
+                    Route::post('/files/mkdir', [FileManagerController::class, 'makeDirectory'])->middleware('throttle:hosting-resource-create');
+                    Route::delete('/files', [FileManagerController::class, 'destroy'])->middleware('throttle:hosting-resource-create');
+                    Route::get('/files/download', [FileManagerController::class, 'download']);
                 });
             });
         });
