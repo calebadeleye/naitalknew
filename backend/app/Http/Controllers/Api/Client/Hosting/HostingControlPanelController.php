@@ -53,6 +53,16 @@ class HostingControlPanelController extends Controller
                 'ssl_enabled' => (bool) ($configuration['ssl_enabled'] ?? false),
                 'backup_enabled' => (bool) ($configuration['backup_enabled'] ?? false),
             ],
+            // Cached, from the last live read of ISPConfig — the Website tab
+            // (or a settings change there) is what actually refreshes it.
+            'website' => [
+                'php_enabled' => $service->website_php_enabled,
+                'ssl_active' => $service->website_ssl_active,
+                'ssl_mode' => $service->website_ssl_mode,
+                'reverse_proxy_enabled' => $service->website_reverse_proxy_enabled,
+                'reverse_proxy_port' => $service->website_reverse_proxy_port,
+                'synced_at' => $service->website_settings_synced_at?->toIso8601String(),
+            ],
         ]);
     }
 

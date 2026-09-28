@@ -52,6 +52,11 @@ class ClientDashboardService
                 'provisioning_status' => $service->provisioning_status,
                 'billing_cycle' => $service->billing_cycle,
                 'renews_at' => $service->renews_at?->toDateString(),
+                // Drives the "Activate SSL" dashboard banner — only meaningful
+                // once the website actually exists in ISPConfig.
+                'needs_ssl_setup' => $service->status === 'active'
+                    && in_array($service->provisioning_status, ['provisioned', 'imported_existing'], true)
+                    && ! $service->website_ssl_active,
             ])->values(),
             'recent_invoice' => optional($client->invoices->sortByDesc('created_at')->first(), fn ($invoice) => [
                 'invoice_number' => $invoice->invoice_number,

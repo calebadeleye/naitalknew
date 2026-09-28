@@ -6,6 +6,7 @@ use App\Models\IspConfigServiceMapping;
 use App\Models\ProvisioningLog;
 use App\Services\Ispconfig\Exceptions\IspConfigApiException;
 use App\Services\Ispconfig\IspConfigClient;
+use App\Services\Ispconfig\WebsiteSettingsService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -85,6 +86,15 @@ class SyncIspConfigHostingServicesJob implements ShouldQueue
                             'last_reconciled_at' => now(),
                             'last_error' => null,
                         ])->save();
+
+                        if ($service = $mapping->hostingService) {
+                            $service->forceFill([
+                                'website_php_enabled' => WebsiteSettingsService::phpEnabledFromSite($remote),
+                                'website_ssl_active' => WebsiteSettingsService::sslActiveFromSite($remote),
+                                'website_ssl_mode' => WebsiteSettingsService::sslModeFromSite($remote, $service->website_ssl_mode),
+                                'website_settings_synced_at' => now(),
+                            ])->save();
+                        }
                     } catch (IspConfigApiException $exception) {
                         $mapping->forceFill(['last_error' => $exception->safeMessage()])->save();
 

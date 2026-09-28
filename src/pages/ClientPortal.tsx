@@ -308,7 +308,14 @@ export type HostingFtpAccount = {
   last_synced_at: string | null;
 };
 
-export type HostingTabName = "overview" | "email" | "databases" | "ftp" | "access";
+export type HostingTabName = "overview" | "email" | "databases" | "ftp" | "website" | "access";
+
+export type WebsiteSettings = {
+  php: { enabled: boolean };
+  ssl: { enabled: boolean; mode: "free" | "custom" | null; active: boolean; domain: string | null };
+  proxy: { enabled: boolean; port: number | null };
+  synced_at: string;
+};
 
 export type HostingModalState =
   | null
@@ -327,13 +334,22 @@ export function HostingManagePanel({
   token,
   navigate,
   toast,
+  initialTab,
 }: {
   serviceId: number;
   token: string;
   navigate: (path: string) => void;
   toast: ReturnType<typeof useToast>;
+  initialTab?: HostingTabName;
 }) {
-  const [tab, setTab] = useState<HostingTabName>("overview");
+  const [tab, setTab] = useState<HostingTabName>(initialTab || "overview");
+  const [websiteSettings, setWebsiteSettings] = useState<WebsiteSettings | null>(null);
+  const [isLoadingWebsite, setIsLoadingWebsite] = useState(false);
+  const [isSavingWebsite, setIsSavingWebsite] = useState(false);
+  const [proxyPortInput, setProxyPortInput] = useState("");
+  const [customSslCert, setCustomSslCert] = useState("");
+  const [customSslKey, setCustomSslKey] = useState("");
+  const [customSslBundle, setCustomSslBundle] = useState("");
   const [data, setData] = useState<HostingManageOverview | null>(null);
   const [mailboxes, setMailboxes] = useState<{ items: HostingMailbox[]; limit: number } | null>(null);
   const [databases, setDatabases] = useState<{ items: HostingDatabase[]; limit: number } | null>(null);
@@ -368,6 +384,79 @@ export function HostingManagePanel({
   useEffect(() => {
     void loadAll();
   }, [loadAll]);
+
+  const loadWebsite = React.useCallback(async () => {
+    setIsLoadingWebsite(true);
+    try {
+      const settings = await laravelApi<WebsiteSettings>(`${base}/website`, token);
+      setWebsiteSettings(settings);
+      setProxyPortInput(settings.proxy.port ? String(settings.proxy.port) : "");
+    } catch (error) {
+      toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not load website settings." });
+    } finally {
+      setIsLoadingWebsite(false);
+    }
+  }, [base, token, toast]);
+
+  useEffect(() => {
+    if (tab === "website" && !websiteSettings && !isLoadingWebsite) {
+      void loadWebsite();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  const runWebsiteAction = async (path: string, options: RequestInit, successMessage: string) => {
+    setIsSavingWebsite(true);
+    try {
+      const settings = await laravelApi<WebsiteSettings>(path, token, options);
+      setWebsiteSettings(settings);
+      setProxyPortInput(settings.proxy.port ? String(settings.proxy.port) : "");
+      toast.push({ type: "success", message: successMessage });
+    } catch (error) {
+      toast.push({ type: "error", message: error instanceof Error ? error.message : "That did not work. Please try again." });
+    } finally {
+      setIsSavingWebsite(false);
+    }
+  };
+
+  const handleTogglePhp = (enabled: boolean) =>
+    void runWebsiteAction(`${base}/website/php`, { method: "PUT", body: JSON.stringify({ enabled }) }, enabled ? "PHP turned on." : "PHP turned off.");
+
+  const handleEnableFreeSsl = () =>
+    void runWebsiteAction(`${base}/website/ssl/free`, { method: "POST" }, "Free SSL requested. It can take a few minutes to activate.");
+
+  const handleDisableSsl = () =>
+    void runWebsiteAction(`${base}/website/ssl`, { method: "DELETE" }, "SSL turned off.");
+
+  const handleInstallCustomSsl = () => {
+    if (!customSslCert.trim() || !customSslKey.trim()) {
+      toast.push({ type: "error", message: "Paste both your certificate and your private key." });
+      return;
+    }
+    void runWebsiteAction(
+      `${base}/website/ssl/custom`,
+      { method: "POST", body: JSON.stringify({ certificate: customSslCert, private_key: customSslKey, ca_bundle: customSslBundle || undefined }) },
+      "Your SSL certificate has been installed.",
+    ).then(() => {
+      setCustomSslCert("");
+      setCustomSslKey("");
+      setCustomSslBundle("");
+    });
+  };
+
+  const handleSaveProxy = () => {
+    const trimmed = proxyPortInput.trim();
+    const port = trimmed ? Number(trimmed) : null;
+    if (trimmed && (!Number.isInteger(port) || (port as number) < 1024 || (port as number) > 65535)) {
+      toast.push({ type: "error", message: "Enter a port between 1024 and 65535, or leave it blank to turn the proxy off." });
+      return;
+    }
+    void runWebsiteAction(
+      `${base}/website/proxy`,
+      { method: "PUT", body: JSON.stringify({ port }) },
+      port ? `Requests to your site now go to your app on port ${port}.` : "Reverse proxy turned off — your site serves normally again.",
+    );
+  };
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -516,6 +605,7 @@ export function HostingManagePanel({
             ["email", Mail, "Email Accounts"],
             ["databases", Database, "Databases"],
             ["ftp", KeyRound, "SSH/SFTP"],
+            ["website", Globe2, "Website"],
             ["access", LockKeyhole, "Access Details"],
           ] as [HostingTabName, React.ComponentType<{ className?: string }>, string][]
         ).map(([id, Icon, label]) => (
@@ -770,6 +860,120 @@ export function HostingManagePanel({
                   </table>
                   {ftpAccounts?.items.length === 0 && <p className="mt-4 text-sm text-white/40">No SSH/SFTP accounts yet.</p>}
                 </div>
+              )}
+            </div>
+          )}
+
+          {tab === "website" && (
+            <div>
+              <h2>Website Settings</h2>
+              <p className="mt-1 text-sm text-white/48">Control PHP, SSL and an optional reverse proxy for this website directly — no ISPConfig login needed.</p>
+
+              {isLoadingWebsite && !websiteSettings ? (
+                <div className="mt-6 flex items-center gap-2 text-sm text-white/50">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading website settings...
+                </div>
+              ) : websiteSettings ? (
+                <div className="mt-5 grid gap-4">
+                  <div className="client-service-row !items-start">
+                    <div className="row-icon"><Code2 className="h-4 w-4" /></div>
+                    <div className="min-w-0 flex-1">
+                      <p>PHP</p>
+                      <small className="block text-white/48">
+                        {websiteSettings.php.enabled ? "PHP is running on this website." : "PHP is off. Turn it on to run WordPress or any PHP application."}
+                      </small>
+                    </div>
+                    <span className={websiteSettings.php.enabled ? "status-pill paid" : "status-pill failed"}>
+                      {websiteSettings.php.enabled ? "On" : "Off"}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn-outline"
+                      disabled={isSavingWebsite}
+                      onClick={() => handleTogglePhp(!websiteSettings.php.enabled)}
+                    >
+                      {websiteSettings.php.enabled ? "Turn Off" : "Turn On"}
+                    </button>
+                  </div>
+
+                  <div className="client-service-row !items-start">
+                    <div className="row-icon"><ShieldCheck className="h-4 w-4" /></div>
+                    <div className="min-w-0 flex-1">
+                      <p>SSL Certificate</p>
+                      <small className="block text-white/48">
+                        {websiteSettings.ssl.active
+                          ? `Your website is secured with ${websiteSettings.ssl.mode === "custom" ? "a custom SSL certificate" : "a free SSL certificate"}.`
+                          : websiteSettings.ssl.mode === "free"
+                            ? "Your free SSL certificate has been requested and is being activated. This usually takes a few minutes — check back shortly."
+                            : "Your website does not have a working SSL certificate yet. Visitors will see a security warning until this is activated."}
+                      </small>
+                    </div>
+                    <span className={websiteSettings.ssl.active ? "status-pill paid" : "status-pill failed"}>
+                      {websiteSettings.ssl.active ? "Active" : websiteSettings.ssl.mode === "free" ? "Pending" : "Not Active"}
+                    </span>
+                  </div>
+
+                  {!websiteSettings.ssl.active && (
+                    <div className="rounded-lg border border-white/10 bg-black/20 p-4">
+                      <button type="button" className="btn-primary" disabled={isSavingWebsite} onClick={handleEnableFreeSsl}>
+                        <ShieldCheck className="h-4 w-4" />
+                        Activate Free SSL
+                      </button>
+                      <p className="mt-4 text-xs font-black uppercase text-white/50">Or install your own SSL certificate</p>
+                      <div className="mt-3 grid gap-3">
+                        <label className="admin-field">
+                          <span>Certificate (PEM)</span>
+                          <textarea rows={4} className="font-mono text-xs" value={customSslCert} onChange={(event) => setCustomSslCert(event.target.value)} placeholder="-----BEGIN CERTIFICATE-----" />
+                        </label>
+                        <label className="admin-field">
+                          <span>Private Key (PEM)</span>
+                          <textarea rows={4} className="font-mono text-xs" value={customSslKey} onChange={(event) => setCustomSslKey(event.target.value)} placeholder="-----BEGIN PRIVATE KEY-----" />
+                        </label>
+                        <label className="admin-field">
+                          <span>CA Bundle (optional)</span>
+                          <textarea rows={3} className="font-mono text-xs" value={customSslBundle} onChange={(event) => setCustomSslBundle(event.target.value)} placeholder="-----BEGIN CERTIFICATE-----" />
+                        </label>
+                        <button type="button" className="btn-outline w-fit" disabled={isSavingWebsite} onClick={handleInstallCustomSsl}>
+                          Install Certificate
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {websiteSettings.ssl.enabled && (
+                    <button type="button" className="btn-outline w-fit !text-[11px]" disabled={isSavingWebsite} onClick={handleDisableSsl}>
+                      Turn Off SSL
+                    </button>
+                  )}
+
+                  <div className="rounded-lg border border-white/10 bg-black/20 p-4">
+                    <div className="flex items-center gap-2">
+                      <Server className="h-4 w-4 text-white/60" />
+                      <p className="font-bold text-white">Reverse Proxy (Advanced)</p>
+                    </div>
+                    <p className="mt-2 text-xs text-white/48">
+                      Running your own Node.js (or other) application on this server? Point your domain at it here instead of PHP. Leave the port
+                      blank to turn this off and serve the site normally.
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                      <label className="admin-field !w-32">
+                        <span>Port</span>
+                        <input type="number" min={1024} max={65535} value={proxyPortInput} onChange={(event) => setProxyPortInput(event.target.value)} placeholder="e.g. 3000" />
+                      </label>
+                      <button type="button" className="btn-outline self-end" disabled={isSavingWebsite} onClick={handleSaveProxy}>
+                        Save
+                      </button>
+                      {websiteSettings.proxy.enabled && (
+                        <span className="status-pill paid self-end">Proxying to port {websiteSettings.proxy.port}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-white/35">Last checked {formatDateTime(websiteSettings.synced_at)}.</p>
+                </div>
+              ) : (
+                <p className="mt-4 text-sm text-white/40">Could not load website settings.</p>
               )}
             </div>
           )}
@@ -4610,7 +4814,7 @@ export function ClientPortal() {
         onProfileClick={() => navigate("/client/profile")}
         hideWelcomeHeader
       >
-        <HostingManagePanel serviceId={hostingServiceId} token={clientToken} navigate={navigate} toast={toast} />
+        <HostingManagePanel serviceId={hostingServiceId} token={clientToken} navigate={navigate} toast={toast} initialTab={search.get("tab") === "website" ? "website" : undefined} />
       </ClientPortalShell>
     );
   }
@@ -4948,6 +5152,22 @@ export function ClientPortal() {
         onLogout={() => void handleClientLogout()}
         onProfileClick={() => navigate("/client/profile")}
       >
+      {dashboard.services.filter((service) => service.needs_ssl_setup).map((service) => (
+        <button
+          key={service.id}
+          type="button"
+          className="mb-5 flex w-full items-center gap-3 rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4 text-left text-sm text-yellow-100 transition hover:border-yellow-500/50"
+          onClick={() => navigate(`/client/services/${service.id}/manage?tab=website`)}
+        >
+          <ShieldCheck className="h-5 w-5 shrink-0" />
+          <span className="flex-1">
+            <strong className="font-black">SSL is not active</strong> for {service.primary_domain || service.service_number} — visitors may see a
+            security warning. Click to activate it.
+          </span>
+          <ArrowRight className="h-4 w-4 shrink-0" />
+        </button>
+      ))}
+
       {dashboard.empty_state ? (
         <section className="portal-card mx-auto max-w-xl text-center">
           <h2 className="text-xl font-black text-white">Welcome to NAI TALK</h2>

@@ -58,11 +58,21 @@ class HostingService extends Model
         'deleted_from_ispconfig_at',
         'is_security_action',
         'ispconfig_active',
+        'website_php_enabled',
+        'website_ssl_active',
+        'website_ssl_mode',
+        'website_reverse_proxy_enabled',
+        'website_reverse_proxy_port',
+        'website_settings_synced_at',
     ];
 
     protected function casts(): array
     {
         return [
+            'website_php_enabled' => 'boolean',
+            'website_ssl_active' => 'boolean',
+            'website_reverse_proxy_enabled' => 'boolean',
+            'website_settings_synced_at' => 'datetime',
             'starts_at' => 'date',
             'next_due_date' => 'date',
             'renews_at' => 'date',

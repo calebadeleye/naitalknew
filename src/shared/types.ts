@@ -145,6 +145,7 @@ export type ClientDashboardSnapshot = {
     plan: string | null;
     status: string;
     renews_at: string | null;
+    needs_ssl_setup: boolean;
   }>;
   recent_invoice: {
     invoice_number: string;

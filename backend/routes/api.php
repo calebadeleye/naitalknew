@@ -39,6 +39,7 @@ use App\Http\Controllers\Api\Client\Hosting\DatabaseController;
 use App\Http\Controllers\Api\Client\Hosting\FtpAccountController;
 use App\Http\Controllers\Api\Client\Hosting\HostingControlPanelController;
 use App\Http\Controllers\Api\Client\Hosting\MailboxController;
+use App\Http\Controllers\Api\Client\Hosting\WebsiteSettingsController;
 use App\Http\Controllers\Api\Client\InvoiceController;
 use App\Http\Controllers\Api\Client\InvoicePaymentController;
 use App\Http\Controllers\Api\Client\OrderController;
@@ -166,6 +167,13 @@ Route::prefix('v1')->group(function (): void {
                     Route::post('/ftp-accounts/{ftpAccount}/reset-password', [FtpAccountController::class, 'resetPassword'])->middleware('throttle:hosting-password-reset');
                     Route::post('/ftp-accounts/{ftpAccount}/disable', [FtpAccountController::class, 'disable']);
                     Route::delete('/ftp-accounts/{ftpAccount}', [FtpAccountController::class, 'destroy']);
+
+                    Route::get('/website', [WebsiteSettingsController::class, 'show']);
+                    Route::put('/website/php', [WebsiteSettingsController::class, 'updatePhp'])->middleware('throttle:hosting-manual-sync');
+                    Route::post('/website/ssl/free', [WebsiteSettingsController::class, 'enableFreeSsl'])->middleware('throttle:hosting-manual-sync');
+                    Route::post('/website/ssl/custom', [WebsiteSettingsController::class, 'installCustomSsl'])->middleware('throttle:hosting-resource-create');
+                    Route::delete('/website/ssl', [WebsiteSettingsController::class, 'disableSsl'])->middleware('throttle:hosting-manual-sync');
+                    Route::put('/website/proxy', [WebsiteSettingsController::class, 'updateProxy'])->middleware('throttle:hosting-manual-sync');
                 });
             });
         });
