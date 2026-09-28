@@ -8,6 +8,7 @@ use App\Models\Client;
 use App\Models\Invoice;
 use App\Notifications\NaiTalkInvoiceCreated;
 use App\Services\Billing\VatCalculator;
+use App\Services\Notifications\ClientNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -23,7 +24,10 @@ use Illuminate\Validation\ValidationException;
  */
 class InvoiceController extends Controller
 {
-    public function __construct(private readonly VatCalculator $vatCalculator = new VatCalculator) {}
+    public function __construct(
+        private readonly VatCalculator $vatCalculator = new VatCalculator,
+        private readonly ClientNotifier $notifier = new ClientNotifier,
+    ) {}
 
     public function store(Request $request)
     {
@@ -84,8 +88,15 @@ class InvoiceController extends Controller
             'notify_client' => true,
         ]);
 
-        $client->loadMissing('user');
-        $client->user?->notify(new NaiTalkInvoiceCreated($invoice));
+        // Through ClientNotifier so the email is logged, falls back to the
+        // client's billing email when there is no login, and alerts admins if
+        // it can't be sent — a bare ->notify() left no trace either way.
+        $this->notifier->notify(
+            $client,
+            new NaiTalkInvoiceCreated($invoice),
+            'invoice_created',
+            "Your NAI TALK invoice {$invoice->invoice_number}",
+        );
 
         return response()->json(['data' => $invoice->fresh()], 201);
     }

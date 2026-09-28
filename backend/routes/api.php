@@ -100,6 +100,7 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/orders', [OrderController::class, 'index']);
             Route::get('/orders/{order:order_number}/invoice', [InvoiceController::class, 'show']);
             Route::get('/orders/{order:order_number}/invoice/download', [InvoiceController::class, 'downloadPdf']);
+            Route::get('/invoices', [InvoiceController::class, 'index']);
             Route::get('/invoices/{invoice:invoice_number}', [InvoiceController::class, 'showByNumber']);
             Route::get('/invoices/{invoice:invoice_number}/download', [InvoiceController::class, 'downloadByNumberPdf']);
             Route::get('/services', [ServicesController::class, 'index']);

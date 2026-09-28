@@ -104,7 +104,7 @@ import {
   initScrollDepthTracking,
 } from "../lib/analytics";
 import { captureAdAttribution } from "../lib/adAttribution";
-import type { LogoImage, ClientLogo, Project, Review, SiteContent, HostingPlanCard, ServiceCatalogItem, ClientOrderSummary, BankTransferDetails, PricingPackage, AdminDashboardMetric, AdminDashboardSnapshot, ClientDashboardSnapshot, ClientAuthMode, LaravelPage, AdminRecordsSectionId } from "../shared/types";
+import type { LogoImage, ClientLogo, Project, Review, SiteContent, HostingPlanCard, ServiceCatalogItem, ClientOrderSummary, ClientInvoiceSummary, BankTransferDetails, PricingPackage, AdminDashboardMetric, AdminDashboardSnapshot, ClientDashboardSnapshot, ClientAuthMode, LaravelPage, AdminRecordsSectionId } from "../shared/types";
 import { LARAVEL_API_BASE_URL, laravelApi } from "../shared/api";
 import { toHostingPlanCard, UNLIMITED_EMAIL_ACCOUNTS } from "../shared/websiteCare";
 import { parseNairaAmount, formatNaira, formatKobo, toDateInputValue, formatDate, formatDateTime, accountTypeLabel, clientStatusPillClass, hostingStatusPillClass, formatMb, catalogCategoryIcon, ISO_DATE_PATTERN } from "../shared/format";
@@ -3427,6 +3427,7 @@ export function ClientPortal() {
   const [isVerifyingCode, setIsVerifyingCode] = useState(false);
   const [catalog, setCatalog] = useState<ServiceCatalogItem[] | null>(null);
   const [orders, setOrders] = useState<ClientOrderSummary[] | null>(null);
+  const [invoices, setInvoices] = useState<ClientInvoiceSummary[] | null>(null);
   const [hostingPlans, setHostingPlans] = useState<HostingPlanCard[]>([]);
   const [isLoadingHostingPlans, setIsLoadingHostingPlans] = useState(false);
   const [addOns, setAddOns] = useState<Array<{ name: string; slug: string; monthly_price: string; annual_price: string }>>([]);
@@ -3496,6 +3497,9 @@ export function ClientPortal() {
     laravelApi<{ data: ClientOrderSummary[] }>("/api/v1/client/orders", clientToken)
       .then((data) => setOrders(data.data))
       .catch((error) => toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not load your orders." }));
+    laravelApi<{ data: ClientInvoiceSummary[] }>("/api/v1/client/invoices", clientToken)
+      .then((data) => setInvoices(data.data))
+      .catch(() => setInvoices([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route, clientToken]);
 
@@ -4884,6 +4888,53 @@ export function ClientPortal() {
             {!orders && <p className="text-sm text-white/50">Loading your orders...</p>}
           </div>
         </section>
+
+        <section className="mt-10">
+          <h2 className="text-2xl font-black text-white">Invoices</h2>
+          <p className="mt-1 text-sm text-white/50">Every invoice on your account, including ones sent to you directly by NAI TALK.</p>
+          <div className="mt-5 grid gap-3">
+            {(invoices || []).map((invoice) => {
+              const isUnpaid = invoice.status !== "paid";
+
+              return (
+                <div
+                  key={invoice.invoice_number}
+                  className="portal-card cursor-pointer"
+                  onClick={() => navigate(`/client/invoices/${invoice.invoice_number}`)}
+                >
+                  <div className="client-service-row !border-0 !p-0">
+                    <div className="row-icon"><CreditCard className="h-4 w-4" /></div>
+                    <div className="min-w-0 flex-1">
+                      <p>{invoice.invoice_number}</p>
+                      {invoice.description && <small className="block truncate">{invoice.description}</small>}
+                      <small className="block text-white/40">
+                        Due {invoice.due_at ? formatDate(invoice.due_at) : "—"}
+                        {isUnpaid && invoice.amount_paid_kobo > 0 ? ` • ${invoice.outstanding} still owed` : ""}
+                      </small>
+                    </div>
+                    <span className={isUnpaid ? "status-pill failed" : "status-pill paid"}>{invoice.status.replace("_", " ")}</span>
+                    <strong>{invoice.total}</strong>
+                    {isUnpaid && (
+                      <button
+                        type="button"
+                        className="btn-outline"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          trackCtaClick({ button_text: "Pay Invoice", page_section: "client_invoices_list" });
+                          navigate(`/client/invoices/${invoice.invoice_number}`);
+                        }}
+                      >
+                        Pay Now
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            {invoices && invoices.length === 0 && <p className="text-sm text-white/50">You have no invoices yet.</p>}
+            {!invoices && <p className="text-sm text-white/50">Loading your invoices...</p>}
+          </div>
+        </section>
       </ClientPortalShell>
     );
   }
@@ -4932,8 +4983,9 @@ export function ClientPortal() {
         </div>
       )}
 
-      {!dashboard.empty_state && (
+      {(!dashboard.empty_state || (dashboard.invoices?.length ?? 0) > 0) && (
         <div className="grid gap-5">
+          {!dashboard.empty_state && (
           <section className="portal-card">
             <div className="flex items-center justify-between">
               <h2>Your Services</h2>
@@ -4958,11 +5010,15 @@ export function ClientPortal() {
               ))}
             </div>
           </section>
+          )}
 
-          {dashboard.invoices.length > 0 && (
+          {(dashboard.invoices?.length ?? 0) > 0 && (
             <section className="portal-card">
               <div className="flex items-center justify-between">
                 <h2>Invoices</h2>
+                <button type="button" className="text-xs font-bold text-primary" onClick={() => navigate("/client/orders")}>
+                  View all
+                </button>
               </div>
               <div className="mt-5 grid gap-3">
                 {dashboard.invoices.map((invoice) => (
@@ -4977,7 +5033,7 @@ export function ClientPortal() {
                       <p>{invoice.invoice_number}</p>
                       <small>Due {invoice.due_at ? formatDate(invoice.due_at) : "—"}</small>
                     </div>
-                    <span className={invoice.status === "paid" ? "status-pill paid" : "status-pill failed"}>{invoice.status}</span>
+                    <span className={invoice.status === "paid" ? "status-pill paid" : "status-pill failed"}>{invoice.status.replace("_", " ")}</span>
                     <strong>{invoice.total}</strong>
                   </button>
                 ))}

@@ -409,4 +409,22 @@ class FakeIspConfigClient implements IspConfigClient
 
         return ['traffic_bytes' => 0, 'disk_bytes' => 0];
     }
+
+    /** @var array<string, int> */
+    private array $diskUsageKb = [];
+
+    public function setDiskUsageKb(int $domainId, int $kilobytes): void
+    {
+        $this->diskUsageKb[(string) $domainId] = $kilobytes;
+    }
+
+    public function quotaGetByUser(string $sessionId, int $clientId): array
+    {
+        $this->maybeFail('quotaGetByUser', ['client_id' => $clientId]);
+
+        return array_values(array_map(
+            fn (array $domain) => $domain + ['used' => $this->diskUsageKb[(string) $domain['domain_id']] ?? 0, 'soft' => 0, 'hard' => 0, 'files' => 0],
+            array_filter($this->domains, fn (array $domain) => (string) ($domain['client_id'] ?? '') === (string) $clientId),
+        ));
+    }
 }

@@ -200,6 +200,20 @@ export type ClientOrderSummary = {
   invoice: { invoice_number: string; status: string; total: string } | null;
 };
 
+export type ClientInvoiceSummary = {
+  invoice_number: string;
+  order_number: string | null;
+  status: string;
+  description: string;
+  total: string;
+  amount_paid: string;
+  amount_paid_kobo: number;
+  outstanding: string;
+  outstanding_kobo: number;
+  issued_at: string | null;
+  due_at: string | null;
+};
+
 export type BankTransferDetails = {
   bank_name: string;
   account_name: string;

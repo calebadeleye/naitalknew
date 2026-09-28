@@ -13,6 +13,37 @@ use Illuminate\Http\Request;
 
 class InvoiceController extends Controller
 {
+    /**
+     * Every invoice on the client's account — including standalone ones an
+     * admin raised (no order), which never appear under My Orders.
+     */
+    public function index(Request $request)
+    {
+        $client = $request->user()->client;
+
+        abort_if(! $client, 404, 'Client profile not found.');
+
+        $invoices = $client->invoices()
+            ->with('order:id,order_number')
+            ->latest('id')
+            ->get()
+            ->map(fn (Invoice $invoice) => [
+                'invoice_number' => $invoice->invoice_number,
+                'order_number' => $invoice->order?->order_number,
+                'status' => $invoice->status,
+                'description' => collect($invoice->line_items ?? [])->pluck('description')->filter()->implode(', '),
+                'total' => Money::naira($invoice->total_kobo),
+                'amount_paid' => Money::naira($invoice->amount_paid_kobo),
+                'amount_paid_kobo' => (int) $invoice->amount_paid_kobo,
+                'outstanding' => Money::naira($invoice->status === 'paid' ? 0 : $invoice->payableKobo()),
+                'outstanding_kobo' => $invoice->status === 'paid' ? 0 : $invoice->payableKobo(),
+                'issued_at' => $invoice->issued_at?->toDateString(),
+                'due_at' => $invoice->due_at?->toDateString(),
+            ]);
+
+        return response()->json(['data' => $invoices]);
+    }
+
     public function show(Request $request, Order $order)
     {
         $invoice = $order->invoice()->latest()->first();
@@ -56,7 +87,7 @@ class InvoiceController extends Controller
         abort_if(! $client, 404, 'Client profile not found.');
         abort_if($invoice->client_id !== $client->id, 404);
 
-        $bankTransferPayment = Payment::query()->where('invoice_id', $invoice->id)->where('gateway', 'bank_transfer')->first();
+        $bankTransferPayment = Payment::query()->where('invoice_id', $invoice->id)->where('gateway', 'bank_transfer')->latest('id')->first();
         $breakdown = (new InvoiceBreakdown)->build($invoice);
 
         return [

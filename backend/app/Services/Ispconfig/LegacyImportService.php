@@ -347,6 +347,15 @@ class LegacyImportService
                 'migration_status' => 'legacy',
             ]);
 
+            // Already moved onto a Website Care package: a re-run of the
+            // import must not drag it back to legacy billing or rewind the
+            // renewal dates it now carries — only refresh the sync stamp.
+            if ($existingService && $service->migration_status === 'migrated') {
+                $service->forceFill(['last_synced_at' => now()])->save();
+
+                return $service;
+            }
+
             $service->forceFill([
                 'client_id' => $service->client_id ?: $client->id,
                 'hosting_plan_id' => $service->hosting_plan_id ?: $legacyPlan->id,

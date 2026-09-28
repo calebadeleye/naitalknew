@@ -45,6 +45,47 @@ class Invoice extends Model
         ];
     }
 
+    /**
+     * What is still owed — the full total for an untouched invoice, the
+     * remaining balance after a partial payment. Same rule the wallet and
+     * saved-card flows already use; gateways and bank transfer must charge
+     * this, not total_kobo, or a client who part-paid gets asked for the
+     * whole invoice again.
+     */
+    public function payableKobo(): int
+    {
+        return (int) ($this->outstanding_amount_kobo ?: max($this->total_kobo - $this->amount_paid_kobo, 0));
+    }
+
+    /**
+     * The invoice's bank-transfer payment that is still waiting to be
+     * reconciled — or a fresh one when every earlier transfer has already
+     * been applied. Reusing a reconciled row is what made a second part
+     * payment vanish: reconcile() treats an already-reconciled payment as a
+     * duplicate webhook and silently does nothing.
+     */
+    public function openBankTransferPayment(string $status, int $amountKobo): Payment
+    {
+        $payment = $this->payments()->where('gateway', 'bank_transfer')->whereNull('reconciled_at')->latest('id')->first();
+
+        if (! $payment) {
+            $sequence = $this->payments()->where('gateway', 'bank_transfer')->count();
+
+            $payment = new Payment;
+            $payment->forceFill([
+                'client_id' => $this->client_id,
+                'invoice_id' => $this->id,
+                'gateway' => 'bank_transfer',
+                'reference' => 'BANK-'.$this->invoice_number.($sequence > 0 ? '-'.($sequence + 1) : ''),
+                'currency' => 'NGN',
+            ]);
+        }
+
+        $payment->forceFill(['status' => $status, 'amount_kobo' => $amountKobo])->save();
+
+        return $payment;
+    }
+
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);

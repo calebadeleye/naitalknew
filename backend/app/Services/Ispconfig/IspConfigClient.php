@@ -217,4 +217,14 @@ interface IspConfigClient
      * @return array<string, mixed>
      */
     public function sitesWebDomainGetTrafficUsage(string $sessionId, int $domainId): array;
+
+    /**
+     * Per-website disk usage for one ISPConfig client (`quota_get_by_user`).
+     * Each row is the website record plus `used`/`soft`/`hard` (kilobytes)
+     * and `files`. This install has no `sites_web_domain_get_traffic_usage`,
+     * so this is the only way to read real disk usage.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function quotaGetByUser(string $sessionId, int $clientId): array;
 }

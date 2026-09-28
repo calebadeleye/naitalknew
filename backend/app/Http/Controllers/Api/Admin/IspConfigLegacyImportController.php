@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use App\Jobs\SyncHostingUsageSnapshotJob;
 use App\Models\HostingPlan;
+use App\Services\Ispconfig\LegacyServiceMigrator;
 use App\Models\HostingService;
 use App\Services\Billing\LegacyRenewalInvoiceService;
 use App\Services\Ispconfig\LegacyImportService;
@@ -78,7 +80,7 @@ class IspConfigLegacyImportController extends Controller
      * Manual, admin-triggered migration of a legacy service onto one of the
      * Website Care packages. Never happens automatically during import.
      */
-    public function migrateToPackage(Request $request, HostingService $service)
+    public function migrateToPackage(Request $request, HostingService $service, LegacyServiceMigrator $migrator)
     {
         $payload = $request->validate([
             'target_package_slug' => ['required', 'string', Rule::in(['starter-website-care', 'business-website-care', 'professional-website-care', 'premium-website-care'])],
@@ -90,24 +92,13 @@ class IspConfigLegacyImportController extends Controller
             ->where('is_active', true)
             ->firstOrFail();
 
-        $before = $service->only(['hosting_plan_id', 'plan_type', 'migration_status', 'migrated_at']);
+        // Sets the package's disk quota on the real ISPConfig website first;
+        // the local plan only changes once ISPConfig confirms it.
+        $result = $migrator->migrate($service, $targetPlan, $request->user(), $payload['reason'] ?? null);
 
-        $service->forceFill([
-            'hosting_plan_id' => $targetPlan->id,
-            'plan_type' => 'website_care',
-            'migration_status' => 'migrated',
-            'migrated_at' => now(),
-        ])->save();
+        abort_if($result['status'] !== 'migrated', 422, $result['message']);
 
-        AuditLog::query()->create([
-            'staff_user_id' => $request->user()->id,
-            'client_id' => $service->client_id,
-            'hosting_service_id' => $service->id,
-            'action' => 'migrate_legacy_service_to_website_care',
-            'reason' => $payload['reason'] ?? null,
-            'before_state' => $before,
-            'after_state' => $service->fresh()->only(['hosting_plan_id', 'plan_type', 'migration_status', 'migrated_at']),
-        ]);
+        SyncHostingUsageSnapshotJob::dispatch($service->id, 'package_migration');
 
         return response()->json($this->serialize($service->fresh('hostingPlan')));
     }

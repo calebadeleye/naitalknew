@@ -26,7 +26,7 @@ class InvoicePaymentController extends Controller
         $callbackUrl = rtrim(config('app.url'), '/').'/api/v1/payments/paystack/callback';
 
         try {
-            $result = $gateway->initialize($request->user()->email, $invoice->total_kobo, $reference, $callbackUrl);
+            $result = $gateway->initialize($request->user()->email, $invoice->payableKobo(), $reference, $callbackUrl);
         } catch (PaymentGatewayException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
         }
@@ -37,7 +37,7 @@ class InvoicePaymentController extends Controller
             'gateway' => 'paystack',
             'reference' => $reference,
             'status' => 'pending',
-            'amount_kobo' => $invoice->total_kobo,
+            'amount_kobo' => $invoice->payableKobo(),
             'currency' => 'NGN',
         ]);
 
@@ -55,7 +55,7 @@ class InvoicePaymentController extends Controller
         $redirectUrl = rtrim(config('app.url'), '/').'/api/v1/payments/flutterwave/callback';
 
         try {
-            $result = $gateway->initialize($request->user()->email, $request->user()->name, $invoice->total_kobo, $reference, $redirectUrl);
+            $result = $gateway->initialize($request->user()->email, $request->user()->name, $invoice->payableKobo(), $reference, $redirectUrl);
         } catch (PaymentGatewayException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
         }
@@ -66,7 +66,7 @@ class InvoicePaymentController extends Controller
             'gateway' => 'flutterwave',
             'reference' => $reference,
             'status' => 'pending',
-            'amount_kobo' => $invoice->total_kobo,
+            'amount_kobo' => $invoice->payableKobo(),
             'currency' => 'NGN',
         ]);
 
@@ -80,22 +80,13 @@ class InvoicePaymentController extends Controller
     {
         $this->authorizeInvoice($request, $invoice);
 
-        Payment::query()->updateOrCreate(
-            ['invoice_id' => $invoice->id, 'gateway' => 'bank_transfer'],
-            [
-                'client_id' => $invoice->client_id,
-                'reference' => 'BANK-'.$invoice->invoice_number,
-                'status' => 'awaiting_bank_transfer',
-                'amount_kobo' => $invoice->total_kobo,
-                'currency' => 'NGN',
-            ]
-        );
+        $invoice->openBankTransferPayment('awaiting_bank_transfer', $invoice->payableKobo());
 
         return response()->json([
             'bank_name' => config('services.bank_transfer.bank_name'),
             'account_name' => config('services.bank_transfer.account_name'),
             'account_number' => config('services.bank_transfer.account_number'),
-            'amount' => Money::naira($invoice->total_kobo),
+            'amount' => Money::naira($invoice->payableKobo()),
             'reference' => $invoice->invoice_number,
             'message' => 'Please use your invoice number as the transfer narration. Your service will be activated once we confirm receipt.',
         ]);
@@ -105,7 +96,7 @@ class InvoicePaymentController extends Controller
     {
         $this->authorizeInvoice($request, $invoice);
 
-        $outstandingKobo = (int) ($invoice->outstanding_amount_kobo ?: $invoice->total_kobo);
+        $outstandingKobo = $invoice->payableKobo();
 
         $payload = $request->validate([
             'receipt' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
@@ -115,7 +106,7 @@ class InvoicePaymentController extends Controller
             'amount_kobo' => ['nullable', 'integer', 'min:1', 'max:'.$outstandingKobo],
         ]);
 
-        $payment = Payment::query()->where('invoice_id', $invoice->id)->where('gateway', 'bank_transfer')->first();
+        $payment = $invoice->payments()->where('gateway', 'bank_transfer')->whereNull('reconciled_at')->latest('id')->first();
 
         abort_if(! $payment, 422, 'Please select bank transfer as your payment method before uploading proof of payment.');
 

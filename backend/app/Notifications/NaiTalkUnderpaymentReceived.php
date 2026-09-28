@@ -25,11 +25,12 @@ class NaiTalkUnderpaymentReceived extends Notification implements ShouldQueue
     public function toMail(object $notifiable): MailMessage
     {
         $breakdown = (new InvoiceBreakdown)->build($this->invoice);
+        $invoiceUrl = rtrim(config('app.frontend_url'), '/').'/client/invoices/'.$this->invoice->invoice_number;
 
-        return (new MailMessage)
+        $message = (new MailMessage)
             ->subject("Partial payment received for invoice {$this->invoice->invoice_number}")
             ->greeting('Hi '.$notifiable->name.',')
-            ->line('We received '.$breakdown['amount_paid'].' for your invoice, but the total payable amount is '.$breakdown['total'].'. Your payment has been saved in your NAI TALK wallet. Please pay the remaining '.$breakdown['outstanding_amount'].' before your service can be activated.')
+            ->line('We received '.$breakdown['amount_paid'].' for your invoice, but the total payable amount is '.$breakdown['total'].'. Your payment has been saved in your NAI TALK wallet. Please pay the remaining '.$breakdown['outstanding_amount'].' to settle the invoice.')
             ->line('**Invoice number:** '.$this->invoice->invoice_number)
             ->line('**Subtotal:** '.$breakdown['subtotal'])
             ->line('**'.$breakdown['vat_label'].':** '.$breakdown['vat_amount'])
@@ -37,6 +38,12 @@ class NaiTalkUnderpaymentReceived extends Notification implements ShouldQueue
             ->line('**Amount Paid:** '.$breakdown['amount_paid'])
             ->line('**Wallet Credit:** '.$breakdown['amount_paid'])
             ->line('**Outstanding Balance:** '.$breakdown['outstanding_amount'])
-            ->line('Your service will not be activated until the full payment is completed.');
+            ->action('Pay Remaining Balance', $invoiceUrl);
+
+        if ($this->invoice->order_id || $this->invoice->hosting_service_id) {
+            $message->line('Your service will not be activated until the full payment is completed.');
+        }
+
+        return $message;
     }
 }

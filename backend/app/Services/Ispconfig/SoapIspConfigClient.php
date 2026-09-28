@@ -362,4 +362,11 @@ class SoapIspConfigClient implements IspConfigClient
 
         return is_array($result) ? $result : [];
     }
+
+    public function quotaGetByUser(string $sessionId, int $clientId): array
+    {
+        $result = $this->call('quota_get_by_user', [$sessionId, $clientId]);
+
+        return is_array($result) ? array_map(fn ($row) => (array) $row, $result) : [];
+    }
 }

@@ -19,19 +19,13 @@ class InvoicePaymentController extends Controller
             'amount_kobo' => ['nullable', 'integer', 'min:1'],
         ]);
 
-        $amountKobo = $payload['amount_kobo'] ?? $invoice->total_kobo;
+        // Defaults to what is still owed, so marking a part-paid invoice paid
+        // settles the balance rather than re-adding the whole total.
+        $amountKobo = $payload['amount_kobo'] ?? $invoice->payableKobo();
 
-        $payment = Payment::query()->firstOrNew(
-            ['invoice_id' => $invoice->id, 'gateway' => 'bank_transfer'],
-            [
-                'client_id' => $invoice->client_id,
-                'reference' => 'BANK-'.$invoice->invoice_number,
-                'currency' => 'NGN',
-            ]
-        );
-        $payment->status = 'pending';
-        $payment->amount_kobo = $amountKobo;
-        $payment->save();
+        // A fresh payment row per instalment: a second part payment against a
+        // row that already reconciled would be dropped as a duplicate.
+        $payment = $invoice->openBankTransferPayment('pending', $amountKobo);
 
         $reconciler->reconcile($invoice, $payment, $amountKobo, 'bank_transfer', [
             'actor' => $request->user(),
