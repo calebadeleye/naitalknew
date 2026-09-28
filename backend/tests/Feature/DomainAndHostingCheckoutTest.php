@@ -49,8 +49,8 @@ class DomainAndHostingCheckoutTest extends TestCase
             'register_domain' => true,
         ])->assertCreated();
 
-        // Domain ₦23,000 + hosting ₦50,000 = ₦73,000 subtotal, 7.5% VAT => ₦78,475.
-        $this->assertSame(7_847_500, $checkout->json('invoice.total_kobo'));
+        // Domain ₦23,000 + hosting ₦60,000 = ₦83,000 subtotal, 7.5% VAT => ₦89,225.
+        $this->assertSame(8_922_500, $checkout->json('invoice.total_kobo'));
 
         $lineItems = collect($checkout->json('invoice.line_items'))->pluck('description');
         $this->assertTrue($lineItems->contains('Domain Registration — newbizsite.com'));

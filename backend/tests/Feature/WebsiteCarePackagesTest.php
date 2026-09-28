@@ -133,7 +133,7 @@ class WebsiteCarePackagesTest extends TestCase
 
         $expected = [
             'starter-website-care' => ['₦25,000', 1, '10GB'],
-            'business-website-care' => ['₦50,000', 1, '25GB'],
+            'business-website-care' => ['₦60,000', 2, '25GB'],
             'professional-website-care' => ['₦100,000', 3, '50GB'],
             'premium-website-care' => ['₦180,000', 5, '100GB'],
         ];
@@ -209,7 +209,7 @@ class WebsiteCarePackagesTest extends TestCase
         $this->assertTrue($business['is_popular']);
         $this->assertTrue($business['is_recommended']);
         $this->assertSame('unlimited', $business['internal_limits']['business_emails']);
-        $this->assertSame('₦50,000', $business['annual_price']);
+        $this->assertSame('₦60,000', $business['annual_price']);
     }
 
     public function test_admin_can_update_a_package_including_badge_and_public_features(): void
