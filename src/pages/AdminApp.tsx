@@ -286,10 +286,14 @@ export function CreateManualInvoiceModal({
   const [catalogPlans, setCatalogPlans] = useState<ManualInvoiceCatalogItem[]>([]);
   const [catalogOfferings, setCatalogOfferings] = useState<ManualInvoiceCatalogItem[]>([]);
   const [vatRate, setVatRate] = useState(0.075);
+  const [vatEnabled, setVatEnabled] = useState(true);
 
   useEffect(() => {
-    laravelApi<{ vat_rate: number }>("/api/v1/public/billing-config")
-      .then((config) => setVatRate(config.vat_rate))
+    laravelApi<{ vat_rate: number; vat_enabled?: boolean; configured_vat_rate?: number }>("/api/v1/public/billing-config")
+      .then((config) => {
+        setVatRate(config.configured_vat_rate ?? config.vat_rate);
+        setVatEnabled(config.vat_enabled !== false);
+      })
       .catch(() => undefined);
   }, []);
 
@@ -382,7 +386,7 @@ export function CreateManualInvoiceModal({
     return sum + quantity * unitPrice;
   }, 0);
   const taxableNaira = Math.max(subtotalNaira - (Number(discountNaira) || 0), 0);
-  const vatNaira = applyVat ? taxableNaira * vatRate : 0;
+  const vatNaira = applyVat && vatEnabled ? taxableNaira * vatRate : 0;
   const totalNaira = taxableNaira + vatNaira;
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -551,9 +555,10 @@ export function CreateManualInvoiceModal({
             <input type="number" min={0} step="0.01" value={discountNaira} onChange={(event) => setDiscountNaira(event.target.value)} />
           </label>
 
-          <label className="flex items-center gap-2 text-sm text-white/70">
-            <input type="checkbox" checked={applyVat} onChange={(event) => setApplyVat(event.target.checked)} />
+          <label className={`flex items-center gap-2 text-sm ${vatEnabled ? "text-white/70" : "text-white/40"}`}>
+            <input type="checkbox" checked={applyVat && vatEnabled} disabled={!vatEnabled} onChange={(event) => setApplyVat(event.target.checked)} />
             Apply VAT ({(vatRate * 100).toFixed(vatRate * 100 % 1 === 0 ? 0 : 1)}%)
+            {!vatEnabled && <span className="text-xs font-bold text-yellow-200">VAT is switched off — turn it on under Pricing</span>}
           </label>
 
           <div className="grid gap-1 rounded-md border border-white/10 bg-black/20 p-3 text-sm text-white/70">
@@ -626,6 +631,13 @@ export function EditInvoiceModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const vatRate = invoice.vat_rate || 0.075;
+  const [vatEnabled, setVatEnabled] = useState(true);
+
+  useEffect(() => {
+    laravelApi<{ vat_enabled?: boolean }>("/api/v1/public/billing-config")
+      .then((config) => setVatEnabled(config.vat_enabled !== false))
+      .catch(() => undefined);
+  }, []);
 
   const updateLineItem = (index: number, patch: Partial<{ description: string; quantity: string; unitPriceNaira: string }>) => {
     setLineItems((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)));
@@ -645,7 +657,7 @@ export function EditInvoiceModal({
     return sum + quantity * unitPrice;
   }, 0);
   const taxableNaira = Math.max(subtotalNaira - (Number(discountNaira) || 0), 0);
-  const vatNaira = applyVat ? taxableNaira * vatRate : 0;
+  const vatNaira = applyVat && vatEnabled ? taxableNaira * vatRate : 0;
   const totalNaira = taxableNaira + vatNaira;
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -737,9 +749,10 @@ export function EditInvoiceModal({
             <input type="number" min={0} step="0.01" value={discountNaira} onChange={(event) => setDiscountNaira(event.target.value)} />
           </label>
 
-          <label className="flex items-center gap-2 text-sm text-white/70">
-            <input type="checkbox" checked={applyVat} onChange={(event) => setApplyVat(event.target.checked)} />
+          <label className={`flex items-center gap-2 text-sm ${vatEnabled ? "text-white/70" : "text-white/40"}`}>
+            <input type="checkbox" checked={applyVat && vatEnabled} disabled={!vatEnabled} onChange={(event) => setApplyVat(event.target.checked)} />
             Apply VAT ({(vatRate * 100).toFixed(vatRate * 100 % 1 === 0 ? 0 : 1)}%)
+            {!vatEnabled && <span className="text-xs font-bold text-yellow-200">VAT is switched off — turn it on under Pricing</span>}
           </label>
 
           <div className="grid gap-1 rounded-md border border-white/10 bg-black/20 p-3 text-sm text-white/70">
@@ -3311,6 +3324,71 @@ export type DomainPricingSyncLogRow = {
  * admin should normally edit" per the pricing spec. Per-TLD markup is still
  * editable individually further down the page.
  */
+
+export function AdminVatSettingsPanel({ adminToken }: { adminToken: string }) {
+  const [settings, setSettings] = useState<{ vat_enabled: boolean; configured_vat_rate: number } | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [notice, setNotice] = useState<{ text: string; isError: boolean } | null>(null);
+
+  useEffect(() => {
+    laravelApi<{ vat_enabled: boolean; configured_vat_rate: number }>("/api/v1/admin/settings/billing", adminToken)
+      .then(setSettings)
+      .catch((error) => setNotice({ text: error instanceof Error ? error.message : "Could not load the VAT setting.", isError: true }));
+  }, [adminToken]);
+
+  const toggle = async (enabled: boolean) => {
+    setIsSaving(true);
+    setNotice(null);
+
+    try {
+      const saved = await laravelApi<{ vat_enabled: boolean; configured_vat_rate: number }>("/api/v1/admin/settings/billing", adminToken, {
+        method: "PUT",
+        body: JSON.stringify({ vat_enabled: enabled }),
+      });
+      setSettings(saved);
+      setNotice({ text: saved.vat_enabled ? "VAT is now ON for new orders and invoices." : "VAT is now OFF for new orders and invoices.", isError: false });
+    } catch (error) {
+      setNotice({ text: error instanceof Error ? error.message : "Could not change the VAT setting.", isError: true });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const ratePercent = settings ? `${(settings.configured_vat_rate * 100).toFixed(settings.configured_vat_rate * 100 % 1 === 0 ? 0 : 1)}%` : "";
+
+  return (
+    <section className="admin-panel mb-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-black">VAT</h2>
+          <p className="mt-1 max-w-2xl text-sm text-white/55">
+            Switch VAT on or off for everything created from now on: hosting and domain orders, renewal invoices and
+            manual invoices. Invoices that already exist keep the VAT they were issued with — unpaid ones can be edited
+            from Invoices.
+          </p>
+        </div>
+        {settings && (
+          <button
+            type="button"
+            className={settings.vat_enabled ? "btn-outline justify-center" : "btn-primary justify-center"}
+            disabled={isSaving}
+            onClick={() => void toggle(!settings.vat_enabled)}
+          >
+            {isSaving ? "Saving..." : settings.vat_enabled ? "Turn VAT off" : "Turn VAT on"}
+          </button>
+        )}
+      </div>
+      {settings ? (
+        <p className={`mt-4 rounded-lg border p-3 text-sm font-bold ${settings.vat_enabled ? "border-primary/30 bg-primary/5 text-white/80" : "border-yellow-500/25 bg-yellow-500/10 text-yellow-200"}`}>
+          {settings.vat_enabled ? `VAT is ON — new orders and invoices are charged ${ratePercent} VAT.` : "VAT is OFF — new orders and invoices are charged no VAT."}
+        </p>
+      ) : (
+        !notice && <p className="mt-4 text-sm font-bold text-white/60">Loading...</p>
+      )}
+      {notice && <p className={`mt-3 text-sm font-bold ${notice.isError ? "text-red-300" : "text-primary"}`}>{notice.text}</p>}
+    </section>
+  );
+}
 
 export function AdminDomainPricingSettingsPanel({
   adminToken,
@@ -6153,6 +6231,8 @@ export function AdminApp() {
         {activeSection === "domainPricing" && !routeClientId && !routeServiceId && <AdminDomainPricingPage adminToken={adminToken} />}
 
         {activeSection === "domainAssignments" && !routeClientId && !routeServiceId && <AdminDomainAssignmentPage adminToken={adminToken} />}
+
+        {activeSection === "pricing" && <AdminVatSettingsPanel adminToken={adminToken} />}
 
         {activeSection === "pricing" && (
           <section className="admin-panel">

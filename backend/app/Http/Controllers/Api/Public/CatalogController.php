@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Public;
 use App\Http\Controllers\Controller;
 use App\Models\HostingAddOn;
 use App\Models\HostingPlan;
+use App\Services\Billing\VatCalculator;
 use App\Services\Billing\Money;
 
 class CatalogController extends Controller
@@ -75,7 +76,10 @@ class CatalogController extends Controller
     public function billingConfig()
     {
         return response()->json([
-            'vat_rate' => (float) config('billing.vat_rate'),
+            // The rate that would be charged right now (0 while VAT is switched off).
+            'vat_rate' => VatCalculator::currentRate(),
+            'vat_enabled' => VatCalculator::isEnabled(),
+            'configured_vat_rate' => (float) config('billing.vat_rate'),
         ]);
     }
 }
