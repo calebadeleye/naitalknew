@@ -29,7 +29,12 @@ class LegacyServiceMigrator
      */
     public function migrate(HostingService $service, HostingPlan $target, ?User $staff = null, ?string $reason = null, bool $dryRun = false): array
     {
-        $before = $service->only(['hosting_plan_id', 'plan_type', 'migration_status', 'migrated_at', 'amount_kobo']);
+        $before = $service->only(['hosting_plan_id', 'plan_type', 'migration_status', 'migrated_at', 'amount_kobo', 'renewal_price_kobo']);
+
+        // Legacy clients keep the price they were paying (hosting + SSL);
+        // the Starter list price is for new customers.
+        $previousPlan = $service->hostingPlan;
+        $keptPriceKobo = $previousPlan?->plan_type === 'legacy' ? (int) $previousPlan->annual_price_kobo : null;
 
         try {
             $quota = $this->quota->apply($service, $target, $dryRun);
@@ -61,7 +66,8 @@ class LegacyServiceMigrator
             'migration_status' => 'migrated',
             'migrated_at' => now(),
             // VAT-inclusive, like checkout-originated services.
-            'amount_kobo' => $this->vat->calculate((int) $target->annual_price_kobo)['total_kobo'],
+            'renewal_price_kobo' => $keptPriceKobo ?: null,
+            'amount_kobo' => $this->vat->calculate($keptPriceKobo ?: (int) $target->annual_price_kobo)['total_kobo'],
         ])->save();
 
         AuditLog::query()->create([
@@ -71,7 +77,7 @@ class LegacyServiceMigrator
             'action' => 'migrate_legacy_service_to_website_care',
             'reason' => $reason,
             'before_state' => $before,
-            'after_state' => $service->fresh()->only(['hosting_plan_id', 'plan_type', 'migration_status', 'migrated_at', 'amount_kobo']) + ['ispconfig' => $quota],
+            'after_state' => $service->fresh()->only(['hosting_plan_id', 'plan_type', 'migration_status', 'migrated_at', 'amount_kobo', 'renewal_price_kobo']) + ['ispconfig' => $quota],
             'source' => $staff ? 'admin' : 'system',
         ]);
 

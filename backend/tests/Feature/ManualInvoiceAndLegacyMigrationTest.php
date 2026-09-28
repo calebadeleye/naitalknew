@@ -223,4 +223,98 @@ class ManualInvoiceAndLegacyMigrationTest extends TestCase
         $this->assertSame('migrated', $service->migration_status);
         $this->assertSame($starter->id, $service->hosting_plan_id);
     }
+
+    public function test_a_migrated_legacy_service_keeps_renewing_at_forty_thousand_naira_with_ssl_included(): void
+    {
+        $fake = $this->fakeIspConfig();
+        ['service' => $service] = $this->importLegacyService($fake);
+        $starter = HostingPlan::where('slug', 'starter-website-care')->firstOrFail();
+
+        app(LegacyServiceMigrator::class)->migrate($service, $starter);
+        $service->refresh();
+
+        $this->assertSame(4_000_000, $service->renewal_price_kobo);
+
+        $invoice = app(\App\Services\Billing\RenewalInvoiceService::class)->generateForRenewal($service);
+
+        // ₦40,000 + 7.5% VAT, not Starter's ₦25,000 list price.
+        $this->assertSame(4_000_000, $invoice->subtotal_kobo);
+        $this->assertSame(4_300_000, $invoice->total_kobo);
+        $this->assertStringContainsString('SSL included', $invoice->line_items[0]['description']);
+    }
+
+    public function test_a_service_without_a_kept_price_renews_at_the_plan_price(): void
+    {
+        $this->seed();
+        ['client' => $client] = $this->registerVerifiedDomainClient('plain-renewal@example.test');
+        $starter = HostingPlan::where('slug', 'starter-website-care')->firstOrFail();
+        $service = HostingService::query()->create([
+            'client_id' => $client->id, 'hosting_plan_id' => $starter->id, 'service_number' => 'SRV-T-1',
+            'primary_domain' => 'plain.example.test', 'status' => 'active', 'billing_cycle' => 'annual', 'renews_at' => now()->addDays(3),
+        ]);
+
+        $invoice = app(\App\Services\Billing\RenewalInvoiceService::class)->generateForRenewal($service);
+
+        $this->assertSame(2_500_000, $invoice->subtotal_kobo);
+    }
+
+    public function test_command_creates_a_login_with_the_owners_sites_on_starter(): void
+    {
+        $fake = $this->fakeIspConfig();
+        (new HostingPlanSeeder)->run();
+        $sid = $fake->login();
+        $ispClient = $fake->clientAdd($sid, 0, ['company_name' => 'TYF', 'email' => 'owner@example.test']);
+        $rootId = $fake->sitesWebDomainAdd($sid, $ispClient, ['domain' => 'tyfpac.test', 'type' => 'vhost', 'hd_quota' => '-1', 'added_date' => '2026-08-23']);
+        $subId = $fake->sitesWebDomainAdd($sid, $ispClient, ['domain' => 'acg.tyfpac.test', 'type' => 'vhost', 'hd_quota' => '50000', 'added_date' => '2026-08-29']);
+        $fake->sitesWebDomainAdd($sid, $ispClient, ['domain' => 'other-owner.test', 'type' => 'vhost', 'hd_quota' => '-1']);
+        $fake->setDiskUsageKb($rootId, 500 * 1024);
+
+        $this->artisan('clients:create-with-sites', [
+            'email' => 'tyftechnical@example.test',
+            '--password' => 'tyftechnical@example.test',
+            '--name' => 'TYFPAC',
+            '--company' => 'TYFPAC',
+            '--ispconfig-client' => $ispClient,
+            '--domain' => ['tyfpac.test', 'acg.tyfpac.test'],
+        ])->assertSuccessful();
+
+        $user = \App\Models\User::where('email', 'tyftechnical@example.test')->firstOrFail();
+        $this->assertTrue(\Illuminate\Support\Facades\Hash::check('tyftechnical@example.test', $user->password));
+        $this->assertSame('client', $user->role);
+        $this->assertNull($user->email_verified_at);
+
+        $services = $user->client->hostingServices()->orderBy('id')->get();
+        $this->assertCount(2, $services);
+        $starter = HostingPlan::where('slug', 'starter-website-care')->firstOrFail();
+
+        foreach ($services as $service) {
+            $this->assertSame($starter->id, $service->hosting_plan_id);
+            $this->assertSame(4_000_000, $service->renewal_price_kobo);
+            $this->assertSame('migrated', $service->migration_status);
+        }
+
+        $this->assertSame('2027-08-23', $services[0]->renews_at->toDateString());
+        $this->assertSame(10240, (int) $fake->sitesWebDomainGet($fake->login(), $rootId)['hd_quota']);
+        $this->assertSame(10240, (int) $fake->sitesWebDomainGet($fake->login(), $subId)['hd_quota']);
+        $this->assertNotNull($services[0]->latestUsageSnapshot());
+
+        // Can log in with the initial password.
+        $this->postJson('/api/v1/auth/login', ['email' => 'tyftechnical@example.test', 'password' => 'tyftechnical@example.test'])->assertOk();
+    }
+
+    public function test_command_refuses_an_existing_email_or_a_site_the_owner_does_not_have(): void
+    {
+        $fake = $this->fakeIspConfig();
+        (new HostingPlanSeeder)->run();
+        $sid = $fake->login();
+        $ispClient = $fake->clientAdd($sid, 0, ['company_name' => 'TYF', 'email' => 'owner@example.test']);
+        $fake->sitesWebDomainAdd($sid, $ispClient, ['domain' => 'mine.test', 'type' => 'vhost', 'hd_quota' => '-1']);
+        \App\Models\User::factory()->create(['email' => 'taken@example.test']);
+
+        $args = ['--password' => 'x-password', '--name' => 'X', '--ispconfig-client' => $ispClient];
+
+        $this->artisan('clients:create-with-sites', ['email' => 'taken@example.test', '--domain' => ['mine.test']] + $args)->assertFailed();
+        $this->artisan('clients:create-with-sites', ['email' => 'new@example.test', '--domain' => ['not-mine.test']] + $args)->assertFailed();
+        $this->assertDatabaseMissing('users', ['email' => 'new@example.test']);
+    }
 }

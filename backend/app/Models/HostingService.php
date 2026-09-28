@@ -23,6 +23,7 @@ class HostingService extends Model
         'status',
         'billing_cycle',
         'amount_kobo',
+        'renewal_price_kobo',
         'starts_at',
         'next_due_date',
         'renews_at',

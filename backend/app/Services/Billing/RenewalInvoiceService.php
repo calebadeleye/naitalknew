@@ -31,9 +31,13 @@ class RenewalInvoiceService
         // avoids double-applying VAT on top of an already VAT-inclusive figure,
         // and means a plan price change is honoured on renewal too.
         $plan = $service->hostingPlan;
-        $subtotalKobo = $plan
-            ? (int) ($service->billing_cycle === 'monthly' ? $plan->monthly_price_kobo : $plan->annual_price_kobo)
-            : (int) round($service->amount_kobo / (1 + (float) config('billing.vat_rate')));
+        // A per-service price (e.g. a legacy client who keeps their ₦40,000
+        // hosting + SSL rate) wins over the plan's public price.
+        $subtotalKobo = $service->renewal_price_kobo
+            ? (int) $service->renewal_price_kobo
+            : ($plan
+                ? (int) ($service->billing_cycle === 'monthly' ? $plan->monthly_price_kobo : $plan->annual_price_kobo)
+                : (int) round($service->amount_kobo / (1 + (float) config('billing.vat_rate'))));
         $vat = $this->vatCalculator->calculate($subtotalKobo);
         $dueAt = $service->renews_at ?? now()->addDays(7);
 
@@ -55,7 +59,7 @@ class RenewalInvoiceService
                 'due_at' => $dueAt->toDateString(),
                 'line_items' => [
                     [
-                        'description' => $service->hostingPlan?->name.' Hosting Renewal — '.$service->primary_domain,
+                        'description' => $service->hostingPlan?->name.' Hosting Renewal'.($service->renewal_price_kobo ? ' (SSL included)' : '').' — '.$service->primary_domain,
                         'quantity' => 1,
                         'unit_price_kobo' => $subtotalKobo,
                         'total_kobo' => $subtotalKobo,

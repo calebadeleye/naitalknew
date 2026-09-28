@@ -9,6 +9,7 @@ use App\Models\HostingPlan;
 use App\Services\Ispconfig\LegacyServiceMigrator;
 use App\Models\HostingService;
 use App\Services\Billing\LegacyRenewalInvoiceService;
+use App\Services\Billing\RenewalInvoiceService;
 use App\Services\Ispconfig\LegacyImportService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -123,9 +124,15 @@ class IspConfigLegacyImportController extends Controller
         return response()->json($this->serialize($service->fresh()));
     }
 
-    public function generateInvoice(HostingService $service, LegacyRenewalInvoiceService $invoices)
+    public function generateInvoice(HostingService $service, LegacyRenewalInvoiceService $legacyInvoices, RenewalInvoiceService $renewals)
     {
-        return response()->json($invoices->generate($service), 201);
+        // Services moved onto a Website Care package are billed by the
+        // standard renewal invoice (which honours their kept ₦40,000 price).
+        $invoice = $service->hostingPlan?->plan_type === 'legacy'
+            ? $legacyInvoices->generate($service)
+            : $renewals->generateForRenewal($service);
+
+        return response()->json($invoice, 201);
     }
 
     /**
