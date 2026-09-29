@@ -2308,6 +2308,7 @@ export type AdminServiceDetail = {
   hosting_plan?: { id: number; name: string } | null;
   mailbox_records?: Array<Record<string, any>>;
   database_records?: Array<Record<string, any>>;
+  ftp_account_records?: Array<{ id: number; username: string; access_type: string; status: string; source: string | null; last_synced_at: string | null }>;
   audit_logs?: Array<Record<string, any>>;
 };
 
@@ -2317,6 +2318,183 @@ export type AdminServiceDetail = {
  * deletion, override the grace period). Every destructive action is gated
  * behind the same required reason form as the client-level actions.
  */
+
+const AdminSshAccountsPanel: React.FC<{
+  serviceId: number;
+  adminToken: string;
+  initialAccounts: NonNullable<AdminServiceDetail["ftp_account_records"]>;
+}> = ({ serviceId, adminToken, initialAccounts }) => {
+  const [accounts, setAccounts] = useState(initialAccounts);
+  const [newUsername, setNewUsername] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [revealedPassword, setRevealedPassword] = useState<{ username: string; password: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const reload = () => {
+    laravelApi<{ data: typeof accounts }>(`/api/v1/admin/services/${serviceId}/ftp-accounts`, adminToken)
+      .then((response) => setAccounts(response.data))
+      .catch(() => undefined);
+  };
+
+  const create = async () => {
+    const username = newUsername.trim();
+    if (!username) return;
+
+    setIsCreating(true);
+    setError(null);
+    try {
+      const response = await laravelApi<{ data: { username: string }; password: string }>(`/api/v1/admin/services/${serviceId}/ftp-accounts`, adminToken, {
+        method: "POST",
+        body: JSON.stringify({ username, password: newPassword.trim() || undefined }),
+      });
+      setRevealedPassword({ username: response.data.username, password: response.password });
+      setNewUsername("");
+      setNewPassword("");
+      reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create the account.");
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const resetPassword = async (id: number, username: string) => {
+    setBusyId(id);
+    setError(null);
+    try {
+      const response = await laravelApi<{ password: string }>(`/api/v1/admin/services/${serviceId}/ftp-accounts/${id}/reset-password`, adminToken, {
+        method: "POST",
+      });
+      setRevealedPassword({ username, password: response.password });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not reset the password.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const disable = async (id: number) => {
+    setBusyId(id);
+    setError(null);
+    try {
+      await laravelApi(`/api/v1/admin/services/${serviceId}/ftp-accounts/${id}/disable`, adminToken, { method: "POST" });
+      reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not disable the account.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const destroy = async (id: number) => {
+    if (!window.confirm("Delete this SSH/SFTP account? This cannot be undone.")) return;
+
+    setBusyId(id);
+    setError(null);
+    try {
+      await laravelApi(`/api/v1/admin/services/${serviceId}/ftp-accounts/${id}`, adminToken, { method: "DELETE" });
+      reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete the account.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <section className="admin-panel">
+      <h3 className="text-lg font-black text-white">SSH/SFTP Accounts</h3>
+      <p className="mt-1 text-sm text-white/55">
+        Create an account here to hand a client (or their developer) SFTP/SSH access to this site — the same jailkit-chrooted account type the
+        client can create themselves. The password is shown once; copy it before dismissing.
+      </p>
+
+      {revealedPassword && (
+        <div className="mt-4 rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm">
+          <p className="font-black text-white">Password for &quot;{revealedPassword.username}&quot;</p>
+          <p className="mt-2 select-all rounded bg-black/40 px-3 py-2 font-mono text-xs text-primary">{revealedPassword.password}</p>
+          <p className="mt-2 text-xs text-white/50">This will not be shown again.</p>
+          <button type="button" className="btn-outline mt-3 !min-h-8 !px-3 !py-1 !text-[10px]" onClick={() => setRevealedPassword(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
+      {error && <p className="mt-3 text-sm font-bold text-red-300">{error}</p>}
+
+      <div className="mt-4 flex flex-wrap items-end gap-3">
+        <label className="admin-field !w-48">
+          <span>Username</span>
+          <input value={newUsername} onChange={(event) => setNewUsername(event.target.value)} placeholder="e.g. client-deploy" />
+        </label>
+        <label className="admin-field !w-48">
+          <span>Password (optional)</span>
+          <input value={newPassword} onChange={(event) => setNewPassword(event.target.value)} placeholder="Leave blank to generate" />
+        </label>
+        <button type="button" className="btn-primary !min-h-10" disabled={isCreating || !newUsername.trim()} onClick={() => void create()}>
+          <Plus className="h-4 w-4" />
+          {isCreating ? "Creating..." : "Create Account"}
+        </button>
+      </div>
+
+      <div className="hosting-table-wrap mt-4">
+        <table className="hosting-table">
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Status</th>
+              <th>Source</th>
+              <th>Last Synced</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {accounts.map((account) => (
+              <tr key={account.id}>
+                <td className="font-bold text-white">{account.username}</td>
+                <td><span className={hostingStatusPillClass(account.status)}>{account.status}</span></td>
+                <td className="text-white/45">{account.source === "admin_created" ? "Admin" : account.source === "ispconfig_import" ? "Imported" : "Client"}</td>
+                <td className="text-white/45">{account.last_synced_at ? formatDateTime(account.last_synced_at) : "Pending"}</td>
+                <td>
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                      disabled={busyId === account.id}
+                      onClick={() => void resetPassword(account.id, account.username)}
+                    >
+                      Reset Password
+                    </button>
+                    {account.status !== "disabled" && (
+                      <button
+                        type="button"
+                        className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                        disabled={busyId === account.id}
+                        onClick={() => void disable(account.id)}
+                      >
+                        Disable
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                      disabled={busyId === account.id}
+                      onClick={() => void destroy(account.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {accounts.length === 0 && <p className="mt-4 text-sm text-white/40">No SSH/SFTP accounts yet.</p>}
+      </div>
+    </section>
+  );
+};
 
 export function ServiceDetailPanel({
   serviceId,
@@ -2435,6 +2613,10 @@ export function ServiceDetailPanel({
           )}
         </div>
       </div>
+
+      {!isDeleted && (
+        <AdminSshAccountsPanel key={serviceId} serviceId={serviceId} adminToken={adminToken} initialAccounts={service.ftp_account_records || []} />
+      )}
 
       <section className="admin-panel overflow-x-auto">
         <h3 className="text-lg font-black text-white">Action Log</h3>

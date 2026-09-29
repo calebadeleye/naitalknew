@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\Admin\FaqController;
 use App\Http\Controllers\Api\Admin\HostingPlanController;
 use App\Http\Controllers\Api\Admin\HostingServiceLifecycleController;
 use App\Http\Controllers\Api\Admin\BillingSettingsController as AdminBillingSettingsController;
+use App\Http\Controllers\Api\Admin\FtpAccountController as AdminFtpAccountController;
 use App\Http\Controllers\Api\Admin\SslCertificateController;
 use App\Http\Controllers\Api\Admin\InvoiceController as AdminInvoiceController;
 use App\Http\Controllers\Api\Admin\InvoicePaymentController as AdminInvoicePaymentController;
@@ -284,6 +285,12 @@ Route::prefix('v1')->group(function (): void {
 
             Route::get('/ispconfig/health', [ProvisioningController::class, 'health']);
             Route::post('/services/{service}/sync', [ProvisioningController::class, 'syncOne']);
+
+            Route::get('/services/{service}/ftp-accounts', [AdminFtpAccountController::class, 'index']);
+            Route::post('/services/{service}/ftp-accounts', [AdminFtpAccountController::class, 'store']);
+            Route::post('/services/{service}/ftp-accounts/{ftpAccount}/reset-password', [AdminFtpAccountController::class, 'resetPassword']);
+            Route::post('/services/{service}/ftp-accounts/{ftpAccount}/disable', [AdminFtpAccountController::class, 'disable']);
+            Route::delete('/services/{service}/ftp-accounts/{ftpAccount}', [AdminFtpAccountController::class, 'destroy']);
             Route::post('/ispconfig/sync-all', [ProvisioningController::class, 'syncAll']);
             Route::get('/hosting-usage-snapshots', [ProvisioningController::class, 'usageSnapshots']);
             Route::get('/mailbox-records', [ProvisioningController::class, 'mailboxRecords']);

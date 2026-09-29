@@ -143,6 +143,7 @@ class RecordsController extends Controller
                 'ispConfigServiceMappings.clientMapping',
                 'mailboxRecords',
                 'databaseRecords',
+                'ftpAccountRecords',
                 'emailDomainRecords',
                 'invoices' => fn ($query) => $query->latest()->limit(20),
                 'provisioningLogs' => fn ($query) => $query->latest()->limit(30),
