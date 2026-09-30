@@ -9,17 +9,17 @@ cd "$(dirname "$0")"
 echo "🚀 Starting deployment..."
 
 # This account (naitalk2naitalk) shares its UID with another account on this
-# shared box (web9). OpenSSH deliberately never trusts $HOME/shell `~`
-# expansion for its own ~/.ssh/* resolution -- it always resolves the home
-# directory by looking up the *current UID* in the system's user database,
-# and with two usernames sharing one UID that lookup is ambiguous: it was
-# returning web9's entry instead of this account's own, so plain `git pull`
-# could never find this account's own known_hosts or deploy key. Looking
-# the home directory up *by username* instead (unambiguous, since only one
-# entry has this exact name) and pointing ssh at it explicitly sidesteps
-# that ambiguity entirely.
-REAL_HOME="$(getent passwd "$(whoami)" | cut -d: -f6)"
-export GIT_SSH_COMMAND="ssh -i ${REAL_HOME}/.ssh/deploykey -o IdentitiesOnly=yes -o UserKnownHostsFile=${REAL_HOME}/.ssh/known_hosts -o StrictHostKeyChecking=accept-new"
+# shared box (web9). Every UID-based lookup -- OpenSSH's own ~/.ssh/*
+# resolution, `whoami`, `id -un`, `getent passwd $(whoami)` -- resolves
+# ambiguously between the two and was returning web9's entry instead of
+# this account's own, so plain `git pull` could never find this account's
+# real known_hosts or deploy key. The one thing that *isn't* ambiguous is
+# the literal username string (only one passwd entry is named exactly
+# "naitalk2naitalk"), so the path below is intentionally hardcoded rather
+# than derived from any OS identity lookup, all of which are unreliable
+# for this specific account on this box.
+NAITALK2NAITALK_HOME="/var/www/clients/client4/web9/home/naitalk2naitalk"
+export GIT_SSH_COMMAND="ssh -i ${NAITALK2NAITALK_HOME}/.ssh/deploykey -o IdentitiesOnly=yes -o UserKnownHostsFile=${NAITALK2NAITALK_HOME}/.ssh/known_hosts -o StrictHostKeyChecking=accept-new"
 
 # Pull latest changes from git
 git pull origin main
