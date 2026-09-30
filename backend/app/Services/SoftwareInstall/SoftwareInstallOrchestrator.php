@@ -29,6 +29,14 @@ class SoftwareInstallOrchestrator
 
     private const DATABASE_READY_WAIT_SECONDS = 10;
 
+    /** Same ISPConfig-cron delay as the database: the new shell account's home appears asynchronously. */
+    private const SHELL_HOME_ATTEMPTS = 25;
+
+    private const SHELL_HOME_WAIT_SECONDS = 10;
+
+    /** Written last into a finished release, so a half-built one is never reused. */
+    private const RELEASE_READY_MARKER = '.release-ready';
+
     public function __construct(
         private readonly IspConfigClient $ispConfig,
         private readonly SshCommandRunner $ssh,
@@ -58,13 +66,18 @@ class SoftwareInstallOrchestrator
         );
 
         try {
-            $buildDir = rtrim($buildConfig['build_root'], '/').'/'.$installation->id;
+            $buildRoot = rtrim($buildConfig['build_root'], '/');
+            $buildDir = $buildRoot.'/'.$installation->id;
 
-            $this->progress($installation, 'cloning_repository');
-            $this->cloneRepository($catalog, $buildDir);
+            // The expensive part (clone, composer, npm ci, the frontend
+            // build) happens once per git commit, not once per install: the
+            // app reads its settings at start (see the catalog's
+            // runtime_config_marker), so a finished release is just copied.
+            $this->progress($installation, 'preparing_release');
+            $releaseDir = $this->ensureRelease($catalog, $installation->catalog_slug, $buildRoot, $installation);
 
-            $this->progress($installation, 'installing_backend_dependencies');
-            $this->runOrFail($buildDir.'/'.$catalog['backend_path'], 'composer install --no-dev --optimize-autoloader');
+            $this->progress($installation, 'copying_release');
+            $this->runOrFail($buildRoot, sprintf('rm -rf %1$s && cp -a %2$s %1$s', escapeshellarg($buildDir), escapeshellarg($releaseDir)));
 
             $this->progress($installation, 'allocating_database');
             $database = $this->allocateDatabase($installation, $ispConfigClientId, $serverId);
@@ -82,14 +95,10 @@ class SoftwareInstallOrchestrator
             $seedOutput = $this->runOrFail($buildDir.'/'.$catalog['backend_path'], 'php artisan db:seed --force');
             $adminPassword = $this->extractGeneratedPassword($seedOutput) ?? $adminPassword;
 
-            $this->progress($installation, 'installing_frontend_dependencies');
-            $this->runOrFail($buildDir, 'npm ci');
-
+            // Runtime settings for this install, read by `next start` — the
+            // prebuilt release contains no per-install values at all.
             $this->progress($installation, 'writing_frontend_configuration');
             $this->writeFrontendEnv($installation, $catalog, $buildDir);
-
-            $this->progress($installation, 'building_frontend');
-            $this->runOrFail($buildDir, (string) $catalog['frontend_build_command']);
 
             $this->progress($installation, 'provisioning_subdomain');
             $website = $this->provisionSubdomain($installation, $ispConfigClientId, $serverId);
@@ -98,7 +107,7 @@ class SoftwareInstallOrchestrator
             $shellAccount = $this->provisionShellAccount($installation, $ispConfigClientId, $website);
 
             $this->progress($installation, 'deploying_files');
-            $this->deployFiles($installation, $catalog, $buildDir, $shellAccount);
+            $shellAccount['home'] = $this->deployFiles($installation, $catalog, $buildDir, $shellAccount);
 
             $this->progress($installation, 'requesting_ssl');
             $this->requestFreeSsl($ispConfigClientId, (int) $website['domain_id']);
@@ -119,6 +128,11 @@ class SoftwareInstallOrchestrator
             ])->save();
         } catch (\Throwable $exception) {
             $this->rollback($installation, $ispConfigClientId);
+
+            // This install's scratch copy of the release (never the release itself).
+            if (isset($buildDir)) {
+                $this->ssh->exec('rm -rf '.escapeshellarg($buildDir));
+            }
 
             throw $exception;
         } finally {
@@ -182,20 +196,164 @@ class SoftwareInstallOrchestrator
         return $entry;
     }
 
-    private function progress(SoftwareInstallation $installation, string $step): void
+    private function progress(?SoftwareInstallation $installation, string $step): void
     {
-        $installation->forceFill(['status' => 'building', 'progress_step' => $step])->save();
+        $installation?->forceFill(['status' => 'building', 'progress_step' => $step])->save();
     }
 
-    private function cloneRepository(array $catalog, string $buildDir): void
+    /**
+     * The finished, reusable build of the app for the catalog's current git
+     * commit, built on first use and reused by every install after it.
+     * Progress steps for the slow parts are reported only when this run
+     * actually has to build, and `release_reused` tells the dashboard's
+     * percentage which steps this install will skip.
+     */
+    private function ensureRelease(array $catalog, string $slug, string $buildRoot, ?SoftwareInstallation $installation): string
     {
-        $this->ssh->makeDirectory(dirname($buildDir));
-        $this->runOrFail(dirname($buildDir), sprintf(
-            'git clone --branch %s --depth 1 %s %s',
-            escapeshellarg($catalog['git_ref']),
+        $releasesDir = $buildRoot.'/releases';
+        $this->ssh->makeDirectory($releasesDir);
+
+        $releaseDir = $releasesDir.'/'.$this->releaseName($slug, $this->remoteHeadSha($catalog));
+
+        if ($this->ssh->pathExists($releaseDir.'/'.self::RELEASE_READY_MARKER)) {
+            $this->noteReleaseReused($installation, true);
+
+            return $releaseDir;
+        }
+
+        $this->noteReleaseReused($installation, false);
+
+        return $this->buildRelease($catalog, $slug, $releasesDir, $installation);
+    }
+
+    /**
+     * Builds (or confirms) the shared release ahead of any client install —
+     * `php artisan software:prepare-release <slug>` — so the first client to
+     * install after a new commit does not wait for the build.
+     *
+     * @return array{release: string, built: bool}
+     */
+    public function prepareRelease(string $slug): array
+    {
+        $catalog = $this->catalogEntry($slug);
+        $buildConfig = config('software_install');
+
+        $this->ssh->connect(
+            (string) $buildConfig['ssh_host'],
+            (int) $buildConfig['ssh_port'],
+            (string) $buildConfig['ssh_user'],
+            ($buildConfig['ssh_private_key_path'] ?? null) ? (string) file_get_contents($buildConfig['ssh_private_key_path']) : '',
+        );
+
+        try {
+            $buildRoot = rtrim($buildConfig['build_root'], '/');
+            $releasesDir = $buildRoot.'/releases';
+            $this->ssh->makeDirectory($releasesDir);
+
+            $existing = $releasesDir.'/'.$this->releaseName($slug, $this->remoteHeadSha($catalog));
+
+            if ($this->ssh->pathExists($existing.'/'.self::RELEASE_READY_MARKER)) {
+                return ['release' => $existing, 'built' => false];
+            }
+
+            return ['release' => $this->buildRelease($catalog, $slug, $releasesDir, null), 'built' => true];
+        } finally {
+            $this->ssh->disconnect();
+        }
+    }
+
+    private function releaseName(string $slug, string $sha): string
+    {
+        return $slug.'-'.substr($sha, 0, 12);
+    }
+
+    private function noteReleaseReused(?SoftwareInstallation $installation, bool $reused): void
+    {
+        $installation?->forceFill([
+            'metadata_json' => array_merge($installation->metadata_json ?? [], ['release_reused' => $reused]),
+        ])->save();
+    }
+
+    private function remoteHeadSha(array $catalog): string
+    {
+        $result = $this->runOrFail('/', sprintf(
+            'git ls-remote %s %s',
             escapeshellarg($catalog['git_url']),
-            escapeshellarg(basename($buildDir)),
+            escapeshellarg($catalog['git_ref']),
         ));
+
+        if (! preg_match('/^([0-9a-f]{40})\s/m', $result['output'], $matches)) {
+            throw new RuntimeException("Could not find {$catalog['git_ref']} in {$catalog['git_url']}.\n".trim($result['output']));
+        }
+
+        return $matches[1];
+    }
+
+    private function buildRelease(array $catalog, string $slug, string $releasesDir, ?SoftwareInstallation $installation): string
+    {
+        $workDir = $releasesDir.'/.building-'.($installation?->id ?? 'manual-'.bin2hex(random_bytes(4)));
+
+        try {
+            $this->runOrFail($releasesDir, 'rm -rf '.escapeshellarg($workDir));
+
+            $this->progress($installation, 'cloning_repository');
+            $this->runOrFail($releasesDir, sprintf(
+                'git clone --branch %s --depth 1 %s %s',
+                escapeshellarg($catalog['git_ref']),
+                escapeshellarg($catalog['git_url']),
+                escapeshellarg(basename($workDir)),
+            ));
+
+            $this->assertRuntimeConfigurable($catalog, $workDir);
+
+            $sha = trim($this->runOrFail($workDir, 'git rev-parse HEAD')['output']);
+            $releaseDir = $releasesDir.'/'.$this->releaseName($slug, $sha);
+
+            $this->progress($installation, 'installing_backend_dependencies');
+            $this->runOrFail($workDir.'/'.$catalog['backend_path'], 'composer install --no-dev --optimize-autoloader --no-interaction --no-progress');
+
+            $this->progress($installation, 'installing_frontend_dependencies');
+            $this->runOrFail($workDir, 'npm ci');
+
+            $this->progress($installation, 'building_frontend');
+            $this->runOrFail($workDir, (string) $catalog['frontend_build_command']);
+
+            if (! $this->ssh->putFileContents($workDir.'/'.self::RELEASE_READY_MARKER, $sha)) {
+                throw new RuntimeException('Could not mark the finished release as ready.');
+            }
+
+            // Publish atomically; if a concurrent install finished the same
+            // release first, keep theirs and drop this copy.
+            $this->runOrFail($releasesDir, sprintf(
+                'if [ -e %1$s ]; then rm -rf %2$s; else mv %2$s %1$s; fi',
+                escapeshellarg($releaseDir),
+                escapeshellarg($workDir),
+            ));
+
+            return $releaseDir;
+        } catch (\Throwable $exception) {
+            $this->ssh->exec('rm -rf '.escapeshellarg($workDir));
+
+            throw $exception;
+        }
+    }
+
+    /**
+     * A release is shared by every install, so it must not have any one
+     * install's settings baked in. Apps that still do (NEXT_PUBLIC_* frozen
+     * at build) would silently call the wrong API from every other install,
+     * so refuse them outright instead.
+     */
+    private function assertRuntimeConfigurable(array $catalog, string $workDir): void
+    {
+        $marker = $catalog['runtime_config_marker'] ?? null;
+
+        if ($marker && $this->ssh->exec('test -f '.escapeshellarg($marker), $workDir)['exit_code'] !== 0) {
+            throw new RuntimeException(
+                "This version of {$catalog['name']} cannot be installed yet: it still bakes its settings into the build, "
+                ."so one build cannot be shared between installs. Expected {$marker} in the repository."
+            );
+        }
     }
 
     /**
@@ -532,39 +690,62 @@ class SoftwareInstallOrchestrator
     }
 
     /**
-     * Copies the whole built tree from the build account into the client's
-     * own private/ directory, then symlinks Laravel's public/ dir into the
-     * web root — the same layout the live everymerchant.naitalk.com
-     * deployment already uses. Both accounts live on the same filesystem, so
-     * this is a local copy on the build account's side (it needs write
-     * access into the new site's private/ dir — see the deployment note on
-     * the build account's required privilege).
+     * Moves this install's prepared copy into the client's own private/
+     * directory, then symlinks Laravel's public/ dir into the web root — the
+     * same layout the live everymerchant.naitalk.com deployment already uses.
+     * The build account needs write access into the new site's private/ dir
+     * (see the deployment note on RealSshCommandRunner); a `mv` is a rename
+     * when both sit on one filesystem and a copy-then-delete when not.
+     *
+     * @return string the new shell account's home directory
      */
-    private function deployFiles(SoftwareInstallation $installation, array $catalog, string $buildDir, array $shellAccount): void
+    private function deployFiles(SoftwareInstallation $installation, array $catalog, string $buildDir, array $shellAccount): string
     {
-        $installPath = 'naipay-'.$installation->id;
+        $installPath = $installation->catalog_slug.'-'.$installation->id;
         $installation->forceFill(['install_path' => $installPath])->save();
 
-        // ~/private and ~/web are the two sibling directories every ISPConfig
-        // jailkit shell account gets (see FileManagerAccountProvisioner) —
-        // the private one is never web-reachable. Both accounts live on the
-        // same filesystem, so this is a local copy, not a network transfer;
-        // it requires the build account to have write access into the new
-        // site's private/ dir (see the deployment privilege note on
-        // RealSshCommandRunner).
-        $destination = '~'.$shellAccount['username'].'/private/'.$installPath;
-        $this->runOrFail($buildDir, sprintf('cp -a %s %s', escapeshellarg($buildDir), escapeshellarg($destination)));
+        $home = $this->waitForShellHome($shellAccount['username']);
+        $privateAppPath = $home.'/private/'.$installPath;
+        $webPath = $home.'/web';
 
-        $privateAppPath = '~'.$shellAccount['username'].'/private/'.$installPath;
-        $webPath = '~'.$shellAccount['username'].'/web';
+        $this->runOrFail($buildDir, sprintf('mv %s %s', escapeshellarg($buildDir), escapeshellarg($privateAppPath)));
 
         $this->ssh->symlink($privateAppPath.'/'.$catalog['backend_path'].'/public', $webPath.'/_backend');
 
-        $htaccess = $this->buildHtaccess();
-
-        if (! $this->ssh->putFileContents($webPath.'/.htaccess', $htaccess)) {
+        if (! $this->ssh->putFileContents($webPath.'/.htaccess', $this->buildHtaccess())) {
             throw new RuntimeException('Could not write .htaccess for the new install.');
         }
+
+        return $home;
+    }
+
+    /**
+     * Shell accounts are created on the hosting server by ISPConfig's own
+     * cron, not by the API call that requested them, so the account (and its
+     * private/ and web/ directories) does not exist for up to a minute. The
+     * home is also looked up as a real absolute path — a `~user` inside
+     * single quotes, which every command here uses, is never expanded.
+     */
+    private function waitForShellHome(string $username): string
+    {
+        for ($attempt = 1; $attempt <= self::SHELL_HOME_ATTEMPTS; $attempt++) {
+            $lookup = $this->ssh->exec('getent passwd '.escapeshellarg($username).' | cut -d: -f6');
+            $home = rtrim(trim($lookup['output']), '/');
+
+            if ($lookup['exit_code'] === 0 && str_starts_with($home, '/')
+                && $this->ssh->exec('test -d '.escapeshellarg($home.'/private').' && test -d '.escapeshellarg($home.'/web'))['exit_code'] === 0) {
+                return $home;
+            }
+
+            if ($attempt < self::SHELL_HOME_ATTEMPTS) {
+                Sleep::for(self::SHELL_HOME_WAIT_SECONDS)->seconds();
+            }
+        }
+
+        throw new RuntimeException(
+            "The new hosting account {$username} was still not ready after waiting "
+            .((self::SHELL_HOME_ATTEMPTS - 1) * self::SHELL_HOME_WAIT_SECONDS).' seconds for ISPConfig to create it.'
+        );
     }
 
     /**
@@ -612,7 +793,7 @@ HTACCESS;
 
     private function startProcesses(SoftwareInstallation $installation, array $catalog, array $shellAccount, int $nodePort): void
     {
-        $installPath = '~'.$shellAccount['username'].'/private/'.$installation->install_path;
+        $installPath = $shellAccount['home'].'/private/'.$installation->install_path;
         $frontendDir = $installPath.'/'.$catalog['frontend_path'];
         $backendDir = $installPath.'/'.$catalog['backend_path'];
 
@@ -626,7 +807,7 @@ HTACCESS;
 
         // The htaccess was written with a placeholder port before this port
         // was known — fill it in now that PM2 has actually started on it.
-        $webPath = '~'.$shellAccount['username'].'/web';
+        $webPath = $shellAccount['home'].'/web';
         $htaccess = str_replace('{{PORT}}', (string) $nodePort, $this->buildHtaccess());
         $this->ssh->putFileContents($webPath.'/.htaccess', $htaccess);
 

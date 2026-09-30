@@ -260,8 +260,8 @@ class SoftwareInstallTest extends TestCase
         $middle = $percentAt(210);
         $overrun = $percentAt(99999);
 
-        $this->assertSame(16, $start['progress_step_total']);
-        $this->assertSame(11, $start['progress_step_number']);
+        $this->assertSame(18, $start['progress_step_total']);
+        $this->assertSame(6, $start['progress_step_number']);
         $this->assertGreaterThan(0, $start['progress_percent']);
         $this->assertGreaterThan($start['progress_percent'], $middle['progress_percent']);
         $this->assertGreaterThan($middle['progress_percent'], $overrun['progress_percent']);
@@ -272,6 +272,99 @@ class SoftwareInstallTest extends TestCase
         $this->app['auth']->forgetGuards();
         $this->withToken($token)->getJson("/api/v1/client/services/{$service->id}/software/{$installation->id}")
             ->assertOk()->assertJsonPath('progress_percent', 100);
+    }
+
+    private function startNaipayInstall(HostingService $service, string $token, string $subdomain = 'banking'): void
+    {
+        $this->withToken($token)->postJson("/api/v1/client/services/{$service->id}/software/install", [
+            'catalog_slug' => 'naipay',
+            'subdomain' => $subdomain,
+            'admin_email' => 'owner@example.test',
+        ])->assertStatus(202);
+    }
+
+    private function releaseDir(): string
+    {
+        return rtrim(config('software_install.build_root'), '/').'/releases/naipay-'.substr(self::FAKE_RELEASE_SHA, 0, 12);
+    }
+
+    public function test_the_first_install_builds_the_shared_release_once_and_publishes_it(): void
+    {
+        $fake = $this->fakeIspConfig();
+        $ssh = $this->fakeSshCommandRunner();
+        $service = $this->provisionedService($fake);
+        $this->startNaipayInstall($service, $this->clientToken($service));
+
+        $commands = collect($ssh->executedCommands)->pluck('command');
+        $count = fn (string $needle) => $commands->filter(fn ($c) => str_contains($c, $needle))->count();
+
+        $this->assertSame(1, $count('npm ci'));
+        $this->assertSame(1, $count('npm run build'));
+        $this->assertSame(1, $count('composer install'));
+        // Published atomically under its final, commit-named directory.
+        $this->assertTrue($commands->contains(fn ($c) => str_contains($c, 'else mv ') && str_contains($c, escapeshellarg($this->releaseDir()))));
+        $this->assertFalse(SoftwareInstallation::query()->firstOrFail()->metadata_json['release_reused']);
+    }
+
+    public function test_an_install_reuses_an_already_built_release_without_rebuilding(): void
+    {
+        $fake = $this->fakeIspConfig();
+        $ssh = $this->fakeSshCommandRunner();
+        $ssh->writtenFiles[$this->releaseDir().'/.release-ready'] = self::FAKE_RELEASE_SHA;
+        $service = $this->provisionedService($fake);
+        $this->startNaipayInstall($service, $this->clientToken($service));
+
+        $installation = SoftwareInstallation::query()->firstOrFail();
+        $this->assertSame('active', $installation->status);
+        $this->assertTrue($installation->metadata_json['release_reused']);
+
+        $commands = collect($ssh->executedCommands)->pluck('command');
+        foreach (['composer install', 'npm ci', 'npm run build', 'git clone'] as $slowStep) {
+            $this->assertFalse($commands->contains(fn ($c) => str_contains($c, $slowStep)), "{$slowStep} must not run when the release is reused");
+        }
+        $this->assertTrue($commands->contains(fn ($c) => str_contains($c, 'cp -a '.escapeshellarg($this->releaseDir()))));
+        $this->assertTrue($commands->contains(fn ($c) => str_contains($c, 'artisan migrate')));
+
+        // The dashboard's percentage must not count the skipped build steps.
+        $this->app['auth']->forgetGuards();
+        $this->withToken($this->clientToken($service->fresh()))
+            ->getJson("/api/v1/client/services/{$service->id}/software/{$installation->id}")
+            ->assertOk()->assertJsonPath('progress_step_total', 14);
+    }
+
+    public function test_a_release_that_still_bakes_its_settings_into_the_build_is_refused(): void
+    {
+        $fake = $this->fakeIspConfig();
+        $ssh = $this->fakeSshCommandRunner();
+        $ssh->failOn('test -f', '');
+        $service = $this->provisionedService($fake);
+        $this->startNaipayInstall($service, $this->clientToken($service));
+
+        $installation = SoftwareInstallation::query()->firstOrFail();
+        $this->assertSame('failed', $installation->status);
+        $this->assertStringContainsString('cannot be installed yet', $installation->error_message);
+        $this->assertFalse(collect($ssh->executedCommands)->pluck('command')->contains(fn ($c) => str_contains($c, 'npm ci')));
+    }
+
+    public function test_deploy_waits_for_ispconfig_to_create_the_shell_account_and_uses_absolute_paths(): void
+    {
+        Sleep::fake();
+        $fake = $this->fakeIspConfig();
+        $ssh = $this->fakeSshCommandRunner();
+        $ssh->respondOnce('getent passwd', 2, '');
+        $ssh->respondOnce('getent passwd', 2, '');
+        $service = $this->provisionedService($fake);
+        $this->startNaipayInstall($service, $this->clientToken($service));
+
+        $installation = SoftwareInstallation::query()->firstOrFail();
+        $this->assertSame('active', $installation->status);
+        Sleep::assertSleptTimes(2);
+
+        $home = '/var/www/clients/client1/web1/home/sw-test';
+        $commands = collect($ssh->executedCommands)->pluck('command');
+        $this->assertTrue($commands->contains(fn ($c) => str_contains($c, escapeshellarg($home.'/private/naipay-'.$installation->id))));
+        $this->assertTrue(collect($ssh->symlinks)->flatten()->contains(fn ($path) => str_starts_with((string) $path, $home)));
+        $this->assertFalse($commands->contains(fn ($c) => str_contains($c, "'~")), 'a quoted ~user path is never expanded by the shell');
     }
 
     public function test_a_failed_install_can_be_retried_on_the_same_or_a_new_subdomain(): void

@@ -124,7 +124,7 @@ class SoftwareController extends Controller
             'progress_step' => $installation->progress_step,
             'progress_percent' => $this->progressPercent($installation),
             'progress_step_number' => $this->progressStepNumber($installation),
-            'progress_step_total' => count(config('software_install.progress_steps')) - 1,
+            'progress_step_total' => count($this->stepsThisInstallWillRun($installation)) - 1,
             'started_at' => $installation->created_at?->toIso8601String(),
             'subdomain' => $installation->subdomain,
             'console_url' => $installation->status === 'active' ? 'https://'.$installation->subdomain : null,
@@ -153,7 +153,7 @@ class SoftwareController extends Controller
             return null;
         }
 
-        $steps = config('software_install.progress_steps');
+        $steps = $this->stepsThisInstallWillRun($installation);
         $total = array_sum($steps);
         $current = $installation->progress_step;
 
@@ -181,8 +181,26 @@ class SoftwareController extends Controller
     /** 1-based position of the current step among the real steps (queued is 0). */
     private function progressStepNumber(SoftwareInstallation $installation): int
     {
-        $position = array_search($installation->progress_step, array_keys(config('software_install.progress_steps')), true);
+        $position = array_search($installation->progress_step, array_keys($this->stepsThisInstallWillRun($installation)), true);
 
         return $position === false ? 0 : (int) $position;
+    }
+
+    /**
+     * The weighted step list minus the clone/composer/npm/build steps when
+     * this install reused an already-built release — otherwise the bar would
+     * count ~10 minutes of work that never happens and jump forward.
+     *
+     * @return array<string, int>
+     */
+    private function stepsThisInstallWillRun(SoftwareInstallation $installation): array
+    {
+        $steps = config('software_install.progress_steps', []);
+
+        if (($installation->metadata_json['release_reused'] ?? false) === true) {
+            return array_diff_key($steps, array_flip(config('software_install.release_build_steps', [])));
+        }
+
+        return $steps;
     }
 }

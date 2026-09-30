@@ -27,12 +27,19 @@ return [
         'backend_path' => 'backend/api',
         'frontend_path' => 'apps/admin-web',
         'frontend_workspace' => 'apps/admin-web',
+        // Built ONCE per git commit and shared by every install (see
+        // SoftwareInstallOrchestrator::ensureRelease), so it must not depend
+        // on any one install's settings.
         'frontend_build_command' => 'npm run build --workspace apps/admin-web',
+        // Proof that this version of the app reads its settings at start
+        // rather than baking them into the build. Releases without it are
+        // refused: they would serve every install the first one's API URL.
+        'runtime_config_marker' => 'apps/admin-web/src/app/runtime-config.js/route.ts',
         'frontend_start_command' => 'npm run start --workspace apps/admin-web -- -p {port}',
-        // Confirmed against apps/admin-web/src/lib/env.ts: these are inlined
-        // into the JS bundle at BUILD time (Next.js NEXT_PUBLIC_* rule), so
-        // this file must exist with the final subdomain's URL *before*
-        // `frontend_build_command` runs — not after.
+        // Read by `next start` from apps/admin-web/.env.production.local and
+        // served to the browser at /runtime-config.js (apps/admin-web/src/
+        // lib/env.ts), so they are written per install AFTER the shared
+        // build, not before it.
         'frontend_env' => [
             'NEXT_PUBLIC_API_URL' => 'https://{subdomain}/api/v1',
             'NEXT_PUBLIC_APP_NAME' => 'Every Merchant',

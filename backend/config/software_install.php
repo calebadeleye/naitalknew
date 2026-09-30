@@ -35,20 +35,33 @@ return [
     'progress_steps' => [
         'queued' => 0,
         'connecting_build_account' => 2,
+        'preparing_release' => 3,
+        // Only when no finished release of the current commit exists yet
+        // (see `release_build_steps`): clone, composer, npm ci, next build.
         'cloning_repository' => 10,
         'installing_backend_dependencies' => 25,
+        'installing_frontend_dependencies' => 180,
+        'building_frontend' => 420,
+        'copying_release' => 40,
         'allocating_database' => 5,
         'allocating_redis_slot' => 1,
         'writing_backend_configuration' => 1,
         'running_migrations' => 60,
         'seeding_initial_data' => 10,
-        'installing_frontend_dependencies' => 180,
         'writing_frontend_configuration' => 1,
-        'building_frontend' => 420,
         'provisioning_subdomain' => 5,
         'provisioning_shell_account' => 5,
-        'deploying_files' => 90,
+        'deploying_files' => 40,
         'requesting_ssl' => 5,
         'starting_application' => 15,
+    ],
+
+    // The steps above that an install skips when it reuses a release that an
+    // earlier install already built.
+    'release_build_steps' => [
+        'cloning_repository',
+        'installing_backend_dependencies',
+        'installing_frontend_dependencies',
+        'building_frontend',
     ],
 ];
