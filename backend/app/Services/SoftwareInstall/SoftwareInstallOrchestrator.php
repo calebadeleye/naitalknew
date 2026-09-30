@@ -6,6 +6,7 @@ use App\Models\HostingService;
 use App\Models\SoftwareInstallation;
 use App\Services\Ispconfig\Exceptions\IspConfigApiException;
 use App\Services\Ispconfig\IspConfigClient;
+use Illuminate\Support\Sleep;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -23,6 +24,11 @@ use RuntimeException;
  */
 class SoftwareInstallOrchestrator
 {
+    /** 25 tries, 10s apart: four minutes, several ISPConfig cron cycles. */
+    private const DATABASE_READY_ATTEMPTS = 25;
+
+    private const DATABASE_READY_WAIT_SECONDS = 10;
+
     public function __construct(
         private readonly IspConfigClient $ispConfig,
         private readonly SshCommandRunner $ssh,
@@ -70,7 +76,7 @@ class SoftwareInstallOrchestrator
             $adminPassword = $this->writeBackendEnv($installation, $catalog, $buildDir, $database, $redis);
 
             $this->progress($installation, 'running_migrations');
-            $this->runOrFail($buildDir.'/'.$catalog['backend_path'], 'php artisan migrate --force');
+            $this->runMigrationsOnceDatabaseIsLive($buildDir.'/'.$catalog['backend_path']);
 
             $this->progress($installation, 'seeding_initial_data');
             $seedOutput = $this->runOrFail($buildDir.'/'.$catalog['backend_path'], 'php artisan db:seed --force');
@@ -200,15 +206,60 @@ class SoftwareInstallOrchestrator
         $result = $this->ssh->exec($command, $cwd);
 
         if ($result['exit_code'] !== 0) {
-            // Only the tail: a failing composer/npm run can emit hundreds of
-            // progress lines, and the actual error is always at the end.
-            $output = trim($result['output']);
-            $output = strlen($output) > 3000 ? '…'.substr($output, -3000) : $output;
-
-            throw new RuntimeException("Command failed ({$result['exit_code']}) in {$cwd}: {$command}\n".$output);
+            $this->throwCommandFailure($cwd, $command, $result);
         }
 
         return $result;
+    }
+
+    /**
+     * @param  array{exit_code: int, output: string}  $result
+     */
+    private function throwCommandFailure(string $cwd, string $command, array $result): never
+    {
+        // Only the tail: a failing composer/npm run can emit hundreds of
+        // progress lines, and the actual error is always at the end.
+        $output = trim($result['output']);
+        $output = strlen($output) > 3000 ? '…'.substr($output, -3000) : $output;
+
+        throw new RuntimeException("Command failed ({$result['exit_code']}) in {$cwd}: {$command}\n".$output);
+    }
+
+    /**
+     * ISPConfig's API only queues the new database and user — its server
+     * cron applies them to MySQL, typically within a minute. Until then
+     * MySQL refuses the login ("[1045] Access denied" for a user that doesn't
+     * exist yet, "[1049]" for the database), so migrate is retried on
+     * exactly those connection errors. A refused connection has run no
+     * migration, so retrying is safe; anything else fails immediately.
+     */
+    private function runMigrationsOnceDatabaseIsLive(string $backendDir): void
+    {
+        $attempts = self::DATABASE_READY_ATTEMPTS;
+
+        for ($attempt = 1; $attempt <= $attempts; $attempt++) {
+            $result = $this->ssh->exec('php artisan migrate --force', $backendDir);
+
+            if ($result['exit_code'] === 0) {
+                return;
+            }
+
+            $notLiveYet = preg_match('/SQLSTATE\[HY000\] \[(1045|1049)\]/', $result['output']) === 1;
+
+            if (! $notLiveYet) {
+                break;
+            }
+
+            if ($attempt === $attempts) {
+                $result['output'] .= "\n[The new database login was still refused after waiting "
+                    .(($attempts - 1) * self::DATABASE_READY_WAIT_SECONDS).' seconds for ISPConfig to create it.]';
+                break;
+            }
+
+            Sleep::for(self::DATABASE_READY_WAIT_SECONDS)->seconds();
+        }
+
+        $this->throwCommandFailure($backendDir, 'php artisan migrate --force', $result);
     }
 
     /**

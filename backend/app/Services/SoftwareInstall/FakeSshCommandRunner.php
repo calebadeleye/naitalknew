@@ -15,6 +15,9 @@ class FakeSshCommandRunner implements SshCommandRunner
     /** @var array<string, array{exit_code: int, output: string}> */
     private array $responses = [];
 
+    /** @var array<string, array<int, array{exit_code: int, output: string}>> */
+    private array $onceResponses = [];
+
     public bool $connected = false;
 
     /** @var array<string, string> */
@@ -41,6 +44,12 @@ class FakeSshCommandRunner implements SshCommandRunner
         $this->responses[$commandPrefix] = ['exit_code' => $exitCode, 'output' => $output];
     }
 
+    /** Queues a response used for the next matching command only, ahead of respond(). */
+    public function respondOnce(string $commandPrefix, int $exitCode, string $output = ''): void
+    {
+        $this->onceResponses[$commandPrefix][] = ['exit_code' => $exitCode, 'output' => $output];
+    }
+
     public function failOn(string $commandPrefix, string $output = 'command failed'): void
     {
         $this->respond($commandPrefix, 1, $output);
@@ -49,6 +58,12 @@ class FakeSshCommandRunner implements SshCommandRunner
     public function exec(string $command, ?string $cwd = null): array
     {
         $this->executedCommands[] = ['command' => $command, 'cwd' => $cwd];
+
+        foreach ($this->onceResponses as $prefix => $queued) {
+            if ($queued !== [] && str_starts_with($command, $prefix)) {
+                return array_shift($this->onceResponses[$prefix]);
+            }
+        }
 
         foreach ($this->responses as $prefix => $response) {
             if (str_starts_with($command, $prefix)) {

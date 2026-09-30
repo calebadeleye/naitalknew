@@ -8,6 +8,7 @@ use App\Models\SoftwareInstallation;
 use App\Services\Ispconfig\Exceptions\IspConfigApiException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Sleep;
 use Illuminate\Support\Str;
 use Tests\Concerns\CreatesDomainFixtures;
 use Tests\Concerns\CreatesHostingFixtures;
@@ -175,6 +176,52 @@ class SoftwareInstallTest extends TestCase
         $methods = collect($fake->calls)->pluck('method');
         $this->assertSame(1, $methods->filter(fn ($method) => $method === 'sitesWebDomainAdd')->count());
         $this->assertFalse($methods->contains('databasesDatabaseAdd'));
+    }
+
+    public function test_migrations_wait_for_ispconfig_to_create_the_database_login(): void
+    {
+        Sleep::fake();
+        $fake = $this->fakeIspConfig();
+        $ssh = $this->fakeSshCommandRunner();
+        $service = $this->provisionedService($fake);
+        $token = $this->clientToken($service);
+
+        $refused = "SQLSTATE[HY000] [1045] Access denied for user 'sw1_abc'@'localhost' (using password: YES)";
+        $ssh->respondOnce('php artisan migrate', 1, $refused);
+        $ssh->respondOnce('php artisan migrate', 1, $refused);
+
+        $this->withToken($token)->postJson("/api/v1/client/services/{$service->id}/software/install", [
+            'catalog_slug' => 'naipay',
+            'subdomain' => 'banking',
+            'admin_email' => 'owner@example.test',
+        ])->assertStatus(202);
+
+        $this->assertSame('active', SoftwareInstallation::query()->firstOrFail()->status);
+        $migrateRuns = collect($ssh->executedCommands)->filter(fn ($run) => $run['command'] === 'php artisan migrate --force');
+        $this->assertCount(3, $migrateRuns);
+        Sleep::assertSleptTimes(2);
+    }
+
+    public function test_a_migration_error_that_is_not_a_refused_login_fails_without_waiting(): void
+    {
+        Sleep::fake();
+        $fake = $this->fakeIspConfig();
+        $ssh = $this->fakeSshCommandRunner();
+        $service = $this->provisionedService($fake);
+        $token = $this->clientToken($service);
+
+        $ssh->failOn('php artisan migrate', 'SQLSTATE[42S01]: Base table or view already exists');
+
+        $this->withToken($token)->postJson("/api/v1/client/services/{$service->id}/software/install", [
+            'catalog_slug' => 'naipay',
+            'subdomain' => 'banking',
+            'admin_email' => 'owner@example.test',
+        ])->assertStatus(202);
+
+        $installation = SoftwareInstallation::query()->firstOrFail();
+        $this->assertSame('failed', $installation->status);
+        $this->assertStringContainsString('Base table or view already exists', $installation->error_message);
+        Sleep::assertNeverSlept();
     }
 
     public function test_a_failed_install_can_be_retried_on_the_same_or_a_new_subdomain(): void
