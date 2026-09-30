@@ -8,6 +8,19 @@ cd "$(dirname "$0")"
 
 echo "🚀 Starting deployment..."
 
+# This account (naitalk2naitalk) shares its UID with another account on this
+# shared box (web9). OpenSSH deliberately never trusts $HOME/shell `~`
+# expansion for its own ~/.ssh/* resolution -- it always resolves the home
+# directory by looking up the *current UID* in the system's user database,
+# and with two usernames sharing one UID that lookup is ambiguous: it was
+# returning web9's entry instead of this account's own, so plain `git pull`
+# could never find this account's own known_hosts or deploy key. Looking
+# the home directory up *by username* instead (unambiguous, since only one
+# entry has this exact name) and pointing ssh at it explicitly sidesteps
+# that ambiguity entirely.
+REAL_HOME="$(getent passwd "$(whoami)" | cut -d: -f6)"
+export GIT_SSH_COMMAND="ssh -i ${REAL_HOME}/.ssh/deploykey -o IdentitiesOnly=yes -o UserKnownHostsFile=${REAL_HOME}/.ssh/known_hosts -o StrictHostKeyChecking=accept-new"
+
 # Pull latest changes from git
 git pull origin main
 
