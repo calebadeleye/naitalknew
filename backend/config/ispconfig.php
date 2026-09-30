@@ -19,4 +19,10 @@ return [
     // secure default for shell users.
     'ssh_shell' => env('ISPCONFIG_SSH_SHELL', '/bin/bash'),
     'ssh_chroot' => env('ISPCONFIG_SSH_CHROOT', 'jailkit'),
+    // ISPConfig's remote API never computes a mailbox's `maildir` field the
+    // way its own admin panel does on insert — MailboxProvisioningActionJob
+    // has to compute and send it itself, matching this server's real
+    // Maildir layout (confirmed against an existing working mailbox):
+    // /var/vmail/<domain>/<localpart>/Maildir.
+    'vmail_base_path' => env('ISPCONFIG_VMAIL_BASE_PATH', '/var/vmail'),
 ];

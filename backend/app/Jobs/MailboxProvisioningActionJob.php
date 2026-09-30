@@ -78,6 +78,19 @@ class MailboxProvisioningActionJob implements ShouldQueue
             // explicit or the account exists but never actually receives mail.
             'postfix' => 'y',
             'access' => 'y',
+            // ISPConfig's own mail_user_edit.php computes this field itself
+            // before saving — but that logic lives entirely in that page's
+            // PHP, not in the mail_user table's form definition or in the
+            // server-side plugin that later creates the Maildir on disk. The
+            // remote API's mail_user_add() saves straight through a generic
+            // tform insert that never runs it, so a mailbox created this way
+            // gets no mail_location at all: Dovecot logs "mail_location not
+            // set and autodetection failed" and the account can authenticate
+            // but never open an inbox. We have to compute and send the same
+            // path ISPConfig's own panel would have, matching its
+            // `[domain]`/`[localpart]` convention (confirmed against this
+            // server's real Maildir layout: /var/vmail/<domain>/<localpart>/Maildir).
+            'maildir' => $this->buildMaildirPath($mailbox->email_address),
         ]);
 
         $mailbox->forceFill([
@@ -130,6 +143,13 @@ class MailboxProvisioningActionJob implements ShouldQueue
         $this->log($mailbox, 'delete_mailbox', 'completed', 'Mailbox deleted from ISPConfig.');
 
         SyncHostingUsageSnapshotJob::dispatch($mailbox->hosting_service_id, 'resource_change');
+    }
+
+    private function buildMaildirPath(string $emailAddress): string
+    {
+        [$localPart, $domain] = array_map('strtolower', explode('@', $emailAddress, 2));
+
+        return config('ispconfig.vmail_base_path', '/var/vmail')."/{$domain}/{$localPart}/Maildir";
     }
 
     private function fail(MailboxRecord $mailbox, string $message, array $context = []): void
