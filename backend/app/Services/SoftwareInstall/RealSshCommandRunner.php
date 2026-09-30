@@ -8,6 +8,8 @@ use Throwable;
 
 class RealSshCommandRunner implements SshCommandRunner
 {
+    private const EXIT_MARKER = '__NAITALK_EXIT';
+
     private ?string $host = null;
 
     private int $port = 22;
@@ -51,14 +53,35 @@ class RealSshCommandRunner implements SshCommandRunner
         // command sidesteps the whole class of bug; the reconnect overhead
         // (a few hundred ms) is negligible next to how long each of these
         // build/deploy commands actually takes.
+        //
+        // The command's own exit code is also echoed back in-band, because
+        // phpseclib's getExitStatus() returns `false` (not null) whenever the
+        // server never sent an "exit-status" message for the channel — which
+        // `?? 1` silently let through as a non-zero, empty "()" exit code on
+        // a composer install that may well have succeeded. The in-band marker
+        // is the source of truth; getExitStatus() is only a fallback.
         $ssh = $this->freshConnection();
-        $output = $ssh->exec($full);
-        $exitCode = $ssh->getExitStatus() ?? 1;
+        $output = (string) $ssh->exec($full."\nprintf '\\n".self::EXIT_MARKER.":%s\\n' \"\$?\"\n");
+        $channelStatus = $ssh->getExitStatus();
         $ssh->disconnect();
 
+        if (preg_match('/\R?'.self::EXIT_MARKER.':(\d+)\R?$/', $output, $matches, PREG_OFFSET_CAPTURE)) {
+            return [
+                'exit_code' => (int) $matches[1][0],
+                'output' => substr($output, 0, $matches[0][1]),
+            ];
+        }
+
+        // No marker means the shell never reached the end of the command —
+        // it was killed (e.g. by the build account's resource cap) or the
+        // connection dropped mid-run. Never report that as success.
+        if (is_int($channelStatus)) {
+            return ['exit_code' => $channelStatus, 'output' => $output];
+        }
+
         return [
-            'exit_code' => $exitCode,
-            'output' => (string) $output,
+            'exit_code' => -1,
+            'output' => $output."\n[The command ended without reporting an exit status — the process was likely killed (memory/CPU cap) or the SSH connection dropped.]",
         ];
     }
 

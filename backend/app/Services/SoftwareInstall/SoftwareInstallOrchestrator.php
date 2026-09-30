@@ -200,7 +200,12 @@ class SoftwareInstallOrchestrator
         $result = $this->ssh->exec($command, $cwd);
 
         if ($result['exit_code'] !== 0) {
-            throw new RuntimeException("Command failed ({$result['exit_code']}) in {$cwd}: {$command}\n".$result['output']);
+            // Only the tail: a failing composer/npm run can emit hundreds of
+            // progress lines, and the actual error is always at the end.
+            $output = trim($result['output']);
+            $output = strlen($output) > 3000 ? '…'.substr($output, -3000) : $output;
+
+            throw new RuntimeException("Command failed ({$result['exit_code']}) in {$cwd}: {$command}\n".$output);
         }
 
         return $result;
