@@ -387,6 +387,12 @@ class SoftwareInstallOrchestrator
             'DB_CONNECTION' => 'mysql',
             'DB_HOST' => '127.0.0.1',
             'DB_PORT' => '3306',
+            // The hosting server's database is MariaDB-compatible, which has
+            // no utf8mb4_0900_ai_ci — the collation Laravel's stock mysql
+            // connection defaults to (config/database.php) and which made
+            // every connection fail with "[1273] Unknown collation".
+            'DB_CHARSET' => 'utf8mb4',
+            'DB_COLLATION' => 'utf8mb4_unicode_ci',
             'DB_DATABASE' => $database['database_name'],
             'DB_USERNAME' => $database['username'],
             'DB_PASSWORD' => $database['password'],

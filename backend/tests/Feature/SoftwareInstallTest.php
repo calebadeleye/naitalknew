@@ -87,8 +87,14 @@ class SoftwareInstallTest extends TestCase
         $this->assertTrue($commands->contains(fn ($c) => str_contains($c, 'artisan db:seed')));
         $this->assertTrue($commands->contains(fn ($c) => str_contains($c, 'pm2 start')));
 
+        // The hosting DB is MariaDB-compatible: the app must not be left on
+        // Laravel's MySQL-8-only default collation ("[1273] Unknown collation").
+        $backendEnv = collect($ssh->writtenFiles)->first(fn ($contents, $path) => str_ends_with($path, 'backend/api/.env'));
+        $this->assertStringContainsString('DB_COLLATION=utf8mb4_unicode_ci', $backendEnv);
+        $this->assertStringContainsString('DB_CHARSET=utf8mb4', $backendEnv);
+
         $this->app['auth']->forgetGuards();
-        $response = $this->withToken($token)->getJson("/api/v1/client/services/{$service->id}/software/{$installation->id}")
+        $response =$this->withToken($token)->getJson("/api/v1/client/services/{$service->id}/software/{$installation->id}")
             ->assertOk();
         $this->assertNotNull($response->json('admin_password'));
 
