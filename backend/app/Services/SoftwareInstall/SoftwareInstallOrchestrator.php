@@ -396,7 +396,10 @@ class SoftwareInstallOrchestrator
             'DB_DATABASE' => $database['database_name'],
             'DB_USERNAME' => $database['username'],
             'DB_PASSWORD' => $database['password'],
-            'REDIS_CLIENT' => 'phpredis',
+            // predis, not phpredis: the build/hosting PHP has no redis
+            // extension ("Class \"Redis\" not found" on the first cache or
+            // queue call), and the app ships predis/predis for exactly this.
+            'REDIS_CLIENT' => 'predis',
             'REDIS_HOST' => config('software_install.redis_host'),
             'REDIS_PORT' => (string) config('software_install.redis_port'),
             'REDIS_PASSWORD' => config('software_install.redis_password') ?: 'null',

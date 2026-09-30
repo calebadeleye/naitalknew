@@ -92,6 +92,7 @@ class SoftwareInstallTest extends TestCase
         $backendEnv = collect($ssh->writtenFiles)->first(fn ($contents, $path) => str_ends_with($path, 'backend/api/.env'));
         $this->assertStringContainsString('DB_COLLATION=utf8mb4_unicode_ci', $backendEnv);
         $this->assertStringContainsString('DB_CHARSET=utf8mb4', $backendEnv);
+        $this->assertStringContainsString('REDIS_CLIENT=predis', $backendEnv);
 
         $this->app['auth']->forgetGuards();
         $response =$this->withToken($token)->getJson("/api/v1/client/services/{$service->id}/software/{$installation->id}")
