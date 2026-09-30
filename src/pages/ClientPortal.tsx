@@ -513,7 +513,7 @@ export function HostingManagePanel({
         method: "POST",
         body: JSON.stringify({ catalog_slug: slug, subdomain: installSubdomain, admin_email: installAdminEmail }),
       });
-      setSoftwareInstallations((current) => [installation, ...(current || [])]);
+      setSoftwareInstallations((current) => [installation, ...(current || []).filter((row) => row.catalog_slug !== slug)]);
       setInstallFormSlug(null);
       setInstallSubdomain("");
       setInstallAdminEmail("");
@@ -1461,13 +1461,13 @@ export function HostingManagePanel({
                         </div>
                         <p className="mt-2 text-xs text-white/48">{item.description}</p>
 
-                        {!installation && installFormSlug !== item.slug && (
+                        {(!installation || installation.status === "failed") && installFormSlug !== item.slug && (
                           <button type="button" className="btn-primary mt-4" onClick={() => setInstallFormSlug(item.slug)}>
-                            Install
+                            {installation?.status === "failed" ? "Try Again" : "Install"}
                           </button>
                         )}
 
-                        {!installation && installFormSlug === item.slug && (
+                        {(!installation || installation.status === "failed") && installFormSlug === item.slug && (
                           <div className="mt-4 grid gap-3 rounded-lg border border-white/10 bg-black/20 p-4">
                             <label className="admin-field">
                               <span>Subdomain</span>

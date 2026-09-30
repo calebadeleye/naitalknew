@@ -8,22 +8,27 @@ use Throwable;
 
 class RealSshCommandRunner implements SshCommandRunner
 {
+    private ?string $host = null;
+
+    private int $port = 22;
+
+    private ?string $username = null;
+
+    private ?string $privateKey = null;
+
     private ?SSH2 $ssh = null;
 
     public function connect(string $host, int $port, string $username, string $privateKey): void
     {
-        try {
-            $ssh = new SSH2($host, $port, 10);
-            $key = PublicKeyLoader::load($privateKey);
-        } catch (Throwable $exception) {
-            throw new SshCommandException('Could not reach the build server: '.$exception->getMessage(), 0, $exception);
-        }
+        $this->host = $host;
+        $this->port = $port;
+        $this->username = $username;
+        $this->privateKey = $privateKey;
 
-        if (! $ssh->login($username, $key)) {
-            throw new SshCommandException('Could not authenticate the software-install build account.');
-        }
-
-        $this->ssh = $ssh;
+        // Establishes the connection once up front purely to fail fast with
+        // a clear error if the account/host/key is wrong — exec() below
+        // never reuses this handle (see its own comment for why).
+        $this->freshConnection();
     }
 
     public function disconnect(): void
@@ -36,8 +41,20 @@ class RealSshCommandRunner implements SshCommandRunner
     {
         $full = $cwd ? 'cd '.$this->quote($cwd).' && '.$command : $command;
 
-        $output = $this->connection()->exec($full);
-        $exitCode = $this->connection()->getExitStatus() ?? 1;
+        // phpseclib3's SSH2::exec() always reuses a single fixed channel
+        // slot for non-shell commands. A long-output command (composer
+        // install's progress output was enough to trigger this in testing)
+        // can leave that channel marked open internally even though the
+        // remote command finished, and the *next* exec() then throws
+        // "Please close the channel (1) before trying to open it again" —
+        // confirmed against a real install run. A fresh connection per
+        // command sidesteps the whole class of bug; the reconnect overhead
+        // (a few hundred ms) is negligible next to how long each of these
+        // build/deploy commands actually takes.
+        $ssh = $this->freshConnection();
+        $output = $ssh->exec($full);
+        $exitCode = $ssh->getExitStatus() ?? 1;
+        $ssh->disconnect();
 
         return [
             'exit_code' => $exitCode,
@@ -72,13 +89,26 @@ class RealSshCommandRunner implements SshCommandRunner
         return $this->exec('test -e '.$this->quote($path))['exit_code'] === 0;
     }
 
-    private function connection(): SSH2
+    private function freshConnection(): SSH2
     {
-        if (! $this->ssh) {
+        if (! $this->host || ! $this->username || $this->privateKey === null) {
             throw new SshCommandException('Not connected.');
         }
 
-        return $this->ssh;
+        try {
+            $ssh = new SSH2($this->host, $this->port, 10);
+            $key = PublicKeyLoader::load($this->privateKey);
+        } catch (Throwable $exception) {
+            throw new SshCommandException('Could not reach the build server: '.$exception->getMessage(), 0, $exception);
+        }
+
+        if (! $ssh->login($this->username, $key)) {
+            throw new SshCommandException('Could not authenticate the software-install build account.');
+        }
+
+        $this->ssh = $ssh;
+
+        return $ssh;
     }
 
     /** Single-quotes a value for safe use in a remote POSIX shell command. */
