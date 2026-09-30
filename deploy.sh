@@ -14,13 +14,15 @@ git pull origin main
 echo "📦 Installing frontend dependencies..."
 # It's better to use npm ci for production, but we'll stick to their request with clean
 rm -rf node_modules package-lock.json
-# --omit=dev: installing devDependencies here was pulling in vitest's browser-mode
-# peer tree (@vitest/browser-playwright -> nested vitest/jsdom/canvas), which trips
-# a known npm arborist bug ("Cannot read properties of null (reading 'edgesOut')")
-# resolving that peer set from a clean install with no lockfile. Every package the
-# build actually needs (vite, @tailwindcss/vite, react, etc.) is a real dependency,
-# not a devDependency, so this doesn't change what gets built.
-npm install --omit=dev
+# --legacy-peer-deps: a clean install with no lockfile was hitting a known npm
+# arborist bug ("Cannot read properties of null (reading 'edgesOut')") while
+# resolving vitest's browser-mode peer tree (@vitest/browser-playwright ->
+# nested vitest/jsdom/canvas) -- confirmed in production's own npm debug log.
+# The crash happens during peer *resolution* itself, so --omit=dev alone
+# doesn't avoid it (confirmed by testing); --legacy-peer-deps skips npm 7+'s
+# strict automatic peer-conflict resolution entirely, which is the actual
+# code path that crashes.
+npm install --legacy-peer-deps
 
 echo "🖼️  Optimizing images (WebP conversion + upload de-dupe)..."
 # storage/site-content.json and public/uploads/admin/* are gitignored
