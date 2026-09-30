@@ -262,7 +262,15 @@ async function main() {
   console.log(`[prerender] snapshotted ${succeeded}/${routes.length} routes into dist/prerendered/`);
 }
 
-main().catch((error) => {
-  console.error("[prerender] fatal error:", error);
-  process.exit(1);
-});
+main()
+  .then(() => {
+    // Every snapshot is already written by now. Leftover jsdom timers/Vite
+    // handles kept the process alive indefinitely after main() finished,
+    // which hung deploy.sh on this step (2026-09-30) before it ever reached
+    // the backend steps -- so exit explicitly instead of waiting for them.
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error("[prerender] fatal error:", error);
+    process.exit(1);
+  });

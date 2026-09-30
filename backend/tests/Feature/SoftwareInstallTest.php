@@ -231,6 +231,49 @@ class SoftwareInstallTest extends TestCase
         Sleep::assertNeverSlept();
     }
 
+    public function test_progress_percent_moves_within_a_long_step_and_never_reaches_100_until_active(): void
+    {
+        $fake = $this->fakeIspConfig();
+        $this->fakeSshCommandRunner();
+        $service = $this->provisionedService($fake);
+        $token = $this->clientToken($service);
+
+        $installation = SoftwareInstallation::query()->create([
+            'hosting_service_id' => $service->id,
+            'catalog_slug' => 'naipay',
+            'status' => 'building',
+            'progress_step' => 'building_frontend',
+            'subdomain' => 'banking.'.$service->primary_domain,
+            'admin_email' => 'owner@example.test',
+        ]);
+
+        $percentAt = function (int $secondsIntoStep) use ($installation, $service, $token): array {
+            $this->app['auth']->forgetGuards();
+            SoftwareInstallation::query()->whereKey($installation->id)->update(['updated_at' => now()->subSeconds($secondsIntoStep)]);
+
+            return $this->withToken($token)
+                ->getJson("/api/v1/client/services/{$service->id}/software/{$installation->id}")
+                ->assertOk()->json();
+        };
+
+        $start = $percentAt(0);
+        $middle = $percentAt(210);
+        $overrun = $percentAt(99999);
+
+        $this->assertSame(16, $start['progress_step_total']);
+        $this->assertSame(11, $start['progress_step_number']);
+        $this->assertGreaterThan(0, $start['progress_percent']);
+        $this->assertGreaterThan($start['progress_percent'], $middle['progress_percent']);
+        $this->assertGreaterThan($middle['progress_percent'], $overrun['progress_percent']);
+        $this->assertLessThan(100, $overrun['progress_percent']);
+        $this->assertNotNull($overrun['started_at']);
+
+        SoftwareInstallation::query()->whereKey($installation->id)->update(['status' => 'active']);
+        $this->app['auth']->forgetGuards();
+        $this->withToken($token)->getJson("/api/v1/client/services/{$service->id}/software/{$installation->id}")
+            ->assertOk()->assertJsonPath('progress_percent', 100);
+    }
+
     public function test_a_failed_install_can_be_retried_on_the_same_or_a_new_subdomain(): void
     {
         $fake = $this->fakeIspConfig();

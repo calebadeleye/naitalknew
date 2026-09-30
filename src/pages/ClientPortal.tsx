@@ -340,6 +340,11 @@ export type SoftwareInstallation = {
   catalog_slug: string;
   status: "queued" | "building" | "deploying" | "configuring" | "active" | "failed";
   progress_step: string | null;
+  /** Estimated 0–100 from the backend's weighted step list; null once failed. */
+  progress_percent: number | null;
+  progress_step_number: number;
+  progress_step_total: number;
+  started_at: string | null;
   subdomain: string;
   console_url: string | null;
   admin_email: string | null;
@@ -523,6 +528,12 @@ export function HostingManagePanel({
     } finally {
       setIsSubmittingInstall(false);
     }
+  };
+
+  const formatInstallElapsed = (startedAt: string | null) => {
+    if (!startedAt) return "Starting…";
+    const seconds = Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000));
+    return `Running for ${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, "0")}s`;
   };
 
   const softwareProgressLabels: Record<string, string> = {
@@ -1508,9 +1519,32 @@ export function HostingManagePanel({
                         )}
 
                         {installation && installation.status !== "active" && installation.status !== "failed" && (
-                          <div className="mt-4 flex items-center gap-2 text-xs text-white/50">
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            {softwareProgressLabels[installation.progress_step || ""] || "Working on it…"}
+                          <div className="mt-4" role="status" aria-live="polite">
+                            <div className="flex items-center justify-between gap-3 text-xs text-white/60">
+                              <span className="flex items-center gap-2">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                {softwareProgressLabels[installation.progress_step || ""] || "Working on it…"}
+                              </span>
+                              <strong className="text-primary">{installation.progress_percent ?? 0}%</strong>
+                            </div>
+                            <div
+                              className="mt-2 h-2 overflow-hidden rounded-full bg-white/10"
+                              role="progressbar"
+                              aria-valuemin={0}
+                              aria-valuemax={100}
+                              aria-valuenow={installation.progress_percent ?? 0}
+                              aria-label="Install progress"
+                            >
+                              <div
+                                className="h-full rounded-full bg-primary transition-[width] duration-1000 ease-out"
+                                style={{ width: `${installation.progress_percent ?? 0}%` }}
+                              />
+                            </div>
+                            <p className="mt-2 text-[11px] text-white/40">
+                              {installation.progress_step_number > 0 && `Step ${installation.progress_step_number} of ${installation.progress_step_total} · `}
+                              {formatInstallElapsed(installation.started_at)}
+                              {" · "}This is an estimate — building the app is the longest step and can take 10 minutes or more. You can leave this page.
+                            </p>
                           </div>
                         )}
 

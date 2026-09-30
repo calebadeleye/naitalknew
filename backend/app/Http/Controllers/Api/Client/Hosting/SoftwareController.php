@@ -122,6 +122,10 @@ class SoftwareController extends Controller
             'catalog_slug' => $installation->catalog_slug,
             'status' => $installation->status,
             'progress_step' => $installation->progress_step,
+            'progress_percent' => $this->progressPercent($installation),
+            'progress_step_number' => $this->progressStepNumber($installation),
+            'progress_step_total' => count(config('software_install.progress_steps')) - 1,
+            'started_at' => $installation->created_at?->toIso8601String(),
             'subdomain' => $installation->subdomain,
             'console_url' => $installation->status === 'active' ? 'https://'.$installation->subdomain : null,
             'admin_email' => $installation->admin_email,
@@ -129,5 +133,56 @@ class SoftwareController extends Controller
             'error_message' => $installation->error_message,
             'installed_at' => $installation->installed_at?->toIso8601String(),
         ];
+    }
+
+    /**
+     * Estimated 0–100 completion, from the weighted step list in
+     * config/software_install.php. Inside the current step it creeps forward
+     * with the time spent there (progress() bumps updated_at each time a
+     * step starts), holding at 95% of the step's slice if it overruns, so a
+     * long npm build keeps visibly moving without ever claiming to be done.
+     * Never 100 until the record is actually active.
+     */
+    private function progressPercent(SoftwareInstallation $installation): ?int
+    {
+        if ($installation->status === 'active') {
+            return 100;
+        }
+
+        if ($installation->status === 'failed') {
+            return null;
+        }
+
+        $steps = config('software_install.progress_steps');
+        $total = array_sum($steps);
+        $current = $installation->progress_step;
+
+        if (! $total || ! $current || ! array_key_exists($current, $steps)) {
+            return 0;
+        }
+
+        $done = 0;
+
+        foreach ($steps as $step => $seconds) {
+            if ($step === $current) {
+                $inStep = max(0, $installation->updated_at?->diffInSeconds(now(), true) ?? 0);
+                $fraction = $seconds > 0 ? min($inStep / $seconds, 0.95) : 0;
+                $done += $seconds * $fraction;
+
+                break;
+            }
+
+            $done += $seconds;
+        }
+
+        return min(99, (int) floor($done / $total * 100));
+    }
+
+    /** 1-based position of the current step among the real steps (queued is 0). */
+    private function progressStepNumber(SoftwareInstallation $installation): int
+    {
+        $position = array_search($installation->progress_step, array_keys(config('software_install.progress_steps')), true);
+
+        return $position === false ? 0 : (int) $position;
     }
 }
