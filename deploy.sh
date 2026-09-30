@@ -14,7 +14,13 @@ git pull origin main
 echo "📦 Installing frontend dependencies..."
 # It's better to use npm ci for production, but we'll stick to their request with clean
 rm -rf node_modules package-lock.json
-npm install
+# --omit=dev: installing devDependencies here was pulling in vitest's browser-mode
+# peer tree (@vitest/browser-playwright -> nested vitest/jsdom/canvas), which trips
+# a known npm arborist bug ("Cannot read properties of null (reading 'edgesOut')")
+# resolving that peer set from a clean install with no lockfile. Every package the
+# build actually needs (vite, @tailwindcss/vite, react, etc.) is a real dependency,
+# not a devDependency, so this doesn't change what gets built.
+npm install --omit=dev
 
 echo "🖼️  Optimizing images (WebP conversion + upload de-dupe)..."
 # storage/site-content.json and public/uploads/admin/* are gitignored
