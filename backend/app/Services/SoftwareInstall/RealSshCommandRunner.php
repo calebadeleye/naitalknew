@@ -10,6 +10,14 @@ class RealSshCommandRunner implements SshCommandRunner
 {
     private const EXIT_MARKER = '__NAITALK_EXIT';
 
+    /**
+     * Seconds one command may run. phpseclib's `$timeout` is a total budget
+     * for the whole exec() call, not an idle timeout, and defaults to the
+     * 10s connect timeout — enough to kill `composer install` at 99/100
+     * packages. Kept under SoftwareInstallJob's own 3600s timeout.
+     */
+    private const COMMAND_TIMEOUT = 1800;
+
     private ?string $host = null;
 
     private int $port = 22;
@@ -63,12 +71,20 @@ class RealSshCommandRunner implements SshCommandRunner
         $ssh = $this->freshConnection();
         $output = (string) $ssh->exec($full."\nprintf '\\n".self::EXIT_MARKER.":%s\\n' \"\$?\"\n");
         $channelStatus = $ssh->getExitStatus();
+        $timedOut = $ssh->isTimeout();
         $ssh->disconnect();
 
         if (preg_match('/\R?'.self::EXIT_MARKER.':(\d+)\R?$/', $output, $matches, PREG_OFFSET_CAPTURE)) {
             return [
                 'exit_code' => (int) $matches[1][0],
                 'output' => substr($output, 0, $matches[0][1]),
+            ];
+        }
+
+        if ($timedOut) {
+            return [
+                'exit_code' => -1,
+                'output' => $output."\n[The command did not finish within ".self::COMMAND_TIMEOUT." seconds and was abandoned.]",
             ];
         }
 
@@ -128,6 +144,9 @@ class RealSshCommandRunner implements SshCommandRunner
         if (! $ssh->login($this->username, $key)) {
             throw new SshCommandException('Could not authenticate the software-install build account.');
         }
+
+        // Login used the short connect timeout above; commands get their own.
+        $ssh->setTimeout(self::COMMAND_TIMEOUT);
 
         $this->ssh = $ssh;
 
