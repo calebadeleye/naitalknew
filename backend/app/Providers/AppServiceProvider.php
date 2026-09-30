@@ -16,6 +16,9 @@ use App\Services\Ispconfig\SoapIspConfigClient;
 use App\Services\FileManager\FakeFileManagerTransport;
 use App\Services\FileManager\FileManagerTransport;
 use App\Services\FileManager\Phpseclib3FileManagerTransport;
+use App\Services\SoftwareInstall\FakeSshCommandRunner;
+use App\Services\SoftwareInstall\RealSshCommandRunner;
+use App\Services\SoftwareInstall\SshCommandRunner;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
@@ -46,6 +49,10 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->bind(FileManagerTransport::class, function ($app) {
             return $app->environment('testing') ? new FakeFileManagerTransport : new Phpseclib3FileManagerTransport;
+        });
+
+        $this->app->bind(SshCommandRunner::class, function ($app) {
+            return $app->environment('testing') ? new FakeSshCommandRunner : new RealSshCommandRunner;
         });
     }
 

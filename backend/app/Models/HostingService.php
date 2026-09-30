@@ -161,6 +161,11 @@ class HostingService extends Model
         return $this->hasMany(FtpAccountRecord::class);
     }
 
+    public function softwareInstallations(): HasMany
+    {
+        return $this->hasMany(SoftwareInstallation::class);
+    }
+
     public function latestUsageSnapshot(): ?HostingUsageSnapshot
     {
         return $this->usageSnapshots()->latest('captured_at')->first();

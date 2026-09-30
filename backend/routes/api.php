@@ -43,6 +43,7 @@ use App\Http\Controllers\Api\Client\Hosting\FtpAccountController;
 use App\Http\Controllers\Api\Client\Hosting\HostingControlPanelController;
 use App\Http\Controllers\Api\Client\Hosting\MailboxController;
 use App\Http\Controllers\Api\Client\Hosting\FileManagerController;
+use App\Http\Controllers\Api\Client\Hosting\SoftwareController;
 use App\Http\Controllers\Api\Client\Hosting\WebsiteSettingsController;
 use App\Http\Controllers\Api\Client\InvoiceController;
 use App\Http\Controllers\Api\Client\InvoicePaymentController;
@@ -185,6 +186,10 @@ Route::prefix('v1')->group(function (): void {
                     Route::post('/files/mkdir', [FileManagerController::class, 'makeDirectory'])->middleware('throttle:hosting-resource-create');
                     Route::delete('/files', [FileManagerController::class, 'destroy'])->middleware('throttle:hosting-resource-create');
                     Route::get('/files/download', [FileManagerController::class, 'download']);
+
+                    Route::get('/software', [SoftwareController::class, 'index']);
+                    Route::post('/software/install', [SoftwareController::class, 'store'])->middleware('throttle:hosting-resource-create');
+                    Route::get('/software/{installation}', [SoftwareController::class, 'show']);
                 });
             });
         });

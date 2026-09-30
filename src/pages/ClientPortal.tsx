@@ -310,7 +310,7 @@ export type HostingFtpAccount = {
   last_synced_at: string | null;
 };
 
-export type HostingTabName = "overview" | "email" | "databases" | "ftp" | "website";
+export type HostingTabName = "overview" | "email" | "databases" | "ftp" | "website" | "software";
 
 export type FileManagerEntry = {
   name: string;
@@ -325,6 +325,27 @@ export type WebsiteSettings = {
   ssl: { enabled: boolean; mode: "free" | "custom" | null; active: boolean; domain: string | null };
   proxy: { enabled: boolean; port: number | null };
   synced_at: string;
+};
+
+export type SoftwareCatalogItem = {
+  slug: string;
+  name: string;
+  tagline: string;
+  description: string;
+  prerequisites: Array<{ key: string; label: string; type?: string; required?: boolean; help?: string; generate?: boolean }>;
+};
+
+export type SoftwareInstallation = {
+  id: number;
+  catalog_slug: string;
+  status: "queued" | "building" | "deploying" | "configuring" | "active" | "failed";
+  progress_step: string | null;
+  subdomain: string;
+  console_url: string | null;
+  admin_email: string | null;
+  admin_password: string | null;
+  error_message: string | null;
+  installed_at: string | null;
 };
 
 export type HostingModalState =
@@ -378,6 +399,13 @@ export function HostingManagePanel({
   const [isTogglingAutoRenew, setIsTogglingAutoRenew] = useState(false);
   const [modal, setModal] = useState<HostingModalState>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [softwareCatalog, setSoftwareCatalog] = useState<SoftwareCatalogItem[] | null>(null);
+  const [softwareInstallations, setSoftwareInstallations] = useState<SoftwareInstallation[] | null>(null);
+  const [isLoadingSoftware, setIsLoadingSoftware] = useState(false);
+  const [installFormSlug, setInstallFormSlug] = useState<string | null>(null);
+  const [installSubdomain, setInstallSubdomain] = useState("");
+  const [installAdminEmail, setInstallAdminEmail] = useState("");
+  const [isSubmittingInstall, setIsSubmittingInstall] = useState(false);
 
   const base = `/api/v1/client/services/${serviceId}`;
 
@@ -436,6 +464,85 @@ export function HostingManagePanel({
     } finally {
       setIsSavingWebsite(false);
     }
+  };
+
+  const loadSoftware = React.useCallback(async () => {
+    setIsLoadingSoftware(true);
+    try {
+      const response = await laravelApi<{ catalog: SoftwareCatalogItem[]; installations: SoftwareInstallation[] }>(`${base}/software`, token);
+      setSoftwareCatalog(response.catalog);
+      setSoftwareInstallations(response.installations);
+    } catch (error) {
+      toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not load the software catalog." });
+    } finally {
+      setIsLoadingSoftware(false);
+    }
+  }, [base, token, toast]);
+
+  useEffect(() => {
+    if (tab === "software" && !softwareCatalog && !isLoadingSoftware) {
+      void loadSoftware();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  // The first place in this codebase a long-running action needs to show
+  // real progress rather than a one-shot "requested" toast — an install
+  // takes minutes, not seconds. Polls while any installation is still
+  // mid-flight, and stops itself once everything has reached a terminal
+  // state (active or failed), so it's a no-op the rest of the time.
+  useEffect(() => {
+    if (tab !== "software" || !softwareInstallations) return;
+
+    const isMidFlight = softwareInstallations.some((installation) => installation.status !== "active" && installation.status !== "failed");
+    if (!isMidFlight) return;
+
+    const interval = window.setInterval(() => {
+      void laravelApi<{ catalog: SoftwareCatalogItem[]; installations: SoftwareInstallation[] }>(`${base}/software`, token)
+        .then((response) => setSoftwareInstallations(response.installations))
+        .catch(() => undefined);
+    }, 4000);
+
+    return () => window.clearInterval(interval);
+  }, [tab, softwareInstallations, base, token]);
+
+  const handleInstallSoftware = async (slug: string) => {
+    setIsSubmittingInstall(true);
+    try {
+      const installation = await laravelApi<SoftwareInstallation>(`${base}/software/install`, token, {
+        method: "POST",
+        body: JSON.stringify({ catalog_slug: slug, subdomain: installSubdomain, admin_email: installAdminEmail }),
+      });
+      setSoftwareInstallations((current) => [installation, ...(current || [])]);
+      setInstallFormSlug(null);
+      setInstallSubdomain("");
+      setInstallAdminEmail("");
+      toast.push({ type: "success", message: "Install started — this can take a few minutes." });
+    } catch (error) {
+      toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not start the install. Please try again." });
+    } finally {
+      setIsSubmittingInstall(false);
+    }
+  };
+
+  const softwareProgressLabels: Record<string, string> = {
+    queued: "Queued…",
+    connecting_build_account: "Connecting…",
+    cloning_repository: "Cloning repository…",
+    installing_backend_dependencies: "Installing backend dependencies…",
+    allocating_database: "Setting up the database…",
+    allocating_redis_slot: "Setting up cache & queue isolation…",
+    writing_backend_configuration: "Writing configuration…",
+    running_migrations: "Running database migrations…",
+    seeding_initial_data: "Creating your admin account…",
+    installing_frontend_dependencies: "Installing frontend dependencies…",
+    writing_frontend_configuration: "Writing frontend configuration…",
+    building_frontend: "Building the app…",
+    provisioning_subdomain: "Setting up your subdomain…",
+    provisioning_shell_account: "Preparing hosting space…",
+    deploying_files: "Deploying files…",
+    requesting_ssl: "Requesting SSL certificate…",
+    starting_application: "Starting the app…",
   };
 
   const handleTogglePhp = (enabled: boolean) =>
@@ -778,6 +885,7 @@ export function HostingManagePanel({
             ["databases", Database, "Databases"],
             ["ftp", KeyRound, "SSH/SFTP"],
             ["website", Globe2, "Website"],
+            ["software", Puzzle, "Software"],
           ] as [HostingTabName, React.ComponentType<{ className?: string }>, string][]
         ).map(([id, Icon, label]) => (
           <button key={id} type="button" className={tab === id ? "hosting-tab active" : "hosting-tab"} onClick={() => setTab(id)}>
@@ -1311,6 +1419,130 @@ export function HostingManagePanel({
                 </div>
               ) : (
                 <p className="mt-4 text-sm text-white/40">Could not load website settings.</p>
+              )}
+            </div>
+          )}
+
+          {tab === "software" && (
+            <div>
+              <h2>Software</h2>
+              <p className="mt-1 text-sm text-white/48">Install ready-made applications onto this hosting service with one click.</p>
+
+              {isLoadingSoftware && !softwareCatalog ? (
+                <div className="mt-6 flex items-center gap-2 text-sm text-white/50">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading available software...
+                </div>
+              ) : softwareCatalog ? (
+                <div className="mt-5 grid gap-4">
+                  {softwareCatalog.map((item) => {
+                    const installation = softwareInstallations?.find((row) => row.catalog_slug === item.slug);
+
+                    return (
+                      <div key={item.slug} className="rounded-lg border border-white/10 bg-black/20 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-bold text-white">{item.name}</p>
+                            <p className="text-xs text-white/50">{item.tagline}</p>
+                          </div>
+                          {installation && (
+                            <span
+                              className={
+                                installation.status === "active"
+                                  ? "status-pill paid"
+                                  : installation.status === "failed"
+                                    ? "status-pill failed"
+                                    : "status-pill"
+                              }
+                            >
+                              {installation.status === "active" ? "Installed" : installation.status === "failed" ? "Failed" : "Installing…"}
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-2 text-xs text-white/48">{item.description}</p>
+
+                        {!installation && installFormSlug !== item.slug && (
+                          <button type="button" className="btn-primary mt-4" onClick={() => setInstallFormSlug(item.slug)}>
+                            Install
+                          </button>
+                        )}
+
+                        {!installation && installFormSlug === item.slug && (
+                          <div className="mt-4 grid gap-3 rounded-lg border border-white/10 bg-black/20 p-4">
+                            <label className="admin-field">
+                              <span>Subdomain</span>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  value={installSubdomain}
+                                  onChange={(event) => setInstallSubdomain(event.target.value.toLowerCase())}
+                                  placeholder="banking"
+                                />
+                                <span className="whitespace-nowrap text-xs text-white/40">.{data?.primary_domain}</span>
+                              </div>
+                            </label>
+                            <label className="admin-field">
+                              <span>Your admin email</span>
+                              <input
+                                type="email"
+                                value={installAdminEmail}
+                                onChange={(event) => setInstallAdminEmail(event.target.value)}
+                                placeholder="you@yourbusiness.com"
+                              />
+                              <small className="mt-1 block text-white/40">A one-time password for this account will be generated for you.</small>
+                            </label>
+                            <div className="flex flex-wrap items-center gap-3">
+                              <button
+                                type="button"
+                                className="btn-primary"
+                                disabled={isSubmittingInstall || !installSubdomain || !installAdminEmail}
+                                onClick={() => void handleInstallSoftware(item.slug)}
+                              >
+                                {isSubmittingInstall ? "Starting…" : "Start Install"}
+                              </button>
+                              <button type="button" className="btn-outline" disabled={isSubmittingInstall} onClick={() => setInstallFormSlug(null)}>
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {installation && installation.status !== "active" && installation.status !== "failed" && (
+                          <div className="mt-4 flex items-center gap-2 text-xs text-white/50">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            {softwareProgressLabels[installation.progress_step || ""] || "Working on it…"}
+                          </div>
+                        )}
+
+                        {installation && installation.status === "failed" && (
+                          <p className="mt-4 text-xs text-red-400">{installation.error_message || "The install could not be completed. Please try again."}</p>
+                        )}
+
+                        {installation && installation.status === "active" && (
+                          <div className="mt-4 rounded-lg border border-primary/25 bg-primary/5 p-4">
+                            <p className="text-sm font-bold text-white">
+                              Installed at{" "}
+                              <a href={installation.console_url || "#"} target="_blank" rel="noreferrer" className="text-primary underline">
+                                {installation.subdomain}
+                              </a>
+                            </p>
+                            {installation.admin_password && (
+                              <div className="mt-3">
+                                <p className="text-xs font-black uppercase text-white/50">Your one-time admin login — save this now, it will not be shown again</p>
+                                <div className="mt-2 grid gap-1 font-mono text-xs text-white/80">
+                                  <span>Email: {installation.admin_email}</span>
+                                  <span>Password: {installation.admin_password}</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="mt-4 text-sm text-white/40">Could not load the software catalog.</p>
               )}
             </div>
           )}
