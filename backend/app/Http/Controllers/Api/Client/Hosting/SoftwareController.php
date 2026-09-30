@@ -66,11 +66,27 @@ class SoftwareController extends Controller
         // never actually caught a real collision.
         $fullSubdomain = $payload['subdomain'].'.'.$service->primary_domain;
 
+        // This service's own failed attempt at this app has already been
+        // rolled back (and is still recorded in ProvisioningLog), so it must
+        // neither block its own retry on the same subdomain nor trip the
+        // (hosting_service_id, catalog_slug) unique index on the new row.
+        $ownFailedAttempts = SoftwareInstallation::query()
+            ->where('hosting_service_id', $service->id)
+            ->where('catalog_slug', $payload['catalog_slug'])
+            ->where('status', 'failed');
+
         abort_if(
-            SoftwareInstallation::query()->where('subdomain', $fullSubdomain)->exists(),
+            SoftwareInstallation::withTrashed()
+                ->where('subdomain', $fullSubdomain)
+                ->whereNotIn('id', (clone $ownFailedAttempts)->select('id'))
+                ->exists(),
             422,
             'That subdomain is already in use. Please choose a different one.',
         );
+
+        // Hard delete: the model soft-deletes, which would leave the row in the
+        // unique indexes and still block the new one.
+        $ownFailedAttempts->forceDelete();
 
         $installation = SoftwareInstallation::query()->create([
             'hosting_service_id' => $service->id,

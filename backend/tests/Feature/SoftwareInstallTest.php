@@ -177,6 +177,27 @@ class SoftwareInstallTest extends TestCase
         $this->assertFalse($methods->contains('databasesDatabaseAdd'));
     }
 
+    public function test_a_failed_install_can_be_retried_on_the_same_or_a_new_subdomain(): void
+    {
+        $fake = $this->fakeIspConfig();
+        $ssh = $this->fakeSshCommandRunner();
+        $service = $this->provisionedService($fake);
+        $token = $this->clientToken($service);
+        $url = "/api/v1/client/services/{$service->id}/software/install";
+        $payload = ['catalog_slug' => 'naipay', 'subdomain' => 'banking', 'admin_email' => 'owner@example.test'];
+
+        $ssh->failOn('composer install', 'boom');
+        $this->withToken($token)->postJson($url, $payload)->assertStatus(202);
+        $this->assertSame('failed', SoftwareInstallation::query()->firstOrFail()->status);
+
+        // Same subdomain again, now that the failing command works.
+        $ssh->respond('composer install', 0);
+        $this->withToken($token)->postJson($url, $payload)->assertStatus(202);
+
+        $this->assertSame(1, SoftwareInstallation::query()->count());
+        $this->assertSame('active', SoftwareInstallation::query()->firstOrFail()->status);
+    }
+
     public function test_a_subdomain_that_is_already_taken_is_rejected(): void
     {
         $fake = $this->fakeIspConfig();
