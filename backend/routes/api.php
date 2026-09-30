@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\Admin\HostingPlanController;
 use App\Http\Controllers\Api\Admin\HostingServiceLifecycleController;
 use App\Http\Controllers\Api\Admin\BillingSettingsController as AdminBillingSettingsController;
 use App\Http\Controllers\Api\Admin\FtpAccountController as AdminFtpAccountController;
+use App\Http\Controllers\Api\Admin\MailboxController as AdminMailboxController;
 use App\Http\Controllers\Api\Admin\SslCertificateController;
 use App\Http\Controllers\Api\Admin\InvoiceController as AdminInvoiceController;
 use App\Http\Controllers\Api\Admin\InvoicePaymentController as AdminInvoicePaymentController;
@@ -286,6 +287,7 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/ispconfig/health', [ProvisioningController::class, 'health']);
             Route::post('/services/{service}/sync', [ProvisioningController::class, 'syncOne']);
 
+            Route::post('/services/{service}/mailboxes/discover', [AdminMailboxController::class, 'discover']);
             Route::get('/services/{service}/ftp-accounts', [AdminFtpAccountController::class, 'index']);
             Route::post('/services/{service}/ftp-accounts', [AdminFtpAccountController::class, 'store']);
             Route::post('/services/{service}/ftp-accounts/{ftpAccount}/reset-password', [AdminFtpAccountController::class, 'resetPassword']);

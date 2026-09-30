@@ -2496,6 +2496,66 @@ const AdminSshAccountsPanel: React.FC<{
   );
 };
 
+const AdminMailboxDiscoveryPanel: React.FC<{ serviceId: number; adminToken: string }> = ({ serviceId, adminToken }) => {
+  const [isRunning, setIsRunning] = useState(false);
+  const [result, setResult] = useState<{ imported: number; mailboxes: Array<{ email_address: string }> } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const run = async () => {
+    setIsRunning(true);
+    setError(null);
+    setResult(null);
+    try {
+      const response = await laravelApi<{ imported: number; mailboxes: Array<{ email_address: string }> }>(
+        `/api/v1/admin/services/${serviceId}/mailboxes/discover`,
+        adminToken,
+        { method: "POST" },
+      );
+      setResult(response);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not check ISPConfig for mailboxes.");
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  return (
+    <section className="admin-panel">
+      <h3 className="text-lg font-black text-white">Discover Mailboxes from ISPConfig</h3>
+      <p className="mt-1 text-sm text-white/55">
+        A mailbox created directly in ISPConfig (instead of through the client dashboard) works fine, but never appears in the client&apos;s Email
+        Accounts list on its own &mdash; the periodic sync only refreshes mailboxes it already knows about. Run this to pull in anything for this
+        service&apos;s domain that ISPConfig has but NAITALK doesn&apos;t yet.
+      </p>
+
+      <button type="button" className="btn-primary mt-4" disabled={isRunning} onClick={() => void run()}>
+        {isRunning ? "Checking..." : "Check ISPConfig"}
+      </button>
+
+      {error && <p className="mt-3 text-sm font-bold text-red-300">{error}</p>}
+
+      {result && (
+        <div className="mt-4 rounded-lg border border-white/10 bg-black/20 p-4 text-sm">
+          {result.imported === 0 ? (
+            <p className="text-white/60">Nothing to import &mdash; every mailbox ISPConfig has for this domain is already in the dashboard.</p>
+          ) : (
+            <>
+              <p className="font-black text-white">
+                Imported {result.imported} mailbox{result.imported === 1 ? "" : "es"}:
+              </p>
+              <ul className="mt-2 list-disc pl-5 text-white/70">
+                {result.mailboxes.map((mailbox) => (
+                  <li key={mailbox.email_address}>{mailbox.email_address}</li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
+    </section>
+  );
+};
+
 export function ServiceDetailPanel({
   serviceId,
   adminToken,
@@ -2615,7 +2675,10 @@ export function ServiceDetailPanel({
       </div>
 
       {!isDeleted && (
-        <AdminSshAccountsPanel key={serviceId} serviceId={serviceId} adminToken={adminToken} initialAccounts={service.ftp_account_records || []} />
+        <>
+          <AdminMailboxDiscoveryPanel key={`mailbox-discovery-${serviceId}`} serviceId={serviceId} adminToken={adminToken} />
+          <AdminSshAccountsPanel key={serviceId} serviceId={serviceId} adminToken={adminToken} initialAccounts={service.ftp_account_records || []} />
+        </>
       )}
 
       <section className="admin-panel overflow-x-auto">
