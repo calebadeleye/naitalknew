@@ -113,6 +113,7 @@ import { PublicPage, PublicBreadcrumbs, usePublicImage, MarketingHero, Marketing
 import { goToDomainCheckout, DomainPromoBadge, TldPriceCard, DomainFeatureItem, DomainSearchBar, DomainSearchSection, DomainGlobeIllustration } from "../shared/domainWidgets";
 import type { DomainFeature, PublicTldPricingRow } from "../shared/domainWidgets";
 import { Portfolio } from "../App";
+import { ResponsiveImage, buildDataAssetSrcSet } from "../components/ResponsiveImage";
 import { WEBSITE_CARE_HEADLINE, WEBSITE_CARE_SUBTEXT, PlanBadge, PlanHighlights, PlanFeatureList, WebsiteCareComparisonTable, toHostingPlanCard } from "../shared/websiteCare";
 
 export function WebHostingPage() {
@@ -427,34 +428,108 @@ export function BusinessEmailHostingPage() {
   );
 }
 
+const SEO_QUOTE_HREF = "/contact?service=SEO%20Services";
+const SEO_WHATSAPP_HREF = `${whatsappUrl.split("?")[0]}?text=${encodeURIComponent("Hello NAI TALK, I'd like a quote for SEO services for my website.")}`;
+
+const SEO_SERVICES = [
+  {
+    icon: Code2,
+    title: "Technical SEO",
+    description: "We fix what stops Google from crawling and ranking your site: slow pages, mobile problems, indexing errors, missing sitemaps, broken links and structured data.",
+  },
+  {
+    icon: FileText,
+    title: "On-page SEO",
+    description: "Every important page gets a clear title, description, headings and internal links aimed at what your customers actually type into Google.",
+  },
+  {
+    icon: MapPin,
+    title: "Local SEO",
+    description: "Help nearby customers find you: a well-set-up Google Business Profile and the same name, address and phone number everywhere your business appears.",
+  },
+  {
+    icon: BookOpen,
+    title: "Content SEO",
+    description: "Service pages and helpful articles that answer real customer questions — written to bring in people who are ready to buy, not just traffic.",
+  },
+  {
+    icon: BarChart3,
+    title: "Search Console & reporting",
+    description: "We set up Google Search Console and report on the numbers that matter: clicks, impressions, rankings for your key pages and the enquiries they bring.",
+  },
+] as const;
+
+const SEO_AUDIENCES = [
+  ["You have a website but few enquiries", "Visitors aren't finding you on Google, or they find you and don't get in touch."],
+  ["You're a local business", "You want customers in your area to find you when they search for what you sell."],
+  ["You've just launched a website", "You want it indexed properly and set up to grow from the start."],
+  ["You run an online store", "Your product and category pages need to show up for the things people shop for."],
+] as const;
+
+const SEO_PROCESS = [
+  ["Review", "We look at your website, your competitors and — if you have it — your Google Search Console data, and tell you plainly what's holding you back."],
+  ["Plan & quote", "You get a prioritised plan and a quote for the work your website actually needs. No long contract to sign before you see the plan."],
+  ["Improve", "We make the technical, on-page, local and content improvements — or work alongside your developer if you have one."],
+  ["Measure", "We compare clicks, impressions, rankings and enquiries against where you started, so you can see what the work achieved."],
+] as const;
+
+const SEO_FAQ_ITEMS = [
+  {
+    question: "How much do your SEO services cost?",
+    answer: "It depends on the size of your website, how competitive your market is and what needs fixing. We review your site first and then give you a quote for the work it actually needs.",
+  },
+  {
+    question: "How long does SEO take to work?",
+    answer: "Technical fixes can show up in Google within weeks. Ranking higher for competitive searches usually takes three to six months of steady work. We report progress along the way so you're never guessing.",
+  },
+  {
+    question: "Can you guarantee first-page rankings?",
+    answer: "No — and you should be wary of anyone who does. Google decides rankings. What we can promise is honest work on the things that influence them, and clear reporting on the results.",
+  },
+  {
+    question: "Do I need a new website to do SEO?",
+    answer: "Usually not. We can improve the website you already have. If it's too slow or badly structured to rank, we'll tell you honestly and explain your options.",
+  },
+  {
+    question: "Do you work on websites you didn't build?",
+    answer: "Yes. We can work on websites built by anyone, as long as we can get the access we need to make changes — or we can work alongside your current developer.",
+  },
+];
+
 export function SeoServicesPage() {
+  const [projects, setProjects] = useState<Project[]>(fallbackProjects);
+
+  useEffect(() => {
+    fetch("/api/site-content")
+      .then((response) => response.json())
+      .then((data) => {
+        if (Array.isArray(data.projects) && data.projects.length > 0) setProjects(data.projects);
+      })
+      .catch(() => undefined);
+  }, []);
+
   return (
     <PublicPage>
       <PublicBreadcrumbs items={[{ label: "SEO Services" }]} />
       <MarketingHero
         eyebrow="SEO Services"
         title="SEO Services for Nigerian Businesses"
-        subtitle="Improve your Google visibility with on-page SEO, content SEO, local SEO, and a well-structured, fast website."
-        ctaLabel="Improve My Website SEO"
-        ctaHref="/contact"
-        secondaryLabel="Read Our Blog"
-        secondaryHref="/blog"
+        subtitle="Get found on Google by customers who are ready to buy. We fix the technical problems, improve your pages and content, and report honestly on the clicks, rankings and enquiries the work brings in."
+        ctaLabel="Request an SEO Quote"
+        ctaHref={SEO_QUOTE_HREF}
+        secondaryLabel="Chat on WhatsApp"
+        secondaryHref={SEO_WHATSAPP_HREF}
         imageQuery="analytics search engine marketing dashboard"
       />
 
       <section className="pub-section-tint border-y border-black/5">
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="pub-eyebrow">What's included</span>
-            <h2 className="mt-4 text-3xl font-black text-[#07111f]">How we improve your visibility</h2>
+            <span className="pub-eyebrow">Who it's for</span>
+            <h2 className="mt-4 text-3xl font-black text-[#07111f]">Is SEO right for your business?</h2>
           </div>
           <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              ["On-page SEO", "Clear titles, headings, and page structure that help Google understand what your business offers."],
-              ["Content & blog SEO", "Helpful articles that answer real customer questions and bring in organic search traffic."],
-              ["Local SEO", "Show up when Nigerian customers search for businesses like yours in their area."],
-              ["Technical SEO basics", "A fast, well-structured website — the foundation every good SEO strategy is built on."],
-            ].map(([title, description]) => (
+            {SEO_AUDIENCES.map(([title, description]) => (
               <div key={title} className="pub-card">
                 <h3 className="text-base font-black text-[#07111f]">{title}</h3>
                 <p className="mt-2 text-sm leading-6 text-[#596273]">{description}</p>
@@ -465,20 +540,109 @@ export function SeoServicesPage() {
       </section>
 
       <section className="pub-section">
-        <div className="mx-auto max-w-4xl px-4 py-16 text-center sm:px-6 lg:px-8">
-          <h2 className="text-2xl font-black text-[#07111f]">SEO works better on a solid foundation</h2>
-          <p className="mt-3 text-base leading-7 text-[#596273]">
-            A fast, well-structured website with clear pages for every service you offer gives search engines far more to work with than a single crowded
-            page. That's exactly how NAI TALK builds every website — with SEO in mind from the start, not bolted on afterward.
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-2xl text-center">
+            <span className="pub-eyebrow">What's included</span>
+            <h2 className="mt-4 text-3xl font-black text-[#07111f]">The SEO services we provide</h2>
+          </div>
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {SEO_SERVICES.map((service) => (
+              <div key={service.title} className="pub-card">
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
+                  <service.icon className="h-5 w-5" />
+                </div>
+                <h3 className="mt-4 text-base font-black text-[#07111f]">{service.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-[#596273]">{service.description}</p>
+              </div>
+            ))}
+            <div className="pub-card flex flex-col justify-center">
+              <h3 className="text-base font-black text-[#07111f]">Not sure what you need?</h3>
+              <p className="mt-2 text-sm leading-6 text-[#596273]">Tell us about your business and website — we'll recommend where to start.</p>
+              <a href={SEO_QUOTE_HREF} className="btn-primary mt-4 justify-center">Request an SEO Quote <ArrowRight className="h-4 w-4" /></a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="pub-section-tint border-y border-black/5">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-2xl text-center">
+            <span className="pub-eyebrow">How it works</span>
+            <h2 className="mt-4 text-3xl font-black text-[#07111f]">What to expect when you work with us</h2>
+          </div>
+          <ol className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {SEO_PROCESS.map(([title, description], index) => (
+              <li key={title} className="pub-card">
+                <span className="text-xs font-black uppercase text-primary">Step {index + 1}</span>
+                <h3 className="mt-2 text-lg font-black text-[#07111f]">{title}</h3>
+                <p className="mt-2 text-sm leading-6 text-[#596273]">{description}</p>
+              </li>
+            ))}
+          </ol>
+          <p className="mx-auto mt-8 max-w-3xl text-center text-sm leading-7 text-[#596273]">
+            <Clock className="mr-1 inline h-4 w-4 text-primary" /> SEO is steady work, not a switch: technical fixes can show within weeks, while ranking for
+            competitive searches usually takes three to six months. We'll never promise you the #1 spot — we'll show you real numbers instead.
+          </p>
+        </div>
+      </section>
+
+      <section className="pub-section">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-2xl text-center">
+            <span className="pub-eyebrow">Our work</span>
+            <h2 className="mt-4 text-3xl font-black text-[#07111f]">Websites we've built</h2>
+            <p className="mt-3 text-base leading-7 text-[#596273]">
+              Every website we build gets a fast, well-structured foundation with SEO in mind from the start — not bolted on afterwards.
+            </p>
+          </div>
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {projects.slice(0, 3).map((project) => (
+              <a key={project.title} href="/portfolio" className="pub-card group overflow-hidden !p-0">
+                <ResponsiveImage
+                  src={project.img}
+                  alt={`${project.title} — website by NAI TALK`}
+                  width={448}
+                  height={280}
+                  sources={project.img.startsWith("/data/") ? [{ srcSet: buildDataAssetSrcSet(project.img, 900) }] : undefined}
+                  sizes="(min-width: 1024px) 400px, (min-width: 640px) 50vw, 100vw"
+                  className="aspect-[16/10] w-full object-cover object-top"
+                  loading="lazy"
+                />
+                <div className="p-5">
+                  <span className="text-xs font-black uppercase text-primary">{project.category.split(",")[0].trim()}</span>
+                  <h3 className="mt-1 text-base font-black text-[#07111f] group-hover:text-primary">{project.title}</h3>
+                </div>
+              </a>
+            ))}
+          </div>
+          <div className="mt-8 text-center">
+            <a href="/portfolio" className="btn-outline justify-center">See our full portfolio <ArrowRight className="h-4 w-4" /></a>
+          </div>
+        </div>
+      </section>
+
+      <section className="pub-section-tint border-y border-black/5">
+        <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <span className="pub-eyebrow">FAQ</span>
+            <h2 className="mt-4 text-3xl font-black text-[#07111f]">SEO questions, answered</h2>
+          </div>
+          <div className="mt-8">
+            <FaqAccordionGroup items={SEO_FAQ_ITEMS} />
+          </div>
+          <p className="mt-8 text-center text-sm text-[#596273]">
+            Building a new website? See <a href="/website-design" className="font-bold text-primary underline">website design</a> and{" "}
+            <a href="/website-care-plans" className="font-bold text-primary underline">website care plans</a>, or read our{" "}
+            <a href="/blog" className="font-bold text-primary underline">blog</a>.
           </p>
         </div>
       </section>
 
       <MarketingCtaBand
-        title="Ready to improve your search visibility?"
-        subtitle="Let's talk about your business goals and how SEO fits into your website strategy."
-        ctaLabel="Improve My Website SEO"
-        ctaHref="/contact"
+        title="Ready to get found on Google?"
+        subtitle="Tell us about your business and website. We'll review it and send you a quote for the work it needs."
+        ctaLabel="Request an SEO Quote"
+        ctaHref={SEO_QUOTE_HREF}
       />
     </PublicPage>
   );
@@ -747,8 +911,16 @@ export const contactPageInfoItems = [
   { icon: Clock, label: "Support Hours", lines: ["Mon – Fri: 8:00 AM – 6:00 PM", "Sat: 9:00 AM – 2:00 PM"] },
 ];
 
+const CONTACT_SERVICE_OPTIONS = ["Business Website", "Domains & Hosting", "Website Care Plan", "Business Email Hosting", "SEO Services", "Something else"];
+
 export function ContactPage() {
-  const [formData, setFormData] = useState({ name: "", email: "", phone: "", service: "Business Website", details: "" });
+  const [formData, setFormData] = useState(() => {
+    // Service pages link here with ?service=... (e.g. the SEO page's "Request
+    // an SEO Quote"); only a known dropdown option is ever pre-selected.
+    const requested = new URLSearchParams(window.location.search).get("service");
+    const service = requested && CONTACT_SERVICE_OPTIONS.includes(requested) ? requested : "Business Website";
+    return { name: "", email: "", phone: "", service, details: "" };
+  });
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
 
@@ -917,12 +1089,9 @@ export function ContactPage() {
                       Service Interested In
                     </span>
                     <select name="service" value={formData.service} onChange={handleChange} className={contactPageInputClass}>
-                      <option>Business Website</option>
-                      <option>Domains & Hosting</option>
-                      <option>Website Care Plan</option>
-                      <option>Business Email Hosting</option>
-                      <option>SEO Services</option>
-                      <option>Something else</option>
+                      {CONTACT_SERVICE_OPTIONS.map((option) => (
+                        <option key={option}>{option}</option>
+                      ))}
                     </select>
                   </label>
                   <label className="grid gap-2">

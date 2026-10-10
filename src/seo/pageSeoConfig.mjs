@@ -18,16 +18,16 @@ export const pageSeoConfig = {
     description: "Find the right domain name for your business and manage everything — registration, transfer, renewal — from one simple NAI TALK dashboard.",
   },
   "/domain-registration": {
-    title: "Domain Registration in Nigeria for Businesses | NAI TALK",
-    description: "Register .com, .com.ng, .ng, .org and .net domains for your Nigerian business in minutes, with hosting and email available in one checkout.",
+    title: "Domain Registration in Nigeria | NAI TALK",
+    description: "Register a new domain name in Nigeria — .com, .com.ng, .org.ng and more. Check live availability, clear naira prices, and pay by card, transfer or wallet.",
   },
   "/domain-transfer": {
     title: "Transfer Your Domain to NAI TALK",
     description: "Move your domain to NAI TALK with your EPP/auth code. Simple eligibility checks, clear steps, and no downtime during transfer.",
   },
   "/domain-renewal": {
-    title: "Renew Your Domain Before It Expires | NAI TALK",
-    description: "Renewal reminders, auto-renewal, and wallet or saved-card payment support so you never lose a domain to an expiry date.",
+    title: "Domain Renewal — Renew Your Domain Name Online | NAI TALK",
+    description: "Renew your domain name with NAI TALK: renewal prices, card, bank transfer or wallet payment, auto-renewal, expiry reminders and what happens after expiry.",
   },
   "/domain-pricing": {
     title: "Domain Pricing | NAI TALK",
@@ -50,8 +50,8 @@ export const pageSeoConfig = {
     description: "A professional info@yourbusiness.com address builds trust that free Gmail or Yahoo addresses can't. Included in every Website Care Plan.",
   },
   "/seo-services": {
-    title: "SEO Services for Nigerian Businesses | NAI TALK",
-    description: "Improve your Google visibility with on-page SEO, content SEO, local SEO and a well-structured, fast website.",
+    title: "SEO Services in Nigeria | NAI TALK",
+    description: "SEO services for Nigerian businesses: technical, on-page, local and content SEO, with honest reporting on clicks, rankings and enquiries. Request a quote.",
   },
   "/blog": {
     title: "Blog | NAI TALK",
