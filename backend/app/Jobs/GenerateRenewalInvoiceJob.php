@@ -8,10 +8,13 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
 /**
- * Daily sweep that generates a renewal invoice for standard (non-legacy)
- * auto-renewing hosting services once they're within the renewal lead
- * window — legacy plan_type services keep using the separate, manually
- * triggered LegacyRenewalInvoiceService/admin flow.
+ * Daily sweep that issues each standard (non-legacy) hosting service its
+ * renewal invoice — and the invoice email, the first renewal notice — two
+ * months before renews_at (renewal_invoice_lead_days), or straight away for
+ * one already past it without an invoice. Auto-renewal charging happens
+ * separately and only near the due date (ProcessAutoRenewalPaymentJob).
+ * Legacy plan_type services keep using the separate, manually triggered
+ * LegacyRenewalInvoiceService/admin flow.
  */
 class GenerateRenewalInvoiceJob implements ShouldQueue
 {
@@ -19,20 +22,23 @@ class GenerateRenewalInvoiceJob implements ShouldQueue
 
     public function handle(RenewalInvoiceService $renewals): void
     {
-        $leadDays = (int) config('hosting_lifecycle.renewal_invoice_lead_days', 7);
+        $leadDays = (int) config('hosting_lifecycle.renewal_invoice_lead_days', 60);
         $targetDate = now()->addDays($leadDays)->toDateString();
 
+        // Every service renewing within the lead window gets its invoice —
+        // including one whose renewal date has already passed without one
+        // (catch-up), and whether or not it auto-renews: a client who pays
+        // manually needs the invoice just as much. Expired/grace services
+        // still get one so they can pay before suspension.
         HostingService::query()
             ->subjectToLifecycle()
-            ->where('status', 'active')
-            ->where('auto_renew_enabled', true)
+            ->whereIn('status', ['active', 'expired', 'grace_period'])
             ->where('plan_type', '!=', 'legacy')
             ->whereNotNull('renews_at')
             ->whereDate('renews_at', '<=', $targetDate)
-            ->whereDate('renews_at', '>=', now()->toDateString())
             ->get()
             ->each(function (HostingService $service) use ($renewals): void {
-                if ($renewals->hasPendingRenewalInvoice($service)) {
+                if ($renewals->hasRenewalInvoiceForCurrentCycle($service)) {
                     return;
                 }
 

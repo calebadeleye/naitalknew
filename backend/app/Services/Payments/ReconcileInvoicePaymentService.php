@@ -12,6 +12,7 @@ use App\Notifications\NaiTalkUnderpaymentReceived;
 use App\Notifications\NaiTalkWalletPaymentConfirmation;
 use App\Services\Billing\VatCalculator;
 use App\Services\Domains\DomainOrderDispatcher;
+use App\Services\Hosting\HostingRenewalService;
 use App\Services\Notifications\ClientNotifier;
 use App\Services\Wallet\WalletService;
 use Illuminate\Support\Facades\DB;
@@ -30,6 +31,7 @@ class ReconcileInvoicePaymentService
         private readonly WalletService $wallet,
         private readonly DomainOrderDispatcher $domainOrders,
         private readonly ClientNotifier $notifier,
+        private readonly HostingRenewalService $renewals = new HostingRenewalService,
     ) {
     }
 
@@ -180,6 +182,10 @@ class ReconcileInvoicePaymentService
         $invoice = $outcome['invoice'];
 
         $this->domainOrders->dispatchForPaidInvoice($invoice, $outcome['services'] ?? collect());
+
+        // A paid hosting renewal invoice moves the service's renewal date on
+        // (and restores it if it had lapsed) — whichever way it was paid.
+        $this->renewals->applyPaidRenewal($invoice);
 
         if (! ($context['skip_notification'] ?? false)) {
             $this->notify($invoice, $outcome['outcome'], $method, $amountKobo);

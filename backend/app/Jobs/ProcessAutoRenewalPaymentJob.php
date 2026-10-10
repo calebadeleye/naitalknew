@@ -45,9 +45,15 @@ class ProcessAutoRenewalPaymentJob implements ShouldQueue
         ReconcileInvoicePaymentService $reconciler,
         ClientNotifier $notifier,
     ): void {
+        // Renewal invoices now go out two months ahead, but saved cards and
+        // wallets are only charged in the final days before the due date
+        // (or once it has passed) — never weeks early.
+        $chargeFrom = now()->addDays((int) config('hosting_lifecycle.auto_renewal_charge_days_before_due', 7))->toDateString();
+
         Invoice::query()
             ->whereNull('order_id')
             ->whereIn('status', ['unpaid', 'partially_paid'])
+            ->whereDate('due_at', '<=', $chargeFrom)
             ->whereHas('hostingService', fn ($query) => $query->subjectToLifecycle()->where('auto_renew_enabled', true)->where('plan_type', '!=', 'legacy'))
             ->with(['hostingService.client.user'])
             ->get()
@@ -188,14 +194,9 @@ class ProcessAutoRenewalPaymentJob implements ShouldQueue
             return;
         }
 
-        $cycle = $service->billing_cycle === 'monthly' ? now()->addMonth() : now()->addYear();
-
-        $service->forceFill([
-            'renews_at' => $cycle->toDateString(),
-            'next_due_date' => $cycle->toDateString(),
-            'grace_period_ends_at' => null,
-            'scheduled_deletion_at' => null,
-        ])->save();
+        // The renewal date itself was already moved on (from its due date,
+        // keeping the anniversary) by HostingRenewalService when the payment
+        // reconciled — the same path manual payments take.
 
         $notifier->notify(
             client: $service->client,

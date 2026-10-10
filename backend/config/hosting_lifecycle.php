@@ -9,16 +9,22 @@ return [
     // ISPConfig — gives time for the final-warning emails below to land.
     'deletion_notice_days_after_suspension' => (int) env('HOSTING_DELETION_NOTICE_DAYS', 14),
 
-    // Renewal reminders sent before a service's renews_at date.
-    'reminder_days_before_expiry' => [30, 14, 7, 1],
+    // Reminders before (and on, 0) a service's renews_at date — sent only
+    // while that renewal is still unpaid. The renewal invoice itself goes out
+    // renewal_invoice_lead_days (two months) before.
+    'reminder_days_before_expiry' => [30, 7, 0],
 
     // Final warnings sent before a suspended service is deleted from ISPConfig.
     'final_warning_days_before_deletion' => [7, 3, 1],
 
-    // Days before renews_at that a standard (non-legacy) auto-renewing
-    // service gets its renewal invoice generated and auto-renewal payment
-    // attempted (wallet-first, then enabled saved card).
-    'renewal_invoice_lead_days' => (int) env('HOSTING_RENEWAL_INVOICE_LEAD_DAYS', 7),
+    // Days before renews_at that a service gets its renewal invoice (and the
+    // invoice email). A service already past renews_at without one gets it on
+    // the next run (catch-up).
+    'renewal_invoice_lead_days' => (int) env('HOSTING_RENEWAL_INVOICE_LEAD_DAYS', 60),
+
+    // Auto-renewal (wallet first, then an enabled saved card) only charges a
+    // renewal invoice from this many days before its due date.
+    'auto_renewal_charge_days_before_due' => (int) env('HOSTING_AUTO_RENEWAL_CHARGE_DAYS', 7),
 
     // Consecutive auto-renewal payment failures for the same service before
     // admins get escalated (beyond the per-attempt failure email/log).

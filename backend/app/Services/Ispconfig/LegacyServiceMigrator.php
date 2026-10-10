@@ -33,8 +33,8 @@ class LegacyServiceMigrator
 
         // Legacy clients keep the price they were paying (hosting + SSL);
         // the Starter list price is for new customers.
-        $previousPlan = $service->hostingPlan;
-        $keptPriceKobo = $previousPlan?->plan_type === 'legacy' ? (int) $previousPlan->annual_price_kobo : null;
+        // Migrated clients pay the new plan's price — no kept legacy rate or SSL
+        // surcharge (owner's decision, 2026-10-10).
 
         try {
             $quota = $this->quota->apply($service, $target, $dryRun);
@@ -65,9 +65,9 @@ class LegacyServiceMigrator
             'plan_type' => 'website_care',
             'migration_status' => 'migrated',
             'migrated_at' => now(),
+            'renewal_price_kobo' => null,
             // VAT-inclusive, like checkout-originated services.
-            'renewal_price_kobo' => $keptPriceKobo ?: null,
-            'amount_kobo' => $this->vat->calculate($keptPriceKobo ?: (int) $target->annual_price_kobo)['total_kobo'],
+            'amount_kobo' => $this->vat->calculate((int) $target->annual_price_kobo)['total_kobo'],
         ])->save();
 
         AuditLog::query()->create([

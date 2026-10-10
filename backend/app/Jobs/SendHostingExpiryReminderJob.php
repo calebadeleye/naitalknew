@@ -34,9 +34,13 @@ class SendHostingExpiryReminderJob implements ShouldQueue
         }
     }
 
+    /**
+     * One reminder per renewal cycle per offset (30, 7 and 0 days by default),
+     * and only while that renewal is still unpaid. The template carries the
+     * renewal date so next year's reminders aren't mistaken for this year's.
+     */
     private function sendRenewalReminders(int $days, ClientNotifier $notifier): void
     {
-        $template = "hosting_renewal_reminder_{$days}d";
         $targetDate = now()->addDays($days)->toDateString();
 
         HostingService::query()
@@ -44,16 +48,30 @@ class SendHostingExpiryReminderJob implements ShouldQueue
             ->where('status', 'active')
             ->whereDate('renews_at', $targetDate)
             ->get()
-            ->each(function (HostingService $service) use ($days, $template, $notifier): void {
+            ->each(function (HostingService $service) use ($days, $targetDate, $notifier): void {
+                $template = "hosting_renewal_reminder_{$days}d_{$targetDate}";
+
                 if ($this->alreadySent($service, $template)) {
+                    return;
+                }
+
+                $invoice = Invoice::query()
+                    ->where('hosting_service_id', $service->id)
+                    ->whereNull('order_id')
+                    ->whereNotIn('status', ['cancelled', 'void'])
+                    ->whereDate('due_at', $targetDate)
+                    ->latest('id')
+                    ->first();
+
+                if ($invoice?->status === 'paid') {
                     return;
                 }
 
                 $notifier->notify(
                     client: $service->client,
-                    notification: new HostingRenewalReminder($service, $days),
+                    notification: new HostingRenewalReminder($service, $days, $invoice),
                     template: $template,
-                    subject: "Your NAI TALK hosting renews in {$days} day(s)",
+                    subject: HostingRenewalReminder::subjectFor($service, $days),
                     service: $service,
                 );
             });

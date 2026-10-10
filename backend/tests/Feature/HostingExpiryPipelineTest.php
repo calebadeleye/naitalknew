@@ -171,12 +171,15 @@ class HostingExpiryPipelineTest extends TestCase
             'renews_at' => now()->addDays(7)->toDateString(),
         ]);
 
+        // Keyed by the renewal date, so next year's 7-day reminder is a new one.
+        $template = 'hosting_renewal_reminder_7d_'.now()->addDays(7)->toDateString();
+
         $notifier = $this->app->make(\App\Services\Notifications\ClientNotifier::class);
         (new SendHostingExpiryReminderJob())->handle($notifier);
-        $this->assertSame(1, NotificationLog::query()->where('hosting_service_id', $service->id)->where('template', 'hosting_renewal_reminder_7d')->count());
+        $this->assertSame(1, NotificationLog::query()->where('hosting_service_id', $service->id)->where('template', $template)->count());
 
         (new SendHostingExpiryReminderJob())->handle($notifier);
-        $this->assertSame(1, NotificationLog::query()->where('hosting_service_id', $service->id)->where('template', 'hosting_renewal_reminder_7d')->count());
+        $this->assertSame(1, NotificationLog::query()->where('hosting_service_id', $service->id)->where('template', $template)->count());
     }
 
     public function test_client_account_remains_after_hosting_deleted_from_ispconfig(): void

@@ -83,8 +83,8 @@ class EmailBrandingTest extends TestCase
             ],
             'hosting renewal reminder' => [
                 new HostingRenewalReminder($this->service, 7),
-                'Your NAI TALK hosting renews in 7 days',
-                ['due for renewal in 7 days', $this->service->primary_domain],
+                "Your hosting for {$this->service->primary_domain} expires in 7 days",
+                ["hasn't been paid yet", $this->service->primary_domain],
                 'Hosting Renewal Reminder',
             ],
             'hosting expired notice' => [

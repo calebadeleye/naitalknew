@@ -31,11 +31,10 @@ class RenewalInvoiceService
         // avoids double-applying VAT on top of an already VAT-inclusive figure,
         // and means a plan price change is honoured on renewal too.
         $plan = $service->hostingPlan;
-        // A per-service price (e.g. a legacy client who keeps their ₦40,000
-        // hosting + SSL rate) wins over the plan's public price.
-        $subtotalKobo = $service->renewal_price_kobo
-            ? (int) $service->renewal_price_kobo
-            : ($plan
+        // Clients renew at their plan's price only — no separate SSL or legacy
+        // surcharge (owner's decision, 2026-10-10). renewal_price_kobo is no
+        // longer used for hosting renewals.
+        $subtotalKobo = ($plan
                 ? (int) ($service->billing_cycle === 'monthly' ? $plan->monthly_price_kobo : $plan->annual_price_kobo)
                 : (int) round($service->amount_kobo / (1 + (float) config('billing.vat_rate'))));
         $vat = $this->vatCalculator->calculate($subtotalKobo);
@@ -59,7 +58,7 @@ class RenewalInvoiceService
                 'due_at' => $dueAt->toDateString(),
                 'line_items' => [
                     [
-                        'description' => $service->hostingPlan?->name.' Hosting Renewal'.($service->renewal_price_kobo ? ' (SSL included)' : '').' — '.$service->primary_domain,
+                        'description' => $service->hostingPlan?->name.' Hosting Renewal — '.$service->primary_domain,
                         'quantity' => 1,
                         'unit_price_kobo' => $subtotalKobo,
                         'total_kobo' => $subtotalKobo,
@@ -86,6 +85,21 @@ class RenewalInvoiceService
      * window and it doesn't already have an unpaid/partially-paid invoice
      * for the current renewal cycle (dedupe against duplicate daily runs).
      */
+    /**
+     * Whether this renewal cycle (the current renews_at date) has already been
+     * invoiced at all — paid or not — so a daily or catch-up run never issues
+     * a second invoice for the same renewal.
+     */
+    public function hasRenewalInvoiceForCurrentCycle(HostingService $service): bool
+    {
+        return Invoice::query()
+            ->where('hosting_service_id', $service->id)
+            ->whereNull('order_id')
+            ->whereNotIn('status', ['cancelled', 'void'])
+            ->whereDate('due_at', $service->renews_at)
+            ->exists();
+    }
+
     public function hasPendingRenewalInvoice(HostingService $service): bool
     {
         return Invoice::query()

@@ -224,7 +224,7 @@ class ManualInvoiceAndLegacyMigrationTest extends TestCase
         $this->assertSame($starter->id, $service->hosting_plan_id);
     }
 
-    public function test_a_migrated_legacy_service_keeps_renewing_at_forty_thousand_naira_with_ssl_included(): void
+    public function test_a_migrated_legacy_service_renews_at_its_new_plan_price_with_no_ssl_charge(): void
     {
         $fake = $this->fakeIspConfig();
         ['service' => $service] = $this->importLegacyService($fake);
@@ -233,14 +233,15 @@ class ManualInvoiceAndLegacyMigrationTest extends TestCase
         app(LegacyServiceMigrator::class)->migrate($service, $starter);
         $service->refresh();
 
-        $this->assertSame(4_000_000, $service->renewal_price_kobo);
+        $this->assertNull($service->renewal_price_kobo);
 
+        // Even an old kept ₦40,000 rate on the record is no longer charged.
+        $service->forceFill(['renewal_price_kobo' => 4_000_000])->save();
         $invoice = app(\App\Services\Billing\RenewalInvoiceService::class)->generateForRenewal($service);
 
-        // ₦40,000 + 7.5% VAT, not Starter's ₦25,000 list price.
-        $this->assertSame(4_000_000, $invoice->subtotal_kobo);
-        $this->assertSame(4_300_000, $invoice->total_kobo);
-        $this->assertStringContainsString('SSL included', $invoice->line_items[0]['description']);
+        // Starter's ₦25,000 + 7.5% VAT.
+        $this->assertSame((int) $starter->annual_price_kobo, $invoice->subtotal_kobo);
+        $this->assertStringNotContainsString('SSL', $invoice->line_items[0]['description']);
     }
 
     public function test_a_service_without_a_kept_price_renews_at_the_plan_price(): void
@@ -289,7 +290,8 @@ class ManualInvoiceAndLegacyMigrationTest extends TestCase
 
         foreach ($services as $service) {
             $this->assertSame($starter->id, $service->hosting_plan_id);
-            $this->assertSame(4_000_000, $service->renewal_price_kobo);
+            // No kept legacy rate — they renew at the Starter plan price (2026-10-10).
+            $this->assertNull($service->renewal_price_kobo);
             $this->assertSame('migrated', $service->migration_status);
         }
 

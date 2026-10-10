@@ -12,7 +12,7 @@ use RuntimeException;
 
 /**
  * Generates yearly renewal invoices for legacy (ISPConfig-imported) hosting
- * services — always Hosting Renewal + SSL Renewal line items, no order
+ * services — the hosting price only (no separate SSL line since 2026-10-10), no order
  * attached (legacy renewals aren't checkout orders).
  */
 class LegacyRenewalInvoiceService
@@ -32,13 +32,12 @@ class LegacyRenewalInvoiceService
         }
 
         $hostingAmountKobo = (int) ($plan->hosting_amount_kobo ?? 2_500_000);
-        $sslAmountKobo = (int) ($plan->ssl_amount_kobo ?? 1_500_000);
-        $subtotalKobo = $hostingAmountKobo + $sslAmountKobo;
+        $subtotalKobo = $hostingAmountKobo;
         $vat = $this->vatCalculator->calculate($subtotalKobo);
 
         $dueAt = $service->next_invoice_date ?? now()->addDays(7);
 
-        $invoice = DB::transaction(function () use ($service, $hostingAmountKobo, $sslAmountKobo, $subtotalKobo, $vat, $dueAt) {
+        $invoice = DB::transaction(function () use ($service, $hostingAmountKobo, $subtotalKobo, $vat, $dueAt) {
             return Invoice::query()->create([
                 'client_id' => $service->client_id,
                 'order_id' => null,
@@ -60,12 +59,6 @@ class LegacyRenewalInvoiceService
                         'quantity' => 1,
                         'unit_price_kobo' => $hostingAmountKobo,
                         'total_kobo' => $hostingAmountKobo,
-                    ],
-                    [
-                        'description' => 'SSL Renewal',
-                        'quantity' => 1,
-                        'unit_price_kobo' => $sslAmountKobo,
-                        'total_kobo' => $sslAmountKobo,
                     ],
                 ],
             ]);
