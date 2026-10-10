@@ -82,9 +82,14 @@ class HostingExpiryPipelineTest extends TestCase
         $this->assertSame('suspended', $service->status);
         $this->assertNotNull($service->scheduled_deletion_at);
 
+        // Suspended sites stay active in ISPConfig and redirect every visitor
+        // to the "account suspended" page (switching them off made Apache
+        // serve its default page, or another client's site over https).
         $call = collect($fake->calls)->last(fn ($call) => $call['method'] === 'sitesWebDomainUpdate');
-        $this->assertNotNull($call, 'Expected ISPConfig to be asked to deactivate the website.');
-        $this->assertSame('n', $call['params']['active'] ?? null);
+        $this->assertNotNull($call, 'Expected ISPConfig to be asked to suspend the website.');
+        $this->assertSame('y', $call['params']['active'] ?? null);
+        $this->assertSame('R', $call['params']['redirect_type'] ?? null);
+        $this->assertSame(config('hosting_lifecycle.suspended_page_url'), $call['params']['redirect_path'] ?? null);
 
         $this->assertDatabaseHas('notification_logs', [
             'hosting_service_id' => $service->id,
@@ -274,5 +279,29 @@ class HostingExpiryPipelineTest extends TestCase
         $this->assertFalse($service->fresh()->lifecycle_exempt);
 
         $this->artisan('hosting:lifecycle-exempt', ['domains' => ['no-such-site.test'], '--reason' => 'x'])->assertFailed();
+    }
+
+    public function test_reactivating_a_suspended_site_restores_the_clients_own_redirect(): void
+    {
+        $fake = $this->fakeIspConfig();
+        $service = $this->createProvisionableHostingService();
+        \App\Jobs\ProvisionHostingServiceJob::dispatch($service->id);
+        $websiteId = (int) $service->ispConfigServiceMappings()->value('ispconfig_website_id');
+        $fake->sitesWebDomainUpdate($fake->login(), 0, $websiteId, ['redirect_type' => 'R=301,L', 'redirect_path' => 'https://www.own-redirect.test/']);
+
+        $statuses = $this->app->make(\App\Services\Ispconfig\IspconfigWebsiteStatusService::class);
+        $reason = ['reason_category' => 'test', 'reason_note' => 'test', 'notify_client' => false];
+
+        $statuses->deactivate($service->fresh(), $reason, null, false, 'admin', 'suspended');
+        $this->assertSame(config('hosting_lifecycle.suspended_page_url'), $fake->sitesWebDomainGet('s', $websiteId)['redirect_path']);
+        $this->assertSame('y', $fake->sitesWebDomainGet('s', $websiteId)['active']);
+
+        // Suspending twice must not overwrite the remembered client redirect.
+        $statuses->deactivate($service->fresh(), $reason, null, false, 'admin', 'suspended');
+
+        $statuses->reactivate($service->fresh(), $reason);
+        $this->assertSame('https://www.own-redirect.test/', $fake->sitesWebDomainGet('s', $websiteId)['redirect_path']);
+        $this->assertSame('R=301,L', $fake->sitesWebDomainGet('s', $websiteId)['redirect_type']);
+        $this->assertSame('active', $service->fresh()->status);
     }
 }

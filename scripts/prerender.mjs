@@ -139,6 +139,9 @@ async function renderRoute(vite, route) {
   // has only a getter"). defineProperty overrides it for the duration of
   // this render and is restored the same way in the `finally` block below.
   const setGlobal = (key, value) => Object.defineProperty(global, key, { value, configurable: true, writable: true });
+  // Tells src/lib/siteAnalytics.ts not to record this render as a visit or
+  // funnel event (it would otherwise hit the real tracking API).
+  setGlobal("__NAITALK_PRERENDER__", true);
   setGlobal("window", window);
   setGlobal("document", window.document);
   setGlobal("navigator", window.navigator);

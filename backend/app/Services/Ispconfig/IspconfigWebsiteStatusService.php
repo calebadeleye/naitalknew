@@ -41,7 +41,7 @@ class IspconfigWebsiteStatusService
         $errorDetails = null;
 
         try {
-            $ispconfigResponse = $this->updateRemoteActiveFlag($service, active: false);
+            $ispconfigResponse = $this->updateRemoteSuspension($service, suspended: true);
         } catch (IspConfigApiException $exception) {
             $errorDetails = $exception->safeMessage();
         }
@@ -96,7 +96,7 @@ class IspconfigWebsiteStatusService
         $errorDetails = null;
 
         try {
-            $ispconfigResponse = $this->updateRemoteActiveFlag($service, active: true);
+            $ispconfigResponse = $this->updateRemoteSuspension($service, suspended: false);
         } catch (IspConfigApiException $exception) {
             $errorDetails = $exception->safeMessage();
         }
@@ -213,31 +213,64 @@ class IspconfigWebsiteStatusService
     /**
      * @return array<string, mixed>|null
      */
-    private function updateRemoteActiveFlag(HostingService $service, bool $active): ?array
+    /**
+     * Suspends or restores the website in ISPConfig.
+     *
+     * A suspended site is NOT switched off (active = 'n'): with its vhost gone,
+     * Apache answered http:// with its own "Ubuntu Default Page" and https://
+     * with whichever other client's site happened to be first on the server.
+     * Instead the site stays active — with its own SSL certificate — and an
+     * ISPConfig redirect sends every request to the neutral "account
+     * suspended" page. Any redirect the client had set up themselves is kept
+     * in the mapping's metadata and put back on reactivation.
+     */
+    private function updateRemoteSuspension(HostingService $service, bool $suspended): ?array
     {
         $mapping = $service->ispConfigServiceMappings()->latest('id')->first();
 
         if (! $mapping?->ispconfig_website_id) {
             // Nothing provisioned in ISPConfig yet (e.g. still pending
             // payment) — local status still changes, there's just nothing
-            // remote to flip.
+            // remote to change.
             return null;
         }
 
         $clientMapping = $mapping->clientMapping;
+        $suspendedPage = (string) config('hosting_lifecycle.suspended_page_url');
+        $metadata = $mapping->metadata_json ?? [];
         $sessionId = $this->ispConfig->login();
 
         try {
+            if ($suspended) {
+                $current = $this->ispConfig->sitesWebDomainGet($sessionId, (int) $mapping->ispconfig_website_id) ?? [];
+
+                // Remember the client's own redirect — unless what's there is
+                // already our suspension redirect (suspending twice).
+                if (($current['redirect_path'] ?? '') !== $suspendedPage && ! array_key_exists('pre_suspension_redirect', $metadata)) {
+                    $metadata['pre_suspension_redirect'] = [
+                        'redirect_type' => (string) ($current['redirect_type'] ?? ''),
+                        'redirect_path' => (string) ($current['redirect_path'] ?? ''),
+                    ];
+                }
+
+                $params = ['active' => 'y', 'redirect_type' => 'R', 'redirect_path' => $suspendedPage];
+            } else {
+                $previous = $metadata['pre_suspension_redirect'] ?? ['redirect_type' => '', 'redirect_path' => ''];
+                unset($metadata['pre_suspension_redirect']);
+
+                $params = ['active' => 'y', 'redirect_type' => $previous['redirect_type'], 'redirect_path' => $previous['redirect_path']];
+            }
+
             $result = $this->ispConfig->sitesWebDomainUpdate(
                 $sessionId,
                 (int) ($clientMapping?->ispconfig_client_id ?: 0),
                 (int) $mapping->ispconfig_website_id,
-                ['active' => $active ? 'y' : 'n'],
+                $params,
             );
 
-            $mapping->forceFill(['last_synced_at' => now()])->save();
+            $mapping->forceFill(['last_synced_at' => now(), 'metadata_json' => $metadata])->save();
 
-            return ['domain_id' => $result, 'active' => $active];
+            return ['domain_id' => $result, 'suspended' => $suspended] + $params;
         } finally {
             $this->ispConfig->logout($sessionId);
         }

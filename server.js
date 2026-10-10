@@ -133,6 +133,10 @@ const legacyRedirects = {};
  */
 async function resolveStatus(pathname) {
   if (isPrivatePath(pathname)) return 200;
+  // Suspended client websites redirect here. 503 = "temporarily unavailable",
+  // so search engines keep the client's site instead of dropping it, while
+  // browsers still show the page.
+  if (pathname === "/account-suspended" || pathname.startsWith("/account-suspended/")) return 503;
   if (isDynamicSlugPath(pathname)) {
     const found = pathname.startsWith("/blog/") ? await getBlogPostSeo(pathname) : await getKnowledgeBaseArticleSeo(pathname);
     return found ? 200 : 404;
@@ -759,7 +763,7 @@ async function startServer() {
       const template = fs.readFileSync(templatePath, "utf-8");
 
       let html = await injectSeoTags(template, pathname);
-      if (isPrivatePath(pathname)) {
+      if (isPrivatePath(pathname) || status === 503) {
         html = applyPrivateNoindex(html);
       }
 

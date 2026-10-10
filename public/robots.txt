@@ -3,5 +3,6 @@ Allow: /
 Disallow: /client
 Disallow: /admin
 Disallow: /api
+Disallow: /account-suspended
 
 Sitemap: https://www.naitalk.com/sitemap.xml

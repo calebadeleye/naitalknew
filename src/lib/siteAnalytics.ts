@@ -25,6 +25,16 @@ let isActive = false;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let hasInteracted = false;
 
+/**
+ * True while scripts/prerender.mjs renders pages at deploy time. Its fetches
+ * reach the real tracking API (as user agent "node", from the server's own
+ * datacenter), so without this every deploy logged fake visits and funnel
+ * events — e.g. 8 of the 13 recorded quote-form views in Sep–Oct 2026.
+ */
+function isPrerendering(): boolean {
+  return Boolean((globalThis as { __NAITALK_PRERENDER__?: boolean }).__NAITALK_PRERENDER__);
+}
+
 function apiBase(): string {
   return (import.meta.env.VITE_LARAVEL_API_URL as string | undefined)?.replace(/\/$/, "") || "http://127.0.0.1:8000";
 }
@@ -138,7 +148,7 @@ export function trackSiteEvent(
   properties?: Record<string, string | number | boolean | null | undefined>,
   valueKobo?: number,
 ): void {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || isPrerendering()) return;
 
   const payload = {
     visitor_id: getVisitorId(),
@@ -168,7 +178,7 @@ export function trackSiteEvent(
  * never a previous page view to flush from the same JS context.
  */
 export function trackSiteVisit(): void {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || isPrerendering()) return;
 
   const path = `${window.location.pathname}${window.location.search}`;
   // Guards against React StrictMode's dev-only double-invoke of effects,

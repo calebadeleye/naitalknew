@@ -36,4 +36,8 @@ return [
 
     // Domain expiry reminders sent before (and on) the expiry date.
     'domain_expiry_reminder_days' => [30, 14, 7, 1, 0],
+
+    // Where a suspended website's visitors are sent (ISPConfig redirect). Must
+    // end with "/" — ISPConfig appends the requested path to it.
+    'suspended_page_url' => env('HOSTING_SUSPENDED_PAGE_URL', 'https://www.naitalk.com/account-suspended/'),
 ];
