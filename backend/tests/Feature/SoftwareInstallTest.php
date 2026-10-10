@@ -6,6 +6,7 @@ use App\Jobs\ProvisionHostingServiceJob;
 use App\Models\HostingService;
 use App\Models\SoftwareInstallation;
 use App\Services\Ispconfig\Exceptions\IspConfigApiException;
+use App\Services\SoftwareInstall\SoftwareInstallOrchestrator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Sleep;
@@ -365,6 +366,56 @@ class SoftwareInstallTest extends TestCase
         $this->assertTrue($commands->contains(fn ($c) => str_contains($c, escapeshellarg($home.'/private/naipay-'.$installation->id))));
         $this->assertTrue(collect($ssh->symlinks)->flatten()->contains(fn ($path) => str_starts_with((string) $path, $home)));
         $this->assertFalse($commands->contains(fn ($c) => str_contains($c, "'~")), 'a quoted ~user path is never expanded by the shell');
+    }
+
+    public function test_an_archive_built_elsewhere_is_imported_as_the_shared_release_without_building(): void
+    {
+        $this->fakeIspConfig();
+        $ssh = $this->fakeSshCommandRunner();
+        $ssh->respond('cat ', 0, self::FAKE_RELEASE_SHA);
+
+        $result = app(SoftwareInstallOrchestrator::class)->importRelease('naipay', '/tmp/naipay-release.tgz');
+
+        $this->assertSame(['release' => $this->releaseDir(), 'built' => true], $result);
+        $commands = collect($ssh->executedCommands)->pluck('command');
+        $this->assertTrue($commands->contains(fn ($c) => str_contains($c, "tar -xzf '/tmp/naipay-release.tgz'")));
+        $this->assertTrue($commands->contains(fn ($c) => str_contains($c, 'composer install --no-dev')));
+        $this->assertTrue($commands->contains(fn ($c) => str_contains($c, 'else mv ') && str_contains($c, escapeshellarg($this->releaseDir()))));
+        foreach (['npm ci', 'npm run build', 'git clone'] as $buildStep) {
+            $this->assertFalse($commands->contains(fn ($c) => str_contains($c, $buildStep)), "{$buildStep} must not run for an imported release");
+        }
+        $this->assertFalse($ssh->connected, 'the build account connection is closed afterwards');
+    }
+
+    public function test_a_stale_archive_is_refused_and_cleaned_up(): void
+    {
+        $this->fakeIspConfig();
+        $ssh = $this->fakeSshCommandRunner();
+        $ssh->respond('cat ', 0, str_repeat('0', 40));
+
+        try {
+            app(SoftwareInstallOrchestrator::class)->importRelease('naipay', '/tmp/naipay-release.tgz');
+            $this->fail('A build of a different commit must be refused.');
+        } catch (\RuntimeException $exception) {
+            $this->assertStringContainsString('Rebuild the archive', $exception->getMessage());
+        }
+
+        $commands = collect($ssh->executedCommands)->pluck('command');
+        $this->assertFalse($commands->contains(fn ($c) => str_contains($c, 'else mv ')), 'nothing may be published');
+        $this->assertFalse($commands->contains(fn ($c) => str_contains($c, 'composer install')));
+        $this->assertTrue($commands->contains(fn ($c) => str_starts_with($c, 'rm -rf ') && str_contains($c, '.importing-')));
+    }
+
+    public function test_importing_an_already_published_release_does_nothing(): void
+    {
+        $this->fakeIspConfig();
+        $ssh = $this->fakeSshCommandRunner();
+        $ssh->writtenFiles[$this->releaseDir().'/.release-ready'] = self::FAKE_RELEASE_SHA;
+
+        $result = app(SoftwareInstallOrchestrator::class)->importRelease('naipay', '/tmp/naipay-release.tgz');
+
+        $this->assertFalse($result['built']);
+        $this->assertFalse(collect($ssh->executedCommands)->pluck('command')->contains(fn ($c) => str_contains($c, 'tar -xzf')));
     }
 
     public function test_a_failed_install_can_be_retried_on_the_same_or_a_new_subdomain(): void

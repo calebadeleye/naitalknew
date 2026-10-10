@@ -262,6 +262,77 @@ class SoftwareInstallOrchestrator
         }
     }
 
+    /**
+     * Publishes a release that was built elsewhere (a developer machine or CI,
+     * which is far faster than the resource-capped build account): the
+     * archive holds the repo at the commit, production node_modules for
+     * Linux, the finished frontend build and a `.release-ready` file naming
+     * the commit. Only composer runs here, and the archive is refused unless
+     * its commit is the one the catalog would clone now — a stale release
+     * would silently install old code.
+     *
+     * @return array{release: string, built: bool}
+     */
+    public function importRelease(string $slug, string $archivePath): array
+    {
+        $catalog = $this->catalogEntry($slug);
+        $buildConfig = config('software_install');
+
+        $this->ssh->connect(
+            (string) $buildConfig['ssh_host'],
+            (int) $buildConfig['ssh_port'],
+            (string) $buildConfig['ssh_user'],
+            ($buildConfig['ssh_private_key_path'] ?? null) ? (string) file_get_contents($buildConfig['ssh_private_key_path']) : '',
+        );
+
+        $workDir = null;
+
+        try {
+            $releasesDir = rtrim($buildConfig['build_root'], '/').'/releases';
+            $this->ssh->makeDirectory($releasesDir);
+
+            $sha = $this->remoteHeadSha($catalog);
+            $releaseDir = $releasesDir.'/'.$this->releaseName($slug, $sha);
+
+            if ($this->ssh->pathExists($releaseDir.'/'.self::RELEASE_READY_MARKER)) {
+                return ['release' => $releaseDir, 'built' => false];
+            }
+
+            $workDir = $releasesDir.'/.importing-'.bin2hex(random_bytes(4));
+
+            $this->runOrFail($releasesDir, sprintf(
+                'mkdir %1$s && tar -xzf %2$s -C %1$s --warning=no-unknown-keyword',
+                escapeshellarg($workDir),
+                escapeshellarg($archivePath),
+            ));
+
+            $archiveSha = trim($this->runOrFail($workDir, 'cat '.escapeshellarg(self::RELEASE_READY_MARKER))['output']);
+
+            if ($archiveSha !== $sha) {
+                throw new RuntimeException(
+                    "The archive is a build of {$archiveSha} but {$catalog['git_ref']} is now at {$sha}. "
+                    .'Rebuild the archive from the current commit and import it again.'
+                );
+            }
+
+            $this->assertRuntimeConfigurable($catalog, $workDir);
+
+            $this->runOrFail($workDir.'/'.$catalog['backend_path'], 'composer install --no-dev --optimize-autoloader --no-interaction --no-progress');
+
+            $this->publishRelease($releasesDir, $workDir, $releaseDir);
+
+            return ['release' => $releaseDir, 'built' => true];
+        } catch (\Throwable $exception) {
+            if ($workDir !== null) {
+                $this->ssh->exec('rm -rf '.escapeshellarg($workDir));
+            }
+
+            throw $exception;
+        } finally {
+            $this->ssh->disconnect();
+        }
+    }
+
     private function releaseName(string $slug, string $sha): string
     {
         return $slug.'-'.substr($sha, 0, 12);
@@ -322,13 +393,7 @@ class SoftwareInstallOrchestrator
                 throw new RuntimeException('Could not mark the finished release as ready.');
             }
 
-            // Publish atomically; if a concurrent install finished the same
-            // release first, keep theirs and drop this copy.
-            $this->runOrFail($releasesDir, sprintf(
-                'if [ -e %1$s ]; then rm -rf %2$s; else mv %2$s %1$s; fi',
-                escapeshellarg($releaseDir),
-                escapeshellarg($workDir),
-            ));
+            $this->publishRelease($releasesDir, $workDir, $releaseDir);
 
             return $releaseDir;
         } catch (\Throwable $exception) {
@@ -336,6 +401,19 @@ class SoftwareInstallOrchestrator
 
             throw $exception;
         }
+    }
+
+    /**
+     * Publishes atomically; if a concurrent install finished the same
+     * release first, keeps theirs and drops this copy.
+     */
+    private function publishRelease(string $releasesDir, string $workDir, string $releaseDir): void
+    {
+        $this->runOrFail($releasesDir, sprintf(
+            'if [ -e %1$s ]; then rm -rf %2$s; else mv %2$s %1$s; fi',
+            escapeshellarg($releaseDir),
+            escapeshellarg($workDir),
+        ));
     }
 
     /**
