@@ -61,6 +61,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Embed only the glyphs a PDF actually uses. Every invoice/receipt uses
+        // DejaVu Sans (for the ₦ sign), and embedding the whole font made a
+        // one-page receipt ~890 KB; subset, it's ~35 KB and looks identical.
+        // Set here rather than by publishing config/dompdf.php, which would
+        // freeze every other package default.
+        config(['dompdf.options.enable_font_subsetting' => true]);
+
         RateLimiter::for('login', fn ($request) => Limit::perMinute(6)->by(strtolower((string) $request->input('email')).'|'.$request->ip()));
 
         RateLimiter::for('register', fn ($request) => Limit::perMinute(6)->by($request->ip()));

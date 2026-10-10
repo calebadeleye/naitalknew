@@ -109,9 +109,10 @@ import { captureAdAttribution } from "../lib/adAttribution";
 import type { LogoImage, ClientLogo, Project, Review, SiteContent, HostingPlanCard, ServiceCatalogItem, ClientOrderSummary, ClientInvoiceSummary, BankTransferDetails, PricingPackage, AdminDashboardMetric, AdminDashboardSnapshot, ClientDashboardSnapshot, ClientAuthMode, LaravelPage, AdminRecordsSectionId } from "../shared/types";
 import { LARAVEL_API_BASE_URL, laravelApi } from "../shared/api";
 import { toHostingPlanCard, UNLIMITED_EMAIL_ACCOUNTS } from "../shared/websiteCare";
-import { parseNairaAmount, formatNaira, formatKobo, toDateInputValue, formatDate, formatDateTime, accountTypeLabel, clientStatusPillClass, hostingStatusPillClass, formatMb, catalogCategoryIcon, ISO_DATE_PATTERN } from "../shared/format";
+import { parseNairaAmount, formatNaira, formatKobo, toDateInputValue, formatDate, formatDateTime, accountTypeLabel, clientStatusPillClass, hostingStatusPillClass, formatMb, formatStatusLabel, isPastDate, billingCycleLabel, catalogCategoryIcon, ISO_DATE_PATTERN } from "../shared/format";
 import { fallbackClientLogos, fallbackProjects, fallbackReviews, fallbackSiteContent, whatsappUrl } from "../shared/siteDefaults";
 import { Logo, Navbar, Footer, FloatingWhatsApp, SectionHeader, socialLinks, paymentBadges, footerColumns } from "../shared/PublicLayout";
+import { ClientHelpAssistant, OPEN_HELP_ASSISTANT_EVENT } from "../components/ClientHelpAssistant";
 import { PublicPage, PublicBreadcrumbs, usePublicImage, MarketingHero, MarketingCtaBand, FaqAccordionItem, FaqAccordionGroup } from "../shared/marketingWidgets";
 import { goToDomainCheckout, DomainPromoBadge, TldPriceCard, DomainFeatureItem, DomainSearchBar, DomainSearchSection, DomainGlobeIllustration } from "../shared/domainWidgets";
 import type { DomainFeature, PublicTldPricingRow } from "../shared/domainWidgets";
@@ -138,13 +139,15 @@ export const INITIAL_ORDER_DRAFT = {
 export const portalNavLinks = [
   { icon: Home, label: "Dashboard", route: "dashboard" as ClientRouteName, path: "/client/dashboard" },
   { icon: PackageCheck, label: "Services Catalog", route: "services-catalog" as ClientRouteName, path: "/client/services/catalog" },
-  { icon: FileText, label: "My Orders", route: "orders" as ClientRouteName, path: "/client/orders" },
+  { icon: FileText, label: "Orders & Invoices", route: "orders" as ClientRouteName, path: "/client/orders" },
   { icon: Globe2, label: "My Domains", route: "domains" as ClientRouteName, path: "/client/domains" },
-  { icon: Globe2, label: "Search Domains", route: "domain-search" as ClientRouteName, path: "/client/domains/search" },
+  { icon: Search, label: "Search Domains", route: "domain-search" as ClientRouteName, path: "/client/domains/search" },
   { icon: Wallet, label: "Wallet", route: "wallet" as ClientRouteName, path: "/client/wallet" },
   { icon: CreditCard, label: "Saved Payment Methods", route: "payment-methods" as ClientRouteName, path: "/client/payment-methods" },
   { icon: User, label: "My Profile", route: "profile" as ClientRouteName, path: "/client/profile" },
-  { icon: MessageCircle, label: "Support Tickets", route: null, path: null },
+  // There is no ticket system: this opens the help assistant, which answers from the
+  // knowledge base and links straight to WhatsApp for anything it can't answer.
+  { icon: MessageCircle, label: "Help & Support", route: null, path: null },
   { icon: LogOut, label: "Logout", route: null, path: null },
 ];
 
@@ -194,8 +197,8 @@ export function ClientPortalShell({
                 setIsMobileNavOpen(false);
                 if (item.label === "Logout") {
                   onLogout();
-                } else if (item.label === "Support Tickets") {
-                  window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+                } else if (item.label === "Help & Support") {
+                  window.dispatchEvent(new Event(OPEN_HELP_ASSISTANT_EVENT));
                 } else if (item.path) {
                   navigate(item.path);
                 }
@@ -208,7 +211,8 @@ export function ClientPortalShell({
         </nav>
       </aside>
 
-      <main className="portal-main">
+      {/* Bottom padding keeps the floating help button from covering the last row of a page. */}
+      <main className="portal-main pb-24">
         {Boolean(sessionStorage.getItem("naitalk_laravel_admin_token")) && (
           <div className="form-message warning mb-2 flex flex-wrap items-center justify-between gap-3">
             <span>You are viewing this account as an admin.</span>
@@ -246,6 +250,7 @@ export function ClientPortalShell({
         )}
         {children}
       </main>
+      <ClientHelpAssistant />
     </div>
   );
 }
@@ -253,6 +258,7 @@ export function ClientPortalShell({
 
 export type HostingManageOverview = {
   overview: {
+    service_number?: string | null;
     primary_domain: string | null;
     plan: string | null;
     status: string;
@@ -264,6 +270,10 @@ export type HostingManageOverview = {
   };
   usage: {
     disk_used_mb: number;
+    /** Parts of disk_used_mb — the package's space is shared by files, email and databases. Null on older snapshots. */
+    web_used_mb?: number | null;
+    mail_used_mb?: number | null;
+    database_used_mb?: number | null;
     disk_quota_mb: number;
     bandwidth_used_mb: number;
     bandwidth_quota_mb: number;
@@ -822,15 +832,16 @@ export function HostingManagePanel({
           <p className="mt-1 text-sm font-bold text-white">{overview.primary_domain || "No domain set"}</p>
           <p className="text-xs text-white/48">{overview.plan || "Hosting Package"}</p>
         </div>
-        <span className={hostingStatusPillClass(overview.status)}>{overview.status}</span>
+        <span className={hostingStatusPillClass(overview.status)}>{formatStatusLabel(overview.status)}</span>
         <div className="hosting-header-meta">
           <div>
-            <span>Next Renewal</span>
-            <strong>{formatDate(overview.renews_at)}</strong>
+            <span>{isPastDate(overview.renews_at) ? "Renewal Overdue" : "Next Renewal"}</span>
+            <strong className={isPastDate(overview.renews_at) ? "text-red-300" : undefined}>{formatDate(overview.renews_at)}</strong>
           </div>
           <div>
             <span>Service ID</span>
-            <strong>SRV-{serviceId}</strong>
+            {/* The same number the dashboard and invoices show — not the internal database id. */}
+            <strong>{overview.service_number || `SRV-${serviceId}`}</strong>
           </div>
           <label className="flex items-center gap-2 text-xs font-bold text-white/68">
             <input
@@ -851,7 +862,7 @@ export function HostingManagePanel({
 
       <div className="hosting-stats">
         {[
-          [HardDrive, "Disk Usage", usage?.disk_used_mb ?? 0, usage?.disk_quota_mb ?? 0, ""],
+          [HardDrive, "Storage", usage?.disk_used_mb ?? 0, usage?.disk_quota_mb ?? 0, ""],
           [Wifi, "Bandwidth Usage", usage?.bandwidth_used_mb ?? 0, usage?.bandwidth_quota_mb ?? 0, "tone-cyan"],
           [Mail, "Email Accounts", usage?.email_accounts_used ?? 0, usage?.email_accounts_limit ?? 0, "tone-violet"],
           [Database, "Databases", usage?.databases_used ?? 0, usage?.databases_limit ?? 0, "tone-gold"],
@@ -885,6 +896,11 @@ export function HostingManagePanel({
                     ? `${isCapacity ? formatMb(limitNum - usedNum) : limitNum - usedNum} Available`
                     : "Limit reached"}
               </div>
+              {index === 0 && usage?.web_used_mb != null && (
+                <div className="mt-1 text-[10px] leading-4 text-white/45" title="Your package's space is shared by website files, email and databases">
+                  Files {formatMb(usage.web_used_mb)} · Email {formatMb(usage.mail_used_mb ?? 0)} · Databases {formatMb(usage.database_used_mb ?? 0)}
+                </div>
+              )}
             </div>
           );
         })}
@@ -916,8 +932,8 @@ export function HostingManagePanel({
                 <div>
                   <h2>Files</h2>
                   <p className="mt-1 text-sm text-white/54">
-                    {overview.primary_domain} is currently <strong className="text-white">{overview.status}</strong> on the {overview.plan}{" "}
-                    package, billed {overview.billing_cycle}.
+                    {overview.primary_domain} is currently <strong className="text-white">{formatStatusLabel(overview.status).toLowerCase()}</strong> on the{" "}
+                    {overview.plan} package, billed {billingCycleLabel(overview.billing_cycle)}.
                   </p>
                 </div>
                 {!isFilesProvisioning && (
@@ -1702,6 +1718,8 @@ export type ClientInvoiceDetail = {
   outstanding_amount: string;
   outstanding_amount_kobo: number;
   balance_due: string;
+  /** True once anything has been paid against the invoice — a part payment gets a receipt too. */
+  receipt_available?: boolean;
   bank_transfer: { bank_name: string; account_name: string; account_number: string };
   bank_transfer_status: string | null;
   bank_transfer_rejection_reason: string | null;
@@ -1964,6 +1982,7 @@ export function ClientInvoicePage({
   const [invoice, setInvoice] = useState<ClientInvoiceDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isDownloadingReceipt, setIsDownloadingReceipt] = useState(false);
   const [hasDismissedBankTransfer, setHasDismissedBankTransfer] = useState(false);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [isUploadingProof, setIsUploadingProof] = useState(false);
@@ -2020,31 +2039,37 @@ export function ClientInvoicePage({
     }
   };
 
-  const downloadInvoicePdf = async () => {
-    setIsDownloading(true);
+  const downloadPdf = async (kind: "invoice" | "receipt") => {
+    if (kind === "invoice") setIsDownloading(true);
+    else setIsDownloadingReceipt(true);
+    const label = kind === "invoice" ? "invoice" : "receipt";
 
     try {
-      const downloadPath = orderNumber
-        ? `/api/v1/client/orders/${orderNumber}/invoice/download`
-        : `/api/v1/client/invoices/${invoiceNumber}/download`;
+      const downloadPath =
+        kind === "receipt"
+          ? `/api/v1/client/invoices/${invoice?.invoice_number || invoiceNumber}/receipt`
+          : orderNumber
+            ? `/api/v1/client/orders/${orderNumber}/invoice/download`
+            : `/api/v1/client/invoices/${invoiceNumber}/download`;
       const response = await fetch(`${LARAVEL_API_BASE_URL}${downloadPath}`, {
         headers: { Authorization: `Bearer ${token}`, Accept: "application/pdf" },
       });
 
-      if (!response.ok) throw new Error("Could not download this invoice.");
+      if (!response.ok) throw new Error(`Could not download this ${label}.`);
 
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `invoice-${invoice?.invoice_number || orderNumber || invoiceNumber}.pdf`;
+      link.download = `${label}-${invoice?.invoice_number || orderNumber || invoiceNumber}.pdf`;
       link.click();
       URL.revokeObjectURL(url);
-      trackEvent("file_download", { content_title: "invoice_pdf", transaction_id: invoice?.invoice_number || orderNumber || invoiceNumber });
+      trackEvent("file_download", { content_title: `${label}_pdf`, transaction_id: invoice?.invoice_number || orderNumber || invoiceNumber });
     } catch (error) {
-      toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not download this invoice." });
+      toast.push({ type: "error", message: error instanceof Error ? error.message : `Could not download this ${label}.` });
     } finally {
-      setIsDownloading(false);
+      if (kind === "invoice") setIsDownloading(false);
+      else setIsDownloadingReceipt(false);
     }
   };
 
@@ -2065,7 +2090,7 @@ export function ClientInvoicePage({
       <nav className="hosting-breadcrumb">
         <button type="button" onClick={() => navigate("/client/dashboard")}>Dashboard</button>
         <span>/</span>
-        <button type="button" onClick={() => navigate("/client/orders")}>My Orders</button>
+        <button type="button" onClick={() => navigate("/client/orders")}>Orders &amp; Invoices</button>
         <span>/</span>
         <span className="current">{invoice.invoice_number}</span>
       </nav>
@@ -2081,14 +2106,26 @@ export function ClientInvoicePage({
           <div className="text-right">
             <h2 className="text-xl font-black uppercase text-white">Invoice</h2>
             <p className="text-sm text-white/50">{invoice.invoice_number}</p>
-            <button
-              type="button"
-              className="btn-outline mt-2 !min-h-9 !px-3 !py-1.5 !text-[10px]"
-              disabled={isDownloading}
-              onClick={() => void downloadInvoicePdf()}
-            >
-              {isDownloading ? "Preparing..." : "Download Invoice"}
-            </button>
+            <div className="mt-2 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                disabled={isDownloading}
+                onClick={() => void downloadPdf("invoice")}
+              >
+                {isDownloading ? "Preparing..." : "Download Invoice"}
+              </button>
+              {invoice.receipt_available && (
+                <button
+                  type="button"
+                  className="btn-primary !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                  disabled={isDownloadingReceipt}
+                  onClick={() => void downloadPdf("receipt")}
+                >
+                  {isDownloadingReceipt ? "Preparing..." : "Download Receipt"}
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -2563,7 +2600,7 @@ export function ClientPaymentMethodsPage({ token, toast }: { token: string; toas
                   disabled={busyId === method.id}
                   onClick={() => void updateMethod(method.id, { use_for_auto_renewal: !method.use_for_auto_renewal })}
                 >
-                  {method.use_for_auto_renewal ? "Disable auto-renewal use" : "Enable for auto-renewal"}
+                  {method.use_for_auto_renewal ? "Don't use for auto-renewal" : "Use for auto-renewal"}
                 </button>
                 {!method.is_default && (
                   <button
@@ -3004,6 +3041,7 @@ export type DomainRow = {
   source: string;
   source_label: string;
   provider_label: string;
+  pending_invoice_number?: string | null;
   status: string;
   registration_status: string;
   transfer_status: string | null;
@@ -3105,7 +3143,7 @@ export function ClientDomainsPage({
         </div>
         <div className="flex gap-2">
           <button type="button" className="btn-outline justify-center !text-[11px]" onClick={() => navigate("/client/domain-contact")}>
-            Contact Profile
+            Domain Contact Details
           </button>
           <button type="button" className="btn-primary justify-center !text-[11px]" onClick={() => navigate("/client/domains/search")}>
             Search Domains
@@ -3123,26 +3161,28 @@ export function ClientDomainsPage({
                 <div>
                   <p className="text-lg font-black text-white">{domain.domain_name}</p>
                   <p className="text-xs text-white/45">
-                    {domain.source_label} • {domain.provider_label}
+                    {/* Registrar supplier names (provider_label) are internal — clients only need how the domain came to us. */}
+                    {domain.source_label}
                   </p>
                 </div>
                 <span className={domain.status === "active" ? "status-pill paid" : "status-pill failed"}>
                   {domain.registration_status === "awaiting_manual_registration"
                     ? "Provisioning — active within 24 hours"
-                    : domain.status}
+                    : formatStatusLabel(domain.status)}
                 </span>
               </div>
 
               <div className="mt-4 grid gap-1 text-sm text-white/68 sm:grid-cols-2">
                 <p>
-                  <strong className="text-white">Registered:</strong> {domain.registered_at || "—"}
+                  <strong className="text-white">Registered:</strong> {formatDate(domain.registered_at)}
                 </p>
                 <p>
-                  <strong className="text-white">Expires:</strong> {domain.expires_at || "—"}
+                  <strong className="text-white">{isPastDate(domain.expires_at) ? "Expired:" : "Expires:"}</strong>{" "}
+                  <span className={isPastDate(domain.expires_at) ? "font-bold text-red-300" : undefined}>{formatDate(domain.expires_at)}</span>
                 </p>
                 {domain.transfer_status && (
                   <p>
-                    <strong className="text-white">Transfer status:</strong> {domain.transfer_status}
+                    <strong className="text-white">Transfer status:</strong> {formatStatusLabel(domain.transfer_status)}
                   </p>
                 )}
                 <p>
@@ -3156,12 +3196,23 @@ export function ClientDomainsPage({
                 )}
                 {domain.next_invoice_date && (
                   <p>
-                    <strong className="text-white">Next invoice date:</strong> {domain.next_invoice_date}
+                    <strong className="text-white">Next invoice date:</strong> {formatDate(domain.next_invoice_date)}
                   </p>
                 )}
                 {domain.payment_status && (
                   <p>
-                    <strong className="text-white">Payment status:</strong> {domain.payment_status}
+                    <strong className="text-white">Payment status:</strong> {formatStatusLabel(domain.payment_status)}
+                  </p>
+                )}
+                {domain.pending_invoice_number && (
+                  <p className="sm:col-span-2">
+                    <button
+                      type="button"
+                      className="btn-primary mt-1 !min-h-9 !px-4 !text-[10px]"
+                      onClick={() => navigate(`/client/invoices/${domain.pending_invoice_number}`)}
+                    >
+                      Pay Invoice {domain.pending_invoice_number}
+                    </button>
                   </p>
                 )}
                 {domain.registrar_operation_status_label && (
@@ -3707,7 +3758,7 @@ export function ClientProfilePage({
               <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-white/45">
                 <span>Customer ID <strong className="text-white/70">{profile.customer_id}</strong></span>
                 <span>Member Since <strong className="text-white/70">{formatDate(profile.member_since)}</strong></span>
-                <span>Account Status <strong className="text-primary">{profile.account_status}</strong></span>
+                <span>Account Status <strong className="text-primary">{formatStatusLabel(profile.account_status)}</strong></span>
               </div>
             </div>
           </div>
@@ -3735,7 +3786,7 @@ export function ClientProfilePage({
             [PackageCheck, "Active Services", metric("Active Services")],
             [Wallet, "Wallet Balance", metric("Wallet Balance")],
             [CreditCard, "Outstanding Balance", metric("Outstanding Balance")],
-            [CalendarClock, "Next Renewal", metric("Next Renewal") || "None scheduled"],
+            [CalendarClock, "Next Renewal", /^\d{4}-\d{2}-\d{2}/.test(String(metric("Next Renewal"))) ? formatDate(String(metric("Next Renewal"))) : metric("Next Renewal") || "None scheduled"],
           ].map(([Icon, label, value]) => (
             <div key={label as string} className="data-row">
               <div className="row-icon">{React.createElement(Icon as LucideIcon, { className: "h-4 w-4" })}</div>
@@ -3862,15 +3913,11 @@ export function ClientProfilePage({
             <div className="data-row">
               <div className="min-w-0 flex-1">
                 <p>Two-Factor Authentication</p>
-                <small>Add an extra layer of security</small>
+                {/* Not enforced at sign-in yet (see ClientProfileController::updateSecurity), so it
+                    must not look like working protection a client can switch on. */}
+                <small>An extra sign-in step to protect your account — coming soon.</small>
               </div>
-              <input
-                type="checkbox"
-                className="toggle-switch"
-                checked={profile.security.two_factor_enabled}
-                disabled={busyPreference === "two_factor_enabled"}
-                onChange={(event) => void updateSecurity({ two_factor_enabled: event.target.checked })}
-              />
+              <span className="status-pill pending">Coming soon</span>
             </div>
             <div className="data-row">
               <div className="min-w-0 flex-1">
@@ -3884,15 +3931,10 @@ export function ClientProfilePage({
             <div className="data-row">
               <div className="min-w-0 flex-1">
                 <p>Login Alerts</p>
-                <small>Get notified of new sign-ins</small>
+                {/* No sign-in alert email exists yet — shown as upcoming rather than as a switch that does nothing. */}
+                <small>Email alerts when someone signs in to your account — coming soon.</small>
               </div>
-              <input
-                type="checkbox"
-                className="toggle-switch"
-                checked={profile.security.login_alerts_enabled}
-                disabled={busyPreference === "login_alerts_enabled"}
-                onChange={(event) => void updateSecurity({ login_alerts_enabled: event.target.checked })}
-              />
+              <span className="status-pill pending">Coming soon</span>
             </div>
           </div>
         </div>
@@ -4935,6 +4977,13 @@ export function ClientPortal() {
   }
 
   const metricByLabel = (label: string) => dashboard.metrics.find((metric) => metric.label === label)?.value || "";
+  const sslPendingServices = dashboard.services.filter((service) => service.needs_ssl_setup);
+  const hasOutstandingBalance = parseNairaAmount(metricByLabel("Outstanding Balance")) > 0;
+  // The API sends the next renewal as a raw YYYY-MM-DD date; show it like every other date, and flag one that's already passed.
+  const rawNextRenewal = metricByLabel("Next Renewal");
+  const nextRenewalIsDate = /^\d{4}-\d{2}-\d{2}/.test(rawNextRenewal);
+  const nextRenewalDisplay = !rawNextRenewal ? "No renewal" : nextRenewalIsDate ? formatDate(rawNextRenewal) : rawNextRenewal;
+  const nextRenewalIsOverdue = nextRenewalIsDate && isPastDate(rawNextRenewal);
 
   if (route === "verify-email") {
     return (
@@ -5033,7 +5082,9 @@ export function ClientPortal() {
                   {!isContactOnly && (
                     <p className="mt-4 text-xl font-black text-primary">
                       {item.starting_price ? `From ${item.starting_price}` : "Custom quote"}
-                      <span className="ml-1 text-xs font-bold text-white/45">{item.billing_type.replace("_", " ")}</span>
+                      <span className="ml-1 text-xs font-bold text-white/45">
+                        {item.billing_type === "yearly" ? "/ year" : item.billing_type === "monthly" ? "/ month" : formatStatusLabel(item.billing_type).toLowerCase()}
+                      </span>
                     </p>
                   )}
                   <div className="mt-4 flex flex-wrap gap-2">
@@ -5647,7 +5698,7 @@ export function ClientPortal() {
         onProfileClick={() => navigate("/client/profile")}
       >
         <section>
-          <h2 className="text-2xl font-black text-white">My Orders</h2>
+          <h2 className="text-2xl font-black text-white">Orders &amp; Invoices</h2>
           <div className="mt-5 grid gap-3">
             {(orders || []).map((order) => {
               const isUnpaid = order.invoice && order.invoice.status !== "paid";
@@ -5748,21 +5799,44 @@ export function ClientPortal() {
         onLogout={() => void handleClientLogout()}
         onProfileClick={() => navigate("/client/profile")}
       >
-      {dashboard.services.filter((service) => service.needs_ssl_setup).map((service) => (
+      {sslPendingServices.length === 1 && (
         <button
-          key={service.id}
           type="button"
           className="mb-5 flex w-full items-center gap-3 rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4 text-left text-sm text-yellow-100 transition hover:border-yellow-500/50"
-          onClick={() => navigate(`/client/services/${service.id}/manage?tab=website`)}
+          onClick={() => navigate(`/client/services/${sslPendingServices[0].id}/manage?tab=website`)}
         >
           <ShieldCheck className="h-5 w-5 shrink-0" />
           <span className="flex-1">
-            <strong className="font-black">SSL is not active</strong> for {service.primary_domain || service.service_number} — visitors may see a
-            security warning. Click to activate it.
+            <strong className="font-black">SSL is not active</strong> for {sslPendingServices[0].primary_domain || sslPendingServices[0].service_number} —
+            visitors may see a security warning. Click to activate it.
           </span>
           <ArrowRight className="h-4 w-4 shrink-0" />
         </button>
-      ))}
+      )}
+      {/* Several websites without SSL get one banner, not a stack of identical ones pushing the dashboard down. */}
+      {sslPendingServices.length > 1 && (
+        <div className="mb-5 rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm text-yellow-100">
+          <p className="flex items-center gap-3">
+            <ShieldCheck className="h-5 w-5 shrink-0" />
+            <span>
+              <strong className="font-black">SSL is not active on {sslPendingServices.length} of your websites</strong> — visitors may see a security
+              warning. Choose a website to activate it:
+            </span>
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2 pl-8">
+            {sslPendingServices.map((service) => (
+              <button
+                key={service.id}
+                type="button"
+                className="inline-flex items-center gap-1.5 rounded-full border border-yellow-500/40 px-3 py-1 text-xs font-bold hover:bg-yellow-500/15"
+                onClick={() => navigate(`/client/services/${service.id}/manage?tab=website`)}
+              >
+                {service.primary_domain || service.service_number} <ArrowRight className="h-3 w-3" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {dashboard.empty_state ? (
         <section className="portal-card mx-auto max-w-xl text-center">
@@ -5782,20 +5856,35 @@ export function ClientPortal() {
         </section>
       ) : (
         <div className="portal-stats">
-          {[
-            [PackageCheck, "Active Services", metricByLabel("Active Services"), "tone-lime"],
-            [CreditCard, "Outstanding Balance", metricByLabel("Outstanding Balance"), "tone-cyan"],
-            [CalendarClock, "Next Renewal", metricByLabel("Next Renewal") || "No renewal", "tone-gold"],
-            [Wallet, "Total Paid", metricByLabel("Total Paid"), "tone-violet"],
-          ].map(([Icon, label, value, tone]) => (
-            <article key={label as string} className={`portal-card ${tone as string}`}>
-              <div className="portal-card-icon">
-                {React.createElement(Icon as React.ComponentType<{ className?: string }>, { className: "h-5 w-5" })}
-              </div>
-              <p>{label as string}</p>
-              <h3>{value as string}</h3>
-            </article>
-          ))}
+          {(
+            [
+              [PackageCheck, "Active Services", metricByLabel("Active Services"), "tone-lime", null, null],
+              [CreditCard, "Outstanding Balance", metricByLabel("Outstanding Balance"), "tone-cyan", hasOutstandingBalance ? "Pay now" : null, hasOutstandingBalance ? "/client/orders" : null],
+              [CalendarClock, "Next Renewal", nextRenewalDisplay, "tone-gold", nextRenewalIsOverdue ? "Overdue" : null, null],
+              [Wallet, "Total Paid", metricByLabel("Total Paid"), "tone-violet", null, null],
+            ] as const
+          ).map(([Icon, label, value, tone, note, href]) => {
+            const content = (
+              <>
+                <div className="portal-card-icon">
+                  {React.createElement(Icon as React.ComponentType<{ className?: string }>, { className: "h-5 w-5" })}
+                </div>
+                <p>{label}</p>
+                <h3>{value}</h3>
+                {note && <small className={nextRenewalIsOverdue && label === "Next Renewal" ? "mt-1 block text-xs font-bold text-red-300" : "mt-1 block text-xs font-bold text-primary"}>{note}</small>}
+              </>
+            );
+
+            return href ? (
+              <button key={label} type="button" className={`portal-card ${tone} cursor-pointer text-left`} onClick={() => navigate(href)}>
+                {content}
+              </button>
+            ) : (
+              <article key={label} className={`portal-card ${tone}`}>
+                {content}
+              </article>
+            );
+          })}
         </div>
       )}
 
@@ -5819,9 +5908,18 @@ export function ClientPortal() {
                     <p>{service.primary_domain || service.service_number}</p>
                     <small>{service.plan || "Hosting Service"}</small>
                   </div>
-                  <span className={hostingStatusPillClass(service.status)}>{service.status}</span>
-                  <small>{service.renews_at ? formatDate(service.renews_at) : "No date"}</small>
-                  <strong>{service.service_number}</strong>
+                  <span className={hostingStatusPillClass(service.status)}>{formatStatusLabel(service.status)}</span>
+                  {service.status === "pending_payment" ? (
+                    // Never activated: the problem is the unpaid first invoice, not a renewal.
+                    <small className="font-bold text-yellow-200">Awaiting first payment</small>
+                  ) : (
+                    <small className={isPastDate(service.renews_at) ? "font-bold text-red-300" : undefined}>
+                      {service.renews_at ? `${isPastDate(service.renews_at) ? "Renewal overdue" : "Renews"} ${formatDate(service.renews_at)}` : "No renewal date"}
+                    </small>
+                  )}
+                  <span className="inline-flex items-center gap-1 text-xs font-bold text-primary">
+                    Manage <ChevronRight className="h-4 w-4" />
+                  </span>
                 </button>
               ))}
             </div>
@@ -5849,7 +5947,9 @@ export function ClientPortal() {
                       <p>{invoice.invoice_number}</p>
                       <small>Due {invoice.due_at ? formatDate(invoice.due_at) : "—"}</small>
                     </div>
-                    <span className={invoice.status === "paid" ? "status-pill paid" : "status-pill failed"}>{invoice.status.replace("_", " ")}</span>
+                    <span className={invoice.status === "paid" ? "status-pill paid" : "status-pill failed"}>
+                      {invoice.status !== "paid" && isPastDate(invoice.due_at) ? "Overdue" : formatStatusLabel(invoice.status)}
+                    </span>
                     <strong>{invoice.total}</strong>
                   </button>
                 ))}

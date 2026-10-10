@@ -10,6 +10,9 @@ class HostingUsageSnapshot extends Model
     protected $fillable = [
         'hosting_service_id',
         'disk_used_mb',
+        'web_used_mb',
+        'mail_used_mb',
+        'database_used_mb',
         'disk_quota_mb',
         'bandwidth_used_mb',
         'bandwidth_quota_mb',

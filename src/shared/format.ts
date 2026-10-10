@@ -201,6 +201,31 @@ export function hostingStatusPillClass(status: string): string {
   return "status-pill pending";
 }
 
+/** "pending_payment" → "Pending payment" — never show a raw status code to a client. */
+export function formatStatusLabel(status: string | null | undefined): string {
+  if (!status) return "—";
+  const words = status.replace(/[_-]+/g, " ").trim().toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** Billing periods are stored inconsistently ("yearly", "annual", "monthly"…); show one wording. */
+export function billingCycleLabel(cycle: string | null | undefined): string {
+  const value = (cycle || "").toLowerCase();
+  if (["yearly", "annual", "annually", "year"].includes(value)) return "yearly";
+  if (["monthly", "month"].includes(value)) return "monthly";
+  if (["quarterly", "quarter"].includes(value)) return "quarterly";
+  return value || "—";
+}
+
+/** True for a YYYY-MM-DD (or ISO) date strictly before today, in the visitor's local calendar. */
+export function isPastDate(value: string | null | undefined): boolean {
+  if (!value) return false;
+  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+  if (!year || !month || !day) return false;
+  const today = new Date();
+  return new Date(year, month - 1, day) < new Date(today.getFullYear(), today.getMonth(), today.getDate());
+}
+
 export function formatMb(mb: number): string {
   return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb} MB`;
 }

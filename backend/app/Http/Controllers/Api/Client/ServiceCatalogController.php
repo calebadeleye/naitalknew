@@ -23,8 +23,10 @@ class ServiceCatalogController extends Controller
                 'category' => 'hosting',
                 'short_description' => $plan->short_description,
                 'benefits' => $plan->public_features ?? [],
-                'starting_price' => Money::naira($plan->monthly_price_kobo),
-                'billing_type' => 'monthly',
+                // Website Care plans are sold per year (the monthly figure is only
+                // the yearly price divided by 12), so lead with what is actually billed.
+                'starting_price' => Money::naira($plan->annual_price_kobo > 0 ? $plan->annual_price_kobo : $plan->monthly_price_kobo),
+                'billing_type' => $plan->annual_price_kobo > 0 ? 'yearly' : 'monthly',
                 'is_quote_only' => false,
                 'order_route' => '/client/order/hosting?plan='.$plan->slug,
             ]);
@@ -39,8 +41,8 @@ class ServiceCatalogController extends Controller
                 'category' => 'add_on',
                 'short_description' => $addOn->description,
                 'benefits' => [],
-                'starting_price' => Money::naira($addOn->monthly_price_kobo),
-                'billing_type' => 'monthly',
+                'starting_price' => Money::naira($addOn->annual_price_kobo > 0 ? $addOn->annual_price_kobo : $addOn->monthly_price_kobo),
+                'billing_type' => $addOn->annual_price_kobo > 0 ? 'yearly' : 'monthly',
                 'is_quote_only' => false,
                 'order_route' => '/client/order/hosting',
             ]);

@@ -179,6 +179,12 @@ class DomainController extends Controller
             'next_invoice_date' => $domain->next_invoice_date?->toDateString(),
             'next_renewal_amount_kobo' => $nextRenewalPriceKobo,
             'payment_status' => $domain->payment_status,
+            // The invoice still waiting to be paid for this domain (registration,
+            // transfer or renewal), so the domain card can link straight to it.
+            'pending_invoice_number' => $domain->orders()
+                ->where('status', 'pending_payment')
+                ->latest()
+                ->first()?->invoice?->invoice_number,
             'registrar_operation_status_label' => self::REGISTRAR_OPERATION_LABELS[$domain->registrar_operation_status] ?? null,
             'renewal_history' => $this->renewalHistory($domain),
         ];

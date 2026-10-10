@@ -32,6 +32,7 @@ use App\Http\Controllers\Api\Admin\ServiceStatusController;
 use App\Http\Controllers\Api\Admin\WebsiteQuoteController as AdminWebsiteQuoteController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\Client\CheckoutController;
+use App\Http\Controllers\Api\Client\HelpAssistantController;
 use App\Http\Controllers\Api\Client\ClientProfileController;
 use App\Http\Controllers\Api\Client\DashboardController as ClientDashboardController;
 use App\Http\Controllers\Api\Client\DomainContactController;
@@ -110,6 +111,8 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/invoices', [InvoiceController::class, 'index']);
             Route::get('/invoices/{invoice:invoice_number}', [InvoiceController::class, 'showByNumber']);
             Route::get('/invoices/{invoice:invoice_number}/download', [InvoiceController::class, 'downloadByNumberPdf']);
+            Route::get('/invoices/{invoice:invoice_number}/receipt', [InvoiceController::class, 'downloadReceiptPdf']);
+            Route::post('/help-assistant', HelpAssistantController::class)->middleware('throttle:20,1');
             Route::get('/services', [ServicesController::class, 'index']);
             Route::get('/wallet', [WalletController::class, 'show']);
             Route::get('/wallet/transactions', [WalletController::class, 'transactions']);

@@ -23,6 +23,7 @@ class HostingControlPanelController extends Controller
 
         return response()->json([
             'overview' => [
+                'service_number' => $service->service_number,
                 'primary_domain' => $service->primary_domain,
                 'plan' => $service->hostingPlan?->name,
                 'status' => $service->status,
@@ -33,7 +34,11 @@ class HostingControlPanelController extends Controller
                 'last_synced_at' => $mapping?->last_synced_at?->toIso8601String(),
             ],
             'usage' => $snapshot ? [
+                // Files + email + databases share the package's space; these are its parts.
                 'disk_used_mb' => $snapshot->disk_used_mb,
+                'web_used_mb' => $snapshot->web_used_mb,
+                'mail_used_mb' => $snapshot->mail_used_mb,
+                'database_used_mb' => $snapshot->database_used_mb,
                 'disk_quota_mb' => $snapshot->disk_quota_mb,
                 'bandwidth_used_mb' => $snapshot->bandwidth_used_mb,
                 'bandwidth_quota_mb' => $snapshot->bandwidth_quota_mb,

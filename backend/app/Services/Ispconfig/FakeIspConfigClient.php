@@ -418,6 +418,65 @@ class FakeIspConfigClient implements IspConfigClient
         $this->diskUsageKb[(string) $domainId] = $kilobytes;
     }
 
+    /** @var array<string, int> email => bytes */
+    private array $mailUsageBytes = [];
+
+    /** @var array<string, int> database name => bytes */
+    private array $databaseUsageBytes = [];
+
+    /** @var array<string, int> domain => bytes this month */
+    private array $trafficThisMonthBytes = [];
+
+    public function setMailUsageBytes(string $email, int $bytes): void
+    {
+        $this->mailUsageBytes[$email] = $bytes;
+    }
+
+    public function setDatabaseUsageBytes(string $databaseName, int $bytes): void
+    {
+        $this->databaseUsageBytes[$databaseName] = $bytes;
+    }
+
+    public function setTrafficThisMonthBytes(string $domain, int $bytes): void
+    {
+        $this->trafficThisMonthBytes[$domain] = $bytes;
+    }
+
+    public function mailQuotaGetByUser(string $sessionId, int $clientId): array
+    {
+        $this->maybeFail('mailQuotaGetByUser', ['client_id' => $clientId]);
+
+        return array_values(array_map(
+            fn (array $user) => $user + ['used_raw' => $this->mailUsageBytes[$user['email'] ?? ''] ?? 0, 'quota_raw' => 0, 'used_percentage' => 0],
+            array_filter($this->mailUsers, fn (array $user) => (string) ($user['client_id'] ?? '') === (string) $clientId),
+        ));
+    }
+
+    public function databaseQuotaGetByUser(string $sessionId, int $clientId): array
+    {
+        $this->maybeFail('databaseQuotaGetByUser', ['client_id' => $clientId]);
+
+        return array_values(array_map(
+            fn (array $database) => $database + ['used_raw' => $this->databaseUsageBytes[$database['database_name'] ?? ''] ?? 0, 'parent_domain_id' => $database['parent_domain_id'] ?? 0],
+            array_filter($this->databases, fn (array $database) => (string) ($database['client_id'] ?? '') === (string) $clientId),
+        ));
+    }
+
+    public function trafficQuotaGetByUser(string $sessionId, int $clientId): array
+    {
+        $this->maybeFail('trafficQuotaGetByUser', ['client_id' => $clientId]);
+
+        $result = [];
+
+        foreach ($this->domains as $domain) {
+            if ((string) ($domain['client_id'] ?? '') === (string) $clientId) {
+                $result[$domain['domain']] = ['domain_id' => (string) $domain['domain_id'], 'this_month' => (string) ($this->trafficThisMonthBytes[$domain['domain']] ?? 0), 'last_month' => '0', 'this_year' => '0'];
+            }
+        }
+
+        return $result;
+    }
+
     public function quotaGetByUser(string $sessionId, int $clientId): array
     {
         $this->maybeFail('quotaGetByUser', ['client_id' => $clientId]);

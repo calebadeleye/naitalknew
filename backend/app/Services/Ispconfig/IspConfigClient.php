@@ -227,4 +227,31 @@ interface IspConfigClient
      * @return array<int, array<string, mixed>>
      */
     public function quotaGetByUser(string $sessionId, int $clientId): array;
+
+    /**
+     * Per-mailbox usage for one ISPConfig client (`mailquota_get_by_user`).
+     * Each row is the mail user record plus `used_raw` (bytes), `quota_raw`
+     * (bytes, 0 = unlimited) and `used_percentage`.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function mailQuotaGetByUser(string $sessionId, int $clientId): array;
+
+    /**
+     * Per-database usage for one ISPConfig client (`databasequota_get_by_user`).
+     * Each row is the database record plus `used_raw` (bytes);
+     * `parent_domain_id` is the website it belongs to (0 when not linked).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function databaseQuotaGetByUser(string $sessionId, int $clientId): array;
+
+    /**
+     * Web traffic per website for one ISPConfig client
+     * (`trafficquota_get_by_user`), keyed by domain name, each with
+     * `domain_id` and byte totals `this_month`, `last_month`, `this_year`.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public function trafficQuotaGetByUser(string $sessionId, int $clientId): array;
 }

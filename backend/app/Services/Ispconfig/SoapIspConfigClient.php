@@ -369,4 +369,26 @@ class SoapIspConfigClient implements IspConfigClient
 
         return is_array($result) ? array_map(fn ($row) => (array) $row, $result) : [];
     }
+
+    public function mailQuotaGetByUser(string $sessionId, int $clientId): array
+    {
+        $result = $this->call('mailquota_get_by_user', [$sessionId, $clientId]);
+
+        return is_array($result) ? array_values(array_map(fn ($row) => (array) $row, $result)) : [];
+    }
+
+    public function databaseQuotaGetByUser(string $sessionId, int $clientId): array
+    {
+        $result = $this->call('databasequota_get_by_user', [$sessionId, $clientId]);
+
+        return is_array($result) ? array_values(array_map(fn ($row) => (array) $row, $result)) : [];
+    }
+
+    public function trafficQuotaGetByUser(string $sessionId, int $clientId): array
+    {
+        // Third argument 0 = no "last N days" window; this_month/last_month/this_year are always returned.
+        $result = $this->call('trafficquota_get_by_user', [$sessionId, $clientId, 0]);
+
+        return is_array($result) ? array_map(fn ($row) => (array) $row, $result) : [];
+    }
 }

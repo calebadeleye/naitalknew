@@ -3,49 +3,15 @@
 <head>
     <meta charset="utf-8">
     <title>Invoice {{ $invoice['invoice_number'] }}</title>
-    <style>
-        body { font-family: DejaVu Sans, sans-serif; font-size: 12px; color: #1a1a1a; }
-        .header { display: table; width: 100%; margin-bottom: 0; background: #02070a; padding: 20px 24px; }
-        .header .brand { display: table-cell; vertical-align: middle; }
-        .header .brand img { height: 34px; }
-        .header .meta { display: table-cell; text-align: right; vertical-align: middle; color: #fff; }
-        h2 { font-size: 16px; text-transform: uppercase; margin: 0; color: #fff; }
-        .meta p { color: #ffffffaa; margin: 2px 0; }
-        .status { display: inline-block; margin-top: 6px; padding: 3px 10px; border-radius: 10px; font-size: 10px; font-weight: bold; text-transform: uppercase; }
-        .status.paid { background: #9bea1626; color: #9bea16; }
-        .status.unpaid { background: #ff4d4d26; color: #ff8080; }
-        .body-wrap { padding: 20px 24px; }
-        .meta-grid { display: table; width: 100%; margin-bottom: 20px; border-bottom: 1px solid #ddd; padding-bottom: 16px; }
-        .meta-grid .cell { display: table-cell; width: 25%; }
-        .meta-label { font-size: 9px; text-transform: uppercase; color: #888; }
-        .parties { display: table; width: 100%; margin-bottom: 20px; }
-        .parties .cell { display: table-cell; width: 50%; vertical-align: top; padding: 10px; border: 1px solid #eee; }
-        .parties .cell + .cell { padding-left: 20px; }
-        .party-label { font-size: 9px; text-transform: uppercase; color: #6ed414; font-weight: bold; }
-        table.items { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-        table.items th { background: #f5f5f5; text-align: left; padding: 8px; font-size: 9px; text-transform: uppercase; color: #666; }
-        table.items td { padding: 8px; border-top: 1px solid #eee; }
-        table.items th.right, table.items td.right { text-align: right; }
-        .totals { width: 40%; margin-left: 60%; }
-        .totals div { display: table; width: 100%; padding: 4px 0; }
-        .totals span:first-child { display: table-cell; color: #666; }
-        .totals span:last-child { display: table-cell; text-align: right; font-weight: bold; }
-        .totals .grand { border-top: 2px solid #9bea16; padding-top: 8px; font-size: 14px; }
-        .totals .grand span:last-child { color: #6ed414; }
-        .footer { margin-top: 30px; font-size: 9px; color: #888; border-top: 1px solid #eee; padding-top: 10px; }
-    </style>
+    @include('invoices._styles')
 </head>
 <body>
-    <div class="header">
-        <div class="brand">
-            <img src="{{ public_path('images/logo.png') }}" alt="NAI TALK">
-        </div>
-        <div class="meta">
-            <h2>Invoice</h2>
-            <p>{{ $invoice['invoice_number'] }}</p>
-            <span class="status {{ $invoice['status'] === 'paid' ? 'paid' : 'unpaid' }}">{{ $invoice['status'] }}</span>
-        </div>
-    </div>
+    @include('invoices._letterhead', [
+        'documentTitle' => 'Invoice',
+        'documentNumber' => $invoice['invoice_number'],
+        'statusLabel' => $invoice['status'],
+        'statusClass' => $invoice['status'] === 'paid' ? 'paid' : 'unpaid',
+    ])
 
     <div class="body-wrap">
     <div class="meta-grid">

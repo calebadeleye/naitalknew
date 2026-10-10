@@ -31,6 +31,17 @@ class MailboxController extends Controller
             'password' => ['required', 'string', 'min:10', 'max:255'],
         ]);
 
+        // Email shares the package's space with website files and databases,
+        // so a new mailbox can have at most the space that's left — and that's
+        // its default, rather than "unlimited".
+        $spaceLeftMb = $this->spaceLeftMb($service);
+
+        abort_if($spaceLeftMb !== null && $spaceLeftMb <= 0, 422, "Your package's storage is full. Free up some space or upgrade your plan before adding another email account.");
+
+        if ($spaceLeftMb !== null && isset($payload['quota_mb']) && $payload['quota_mb'] > $spaceLeftMb) {
+            abort(422, "That quota is more than the {$spaceLeftMb} MB left in your package. Choose {$spaceLeftMb} MB or less.");
+        }
+
         $emailAddress = $payload['username'].'@'.$service->primary_domain;
 
         abort_if(
@@ -43,7 +54,7 @@ class MailboxController extends Controller
             'hosting_service_id' => $service->id,
             'email_address' => $emailAddress,
             'display_name' => $payload['display_name'] ?? null,
-            'quota_mb' => $payload['quota_mb'] ?? 0,
+            'quota_mb' => $payload['quota_mb'] ?? ($spaceLeftMb ?? 0),
             'status' => 'provisioning',
         ]);
 
@@ -61,6 +72,12 @@ class MailboxController extends Controller
             'display_name' => ['nullable', 'string', 'max:255'],
             'quota_mb' => ['nullable', 'integer', 'min:1'],
         ]);
+
+        $packageMb = $this->packageSpaceMb($service);
+
+        if ($packageMb !== null && isset($payload['quota_mb']) && $payload['quota_mb'] > $packageMb) {
+            abort(422, "A mailbox can't be bigger than your package's {$packageMb} MB of space.");
+        }
 
         $mailbox->forceFill(['status' => 'provisioning'])->save();
 
@@ -115,5 +132,25 @@ class MailboxController extends Controller
         MailboxProvisioningActionJob::dispatch($mailbox->id, 'delete');
 
         return response()->json(['message' => 'Mailbox deletion requested.'], 202);
+    }
+
+    /** The package's total space in MB (shared by files, email and databases), or null when unlimited/unknown. */
+    private function packageSpaceMb(HostingService $service): ?int
+    {
+        $quota = (int) ($service->hostingPlan?->configuration()['disk_quota_mb'] ?? 0);
+
+        return $quota > 0 ? $quota : null;
+    }
+
+    /** Space still free in the package according to the latest usage snapshot, or null when unlimited/unknown. */
+    private function spaceLeftMb(HostingService $service): ?int
+    {
+        $packageMb = $this->packageSpaceMb($service);
+
+        if ($packageMb === null) {
+            return null;
+        }
+
+        return $packageMb - (int) ($service->latestUsageSnapshot()?->disk_used_mb ?? 0);
     }
 }

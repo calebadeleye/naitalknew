@@ -80,6 +80,70 @@ class InvoiceController extends Controller
         return $pdf->download("invoice-{$data['invoice_number']}.pdf");
     }
 
+    /**
+     * A payment receipt for everything received against an invoice so far —
+     * offered as soon as anything has been paid, so a part payment gets one
+     * too. Its total is the invoice's own amount paid (the reconciled source
+     * of truth); individual payment rows are listed under it, and anything
+     * recorded without one (e.g. an admin marking the invoice paid) is shown
+     * as a single "recorded by" line so the two always add up.
+     */
+    public function downloadReceiptPdf(Request $request, Invoice $invoice)
+    {
+        $data = $this->buildInvoiceData($request, $invoice, $invoice->order);
+
+        abort_if($invoice->amount_paid_kobo <= 0, 404, 'No payment has been received for this invoice yet.');
+
+        $payments = Payment::query()
+            ->where('invoice_id', $invoice->id)
+            ->where('status', 'paid')
+            ->orderBy('paid_at')
+            ->orderBy('id')
+            ->get();
+
+        $rows = $payments->map(fn (Payment $payment) => [
+            'date' => ($payment->paid_at ?? $payment->created_at)?->toDateString(),
+            'method' => self::PAYMENT_METHOD_LABELS[$payment->gateway] ?? ucfirst(str_replace('_', ' ', (string) $payment->gateway)),
+            'reference' => $payment->reference ?: '—',
+            'amount' => Money::naira($payment->amount_kobo),
+        ])->all();
+
+        $unlistedKobo = $invoice->amount_paid_kobo - (int) $payments->sum('amount_kobo');
+
+        if ($unlistedKobo > 0) {
+            $rows[] = [
+                'date' => $invoice->paid_at?->toDateString() ?? '—',
+                'method' => 'Recorded by '.config('company.name', 'NAI TALK'),
+                'reference' => '—',
+                'amount' => Money::naira($unlistedKobo),
+            ];
+        }
+
+        $receipt = [
+            'receipt_number' => 'RCT-'.$invoice->invoice_number,
+            'receipt_date' => ($invoice->paid_at ?? $payments->last()?->paid_at ?? now())->toDateString(),
+            'invoice_number' => $invoice->invoice_number,
+            'order_number' => $data['order_number'],
+            'from' => $data['from'],
+            'bill_to' => $data['bill_to'],
+            'line_items' => $data['line_items'],
+            'payments' => $rows,
+            'invoice_total' => $data['total'],
+            'total_received' => Money::naira($invoice->amount_paid_kobo),
+            'outstanding_amount' => $data['outstanding_amount'],
+            'paid_in_full' => $invoice->status === 'paid',
+        ];
+
+        return Pdf::loadView('invoices.receipt', ['receipt' => $receipt])->download("receipt-{$invoice->invoice_number}.pdf");
+    }
+
+    private const PAYMENT_METHOD_LABELS = [
+        'paystack' => 'Card (Paystack)',
+        'flutterwave' => 'Card (Flutterwave)',
+        'bank_transfer' => 'Bank transfer',
+        'wallet' => 'NAI TALK wallet',
+    ];
+
     private function buildInvoiceData(Request $request, Invoice $invoice, ?Order $order): array
     {
         $client = $request->user()->client;
@@ -139,6 +203,7 @@ class InvoiceController extends Controller
             'outstanding_amount' => $breakdown['outstanding_amount'],
             'outstanding_amount_kobo' => $breakdown['outstanding_amount_kobo'],
             'balance_due' => $breakdown['balance_due'],
+            'receipt_available' => $invoice->amount_paid_kobo > 0,
             'bank_transfer' => config('services.bank_transfer'),
             'bank_transfer_status' => $bankTransferPayment?->status,
             'bank_transfer_rejection_reason' => $bankTransferPayment?->gateway_payload['rejection_reason'] ?? null,

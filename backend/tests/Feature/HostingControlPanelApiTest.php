@@ -138,6 +138,44 @@ class HostingControlPanelApiTest extends TestCase
         ])->assertForbidden();
     }
 
+    public function test_a_new_mailbox_gets_at_most_the_space_left_in_the_package(): void
+    {
+        $fake = $this->fakeIspConfig();
+        $service = $this->createProvisionableHostingService(['max_email_accounts' => 5], ['status' => 'active']);
+        ProvisionHostingServiceJob::dispatch($service->id);
+        // The package has 10,240 MB; website files already use 9,240 MB of it.
+        $fake->setDiskUsageKb((int) $service->ispConfigServiceMappings()->value('ispconfig_website_id'), 9240 * 1024);
+        \App\Jobs\SyncHostingUsageSnapshotJob::dispatchSync($service->id);
+
+        Sanctum::actingAs($service->client->user, [], 'sanctum');
+
+        $this->postJson("/api/v1/client/services/{$service->id}/mailboxes", [
+            'username' => 'too-big', 'password' => 'a-strong-password', 'quota_mb' => 2048,
+        ])->assertUnprocessable()->assertJsonPath('message', 'That quota is more than the 1000 MB left in your package. Choose 1000 MB or less.');
+
+        $this->postJson("/api/v1/client/services/{$service->id}/mailboxes", [
+            'username' => 'info', 'password' => 'a-strong-password',
+        ])->assertStatus(202);
+
+        // No quota asked for: it defaults to the space left, not "unlimited".
+        $this->assertSame(1000, (int) MailboxRecord::query()->where('email_address', "info@{$service->primary_domain}")->value('quota_mb'));
+    }
+
+    public function test_no_new_mailbox_when_the_package_storage_is_full(): void
+    {
+        $fake = $this->fakeIspConfig();
+        $service = $this->createProvisionableHostingService(['max_email_accounts' => 5], ['status' => 'active']);
+        ProvisionHostingServiceJob::dispatch($service->id);
+        $fake->setDiskUsageKb((int) $service->ispConfigServiceMappings()->value('ispconfig_website_id'), 10240 * 1024);
+        \App\Jobs\SyncHostingUsageSnapshotJob::dispatchSync($service->id);
+
+        Sanctum::actingAs($service->client->user, [], 'sanctum');
+
+        $this->postJson("/api/v1/client/services/{$service->id}/mailboxes", [
+            'username' => 'info', 'password' => 'a-strong-password',
+        ])->assertUnprocessable();
+    }
+
     public function test_creating_a_mailbox_never_persists_the_plaintext_password(): void
     {
         $this->fakeIspConfig();
