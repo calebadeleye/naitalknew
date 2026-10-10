@@ -45,6 +45,18 @@ class ProvisionHostingServiceJobTest extends TestCase
         $this->assertSame(1, $websiteAddCalls);
     }
 
+    public function test_a_new_website_serves_www_by_default_not_none(): void
+    {
+        $fake = $this->fakeIspConfig();
+        $service = $this->createProvisionableHostingService();
+
+        ProvisionHostingServiceJob::dispatch($service->id);
+
+        $websiteAdd = collect($fake->calls)->firstWhere('method', 'sitesWebDomainAdd');
+
+        $this->assertSame('www', $websiteAdd['params']['subdomain'] ?? null);
+    }
+
     public function test_it_notifies_the_client_once_provisioning_succeeds_but_not_on_repeat_runs(): void
     {
         Notification::fake();

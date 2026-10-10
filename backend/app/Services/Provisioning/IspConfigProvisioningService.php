@@ -310,6 +310,11 @@ class IspConfigProvisioningService
         return [
             'server_id' => $serverId,
             'domain' => $service->primary_domain,
+            // ISPConfig's "Auto-Subdomain": 'www' makes www.<domain> serve the
+            // same site (and be covered by its SSL certificate). Left unset,
+            // ISPConfig defaults to 'none' and www.<domain> doesn't resolve
+            // to the site at all.
+            'subdomain' => 'www',
             'hd_quota' => $configuration['disk_quota_mb'],
             'traffic_quota' => $configuration['bandwidth_quota_mb'],
             'php_version' => $configuration['php_version'] ?? '8.2',
