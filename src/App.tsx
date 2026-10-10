@@ -622,13 +622,18 @@ export function Portfolio({ projects, headingLevel = "h2" }: { projects: Project
                 <X className="h-5 w-5" />
               </button>
               <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-                <img
-                  src={selectedProject.img}
-                  alt={`${selectedProject.title} project preview`}
-                  className="aspect-[16/11] w-full rounded-lg object-cover"
-                  loading="lazy"
-                  decoding="async"
-                />
+                {/* Never crop the preview: a fixed aspect box with object-cover cut
+                    off most of any tall full-page screenshot. The image keeps its
+                    own proportions; a tall one scrolls inside this frame. */}
+                <div className="project-modal-media max-h-[70vh] self-start overflow-y-auto rounded-lg bg-black/30 lg:max-h-[78vh]">
+                  <img
+                    src={selectedProject.img}
+                    alt={`${selectedProject.title} project preview`}
+                    className="block h-auto w-full"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </div>
                 <div>
                   <span className="project-tag inline-flex rounded-full border px-3 py-1 text-[11px] font-bold">
                     {selectedProject.category.split(",")[0].trim()}

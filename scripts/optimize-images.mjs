@@ -8,6 +8,8 @@
  * Usage:
  *   node scripts/optimize-images.mjs            # optimize public/data + public/uploads/admin
  *   node scripts/optimize-images.mjs --force     # re-encode even if a .webp already exists
+ *   node scripts/optimize-images.mjs --force --only=ikeestores
+ *                                                # re-encode just that /data image (skips uploads)
  */
 import sharp from "sharp";
 import fs from "fs";
@@ -15,12 +17,19 @@ import path from "path";
 import crypto from "crypto";
 
 const FORCE = process.argv.includes("--force");
+const ONLY = process.argv.find((arg) => arg.startsWith("--only="))?.slice("--only=".length) || null;
 const ROOT = process.cwd();
 const DATA_DIR = path.join(ROOT, "public", "data");
 const UPLOADS_DIR = path.join(ROOT, "public", "uploads", "admin");
 const SITE_CONTENT_PATH = path.join(ROOT, "storage", "site-content.json");
 
 const RESPONSIVE_WIDTHS = [320, 480, 800, 1200];
+
+// Images whose whole height is the point. They are shown in the portfolio
+// modal's scrollable frame, so top-cropping them (see below) silently drops
+// the bottom of the page. Listed here, not behind a flag, so a later
+// `--force` re-run can never crop them again.
+const FULL_HEIGHT_IMAGES = new Set(["ikeestores"]);
 
 function fmtKB(bytes) {
   return `${(bytes / 1024).toFixed(0)}KB`;
@@ -31,8 +40,11 @@ function fmtKB(bytes) {
  * shows the top slice via CSS object-cover. */
 async function optimizeDataImages() {
   if (!fs.existsSync(DATA_DIR)) return;
-  const files = fs.readdirSync(DATA_DIR).filter((f) => /\.(png|jpe?g)$/i.test(f));
-  console.log(`\n--- public/data (${files.length} source images) ---`);
+  const files = fs
+    .readdirSync(DATA_DIR)
+    .filter((f) => /\.(png|jpe?g)$/i.test(f))
+    .filter((f) => !ONLY || f.replace(/\.(png|jpe?g)$/i, "") === ONLY);
+  console.log(`\n--- public/data (${files.length} source images${ONLY ? `, only=${ONLY}` : ""}) ---`);
 
   for (const file of files) {
     const base = file.replace(/\.(png|jpe?g)$/i, "");
@@ -45,7 +57,7 @@ async function optimizeDataImages() {
 
     const before = fs.statSync(inputPath).size;
     const meta = await sharp(inputPath).metadata();
-    const maxH = meta.width * 3;
+    const maxH = FULL_HEIGHT_IMAGES.has(base) ? meta.height : meta.width * 3;
     const cropH = Math.min(meta.height, maxH);
     const cropped = cropH < meta.height;
 
@@ -60,7 +72,10 @@ async function optimizeDataImages() {
     fs.writeFileSync(mainOut, mainBuffer);
 
     for (const width of RESPONSIVE_WIDTHS) {
-      if (width >= targetWidth) continue; // never upscale
+      // Never upscale. A variant exactly as wide as the main image is still
+      // written: buildDataAssetSrcSet() lists -480/-800 for every /data image,
+      // so a missing -800 was a 404 on high-density screens for 800px sources.
+      if (width > targetWidth) continue;
       const variantOut = path.join(DATA_DIR, `${base}-${width}.webp`);
       if (fs.existsSync(variantOut) && !FORCE) continue;
       const buffer = await base_pipeline().resize({ width }).webp({ quality: 68 }).toBuffer();
@@ -177,5 +192,9 @@ async function optimizeUploads() {
 }
 
 await optimizeDataImages();
-await optimizeUploads();
+if (ONLY) {
+  console.log("\n(--only given: skipped public/uploads/admin and storage/site-content.json)");
+} else {
+  await optimizeUploads();
+}
 console.log("\nDone. Original files were kept in place -- nothing was deleted.");
