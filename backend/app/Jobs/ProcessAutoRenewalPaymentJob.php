@@ -48,7 +48,7 @@ class ProcessAutoRenewalPaymentJob implements ShouldQueue
         Invoice::query()
             ->whereNull('order_id')
             ->whereIn('status', ['unpaid', 'partially_paid'])
-            ->whereHas('hostingService', fn ($query) => $query->where('auto_renew_enabled', true)->where('plan_type', '!=', 'legacy'))
+            ->whereHas('hostingService', fn ($query) => $query->subjectToLifecycle()->where('auto_renew_enabled', true)->where('plan_type', '!=', 'legacy'))
             ->with(['hostingService.client.user'])
             ->get()
             ->each(fn (Invoice $invoice) => $this->attempt($invoice, $walletService, $savedMethods, $chargeService, $reconciler, $notifier));

@@ -25,6 +25,7 @@ class DeleteExpiredIspconfigWebsiteJob implements ShouldQueue
     public function handle(IspconfigWebsiteStatusService $websiteStatus): void
     {
         HostingService::query()
+            ->subjectToLifecycle()
             ->where('status', 'suspended')
             ->whereNotNull('scheduled_deletion_at')
             ->whereDate('scheduled_deletion_at', '<=', now()->toDateString())

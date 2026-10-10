@@ -30,6 +30,8 @@ class HostingService extends Model
         'expires_at',
         'suspended_at',
         'auto_renew_enabled',
+        'lifecycle_exempt',
+        'lifecycle_exempt_reason',
         'provisioning_status',
         'ispconfig_server_id',
         'ispconfig_site_id',
@@ -81,6 +83,7 @@ class HostingService extends Model
             'expires_at' => 'date',
             'suspended_at' => 'date',
             'auto_renew_enabled' => 'boolean',
+            'lifecycle_exempt' => 'boolean',
             'provisioning_override_approved_at' => 'datetime',
             'provisioning_payload' => 'array',
             'imported_at' => 'datetime',
@@ -179,5 +182,16 @@ class HostingService extends Model
     public function domainOrders(): HasMany
     {
         return $this->hasMany(DomainOrder::class);
+    }
+
+    /**
+     * Services the automatic billing lifecycle may act on: excludes the ones
+     * flagged lifecycle_exempt (NAI TALK's own sites, complimentary hosting),
+     * which must never be invoiced, charged, reminded, expired, suspended or
+     * deleted automatically. See `php artisan hosting:lifecycle-exempt`.
+     */
+    public function scopeSubjectToLifecycle($query)
+    {
+        return $query->where('lifecycle_exempt', false);
     }
 }

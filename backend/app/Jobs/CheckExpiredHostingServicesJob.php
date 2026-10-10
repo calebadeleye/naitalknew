@@ -23,6 +23,7 @@ class CheckExpiredHostingServicesJob implements ShouldQueue
     public function handle(ClientNotifier $notifier): void
     {
         HostingService::query()
+            ->subjectToLifecycle()
             ->where('status', 'active')
             ->whereNotNull('renews_at')
             ->whereDate('renews_at', '<', now()->toDateString())

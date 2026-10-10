@@ -23,6 +23,7 @@ class GenerateRenewalInvoiceJob implements ShouldQueue
         $targetDate = now()->addDays($leadDays)->toDateString();
 
         HostingService::query()
+            ->subjectToLifecycle()
             ->where('status', 'active')
             ->where('auto_renew_enabled', true)
             ->where('plan_type', '!=', 'legacy')

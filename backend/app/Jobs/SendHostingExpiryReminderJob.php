@@ -40,6 +40,7 @@ class SendHostingExpiryReminderJob implements ShouldQueue
         $targetDate = now()->addDays($days)->toDateString();
 
         HostingService::query()
+            ->subjectToLifecycle()
             ->where('status', 'active')
             ->whereDate('renews_at', $targetDate)
             ->get()
@@ -64,6 +65,7 @@ class SendHostingExpiryReminderJob implements ShouldQueue
         $targetDate = now()->addDays($days)->toDateString();
 
         HostingService::query()
+            ->subjectToLifecycle()
             ->where('status', 'suspended')
             ->whereNotNull('scheduled_deletion_at')
             ->whereDate('scheduled_deletion_at', $targetDate)

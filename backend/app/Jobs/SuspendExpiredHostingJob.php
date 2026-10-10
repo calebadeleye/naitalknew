@@ -20,6 +20,7 @@ class SuspendExpiredHostingJob implements ShouldQueue
     public function handle(): void
     {
         HostingService::query()
+            ->subjectToLifecycle()
             ->whereIn('status', ['expired', 'grace_period'])
             ->whereNotNull('grace_period_ends_at')
             ->whereDate('grace_period_ends_at', '<=', now()->toDateString())

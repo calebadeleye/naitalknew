@@ -204,4 +204,72 @@ class HostingExpiryPipelineTest extends TestCase
         $this->assertNotNull($client, 'Client account must remain after hosting is deleted from ISPConfig.');
         $this->assertNull($client->deleted_at);
     }
+
+    public function test_an_exempt_service_past_its_renewal_date_is_never_expired_while_a_normal_one_is(): void
+    {
+        $normal = $this->createProvisionableHostingService([], ['status' => 'active', 'renews_at' => now()->subDays(30)->toDateString()]);
+        $exempt = $this->createProvisionableHostingService([], ['status' => 'active', 'renews_at' => now()->subDays(30)->toDateString()]);
+        $exempt->forceFill(['lifecycle_exempt' => true, 'lifecycle_exempt_reason' => 'NAI TALK own website'])->save();
+
+        $this->app->call([new CheckExpiredHostingServicesJob, 'handle']);
+
+        $this->assertSame('expired', $normal->fresh()->status);
+        $this->assertSame('active', $exempt->fresh()->status);
+    }
+
+    public function test_an_exempt_service_is_never_suspended_or_deleted(): void
+    {
+        $fake = $this->fakeIspConfig();
+        $suspendable = $this->createProvisionableHostingService();
+        $deletable = $this->createProvisionableHostingService();
+        \App\Jobs\ProvisionHostingServiceJob::dispatch($suspendable->id);
+        \App\Jobs\ProvisionHostingServiceJob::dispatch($deletable->id);
+
+        $suspendable->forceFill(['status' => 'expired', 'grace_period_ends_at' => now()->subDay()->toDateString(), 'lifecycle_exempt' => true])->save();
+        $deletable->forceFill(['status' => 'suspended', 'scheduled_deletion_at' => now()->toDateString(), 'lifecycle_exempt' => true])->save();
+        NotificationLog::query()->create([
+            'client_id' => $deletable->client_id, 'hosting_service_id' => $deletable->id, 'channel' => 'mail',
+            'template' => 'hosting_final_warning_1d', 'subject' => 'Final Notice', 'recipient' => 'client@example.test',
+            'status' => 'sent', 'sent_at' => now()->subDay(),
+        ]);
+
+        $this->app->call([new SuspendExpiredHostingJob, 'handle']);
+        $this->app->call([new DeleteExpiredIspconfigWebsiteJob, 'handle']);
+
+        $this->assertSame('expired', $suspendable->fresh()->status);
+        $this->assertSame('suspended', $deletable->fresh()->status);
+        $this->assertNull(collect($fake->calls)->first(fn ($call) => $call['method'] === 'sitesWebDomainDelete'));
+    }
+
+    public function test_an_exempt_service_gets_no_renewal_invoice_or_reminder(): void
+    {
+        $exempt = $this->createProvisionableHostingService([], [
+            'status' => 'active', 'auto_renew_enabled' => true, 'renews_at' => now()->addDays(7)->toDateString(),
+        ]);
+        $exempt->forceFill(['lifecycle_exempt' => true])->save();
+
+        $this->app->call([new \App\Jobs\GenerateRenewalInvoiceJob, 'handle']);
+        $this->app->call([new SendHostingExpiryReminderJob, 'handle']);
+
+        $this->assertSame(0, Invoice::query()->where('hosting_service_id', $exempt->id)->count());
+        $this->assertSame(0, NotificationLog::query()->where('hosting_service_id', $exempt->id)->count());
+    }
+
+    public function test_the_exempt_command_sets_and_undoes_the_flag_and_needs_a_reason(): void
+    {
+        $service = $this->createProvisionableHostingService([], ['primary_domain' => 'own-site.test']);
+
+        $this->artisan('hosting:lifecycle-exempt', ['domains' => ['own-site.test']])->assertFailed();
+        $this->artisan('hosting:lifecycle-exempt', ['domains' => ['own-site.test'], '--reason' => 'NAI TALK own website', '--dry-run' => true])->assertSuccessful();
+        $this->assertFalse($service->fresh()->lifecycle_exempt);
+
+        $this->artisan('hosting:lifecycle-exempt', ['domains' => ['own-site.test'], '--reason' => 'NAI TALK own website'])->assertSuccessful();
+        $this->assertTrue($service->fresh()->lifecycle_exempt);
+        $this->assertSame('NAI TALK own website', $service->fresh()->lifecycle_exempt_reason);
+
+        $this->artisan('hosting:lifecycle-exempt', ['domains' => ['own-site.test'], '--undo' => true])->assertSuccessful();
+        $this->assertFalse($service->fresh()->lifecycle_exempt);
+
+        $this->artisan('hosting:lifecycle-exempt', ['domains' => ['no-such-site.test'], '--reason' => 'x'])->assertFailed();
+    }
 }
