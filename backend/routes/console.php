@@ -8,6 +8,7 @@ use App\Jobs\DetectOrphanedIspConfigClientsJob;
 use App\Jobs\GenerateRenewalInvoiceJob;
 use App\Jobs\ProcessAutoRenewalPaymentJob;
 use App\Jobs\RenewDomainJob;
+use App\Jobs\RepairWebsiteProxiesJob;
 use App\Jobs\SendDomainExpiryReminderJob;
 use App\Jobs\SendHostingExpiryReminderJob;
 use App\Jobs\SuspendExpiredHostingJob;
@@ -34,6 +35,10 @@ Schedule::job(new DetectOrphanedIspConfigClientsJob)->dailyAt('02:00');
 Schedule::job(new DetectMissingIspConfigResourcesJob)->dailyAt('02:30');
 
 Schedule::job(new SyncHostingUsageSnapshotJob)->hourly();
+
+// Client-run apps (reverse proxy): put a vanished proxy rule back and alert the
+// client when their app stops answering. Cheap — one ISPConfig read per proxied site.
+Schedule::job(new RepairWebsiteProxiesJob)->everyTenMinutes();
 Schedule::job(new SyncMailboxesJob)->everySixHours();
 Schedule::job(new SyncDatabasesJob)->everySixHours();
 Schedule::job(new SyncFtpAccountsJob)->everySixHours();

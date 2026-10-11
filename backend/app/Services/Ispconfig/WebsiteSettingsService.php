@@ -33,6 +33,7 @@ class WebsiteSettingsService
     public function __construct(
         private readonly IspConfigClient $ispConfig,
         private readonly LiveCertificateChecker $certificateChecker = new LiveCertificateChecker,
+        private readonly ProxyPortProbe $proxyProbe = new ProxyPortProbe,
     ) {}
 
     /**
@@ -109,8 +110,9 @@ class WebsiteSettingsService
         if ($port !== null) {
             $taken = HostingService::query()
                 ->where('id', '!=', $service->id)
-                ->where('website_reverse_proxy_enabled', true)
-                ->where('website_reverse_proxy_port', $port)
+                ->where(fn ($query) => $query
+                    ->where(fn ($live) => $live->where('website_reverse_proxy_enabled', true)->where('website_reverse_proxy_port', $port))
+                    ->orWhere('website_proxy_desired_port', $port))
                 ->exists();
 
             if ($taken) {
@@ -133,12 +135,75 @@ class WebsiteSettingsService
                 'apache_directives' => trim($newDirectives),
             ]);
 
+            // Remember what was ASKED for. The cache columns below mirror
+            // whatever ISPConfig currently says; this is the one that survives
+            // the rule vanishing, which is what makes repair possible.
+            $service->forceFill(['website_proxy_desired_port' => $port])->save();
+
             $site = $this->getSite($service, $sessionId);
 
             return $this->cache($service, $site);
         } finally {
             $this->ispConfig->logout($sessionId);
         }
+    }
+
+    /**
+     * Checks that a proxied site is really being served by its app, and
+     * optionally puts the proxy rule back when it has gone missing.
+     *
+     * Without the rule Apache falls back to serving the raw files in the web
+     * folder — a broken page for visitors and, worse, the app's source — so a
+     * missing rule is fixed without waiting for anyone to notice.
+     *
+     * @return array{status: string, port: ?int, repaired: bool}
+     *                                                          status: not_configured | suspended | ok | rule_missing | app_down
+     */
+    public function proxyStatus(HostingService $service, bool $repair = false): array
+    {
+        $desired = $service->website_proxy_desired_port;
+
+        if (! $desired) {
+            return ['status' => 'not_configured', 'port' => null, 'repaired' => false];
+        }
+
+        // A suspended site is deliberately redirected elsewhere — leave it alone.
+        if ($service->status !== 'active') {
+            return ['status' => 'suspended', 'port' => (int) $desired, 'repaired' => false];
+        }
+
+        $sessionId = $this->ispConfig->login();
+
+        try {
+            $site = $this->getSite($service, $sessionId);
+        } finally {
+            $this->ispConfig->logout($sessionId);
+        }
+
+        $status = self::proxyHealth((int) $desired, self::proxyFromSite($site['apache_directives'] ?? null), $this->proxyProbe);
+        $repaired = false;
+
+        if ($status === 'rule_missing' && $repair) {
+            $this->setProxy($service, (int) $desired);
+            $repaired = true;
+            $status = $this->proxyProbe->isListening((int) $desired) ? 'ok' : 'app_down';
+        }
+
+        $service->forceFill(['website_proxy_health' => $status, 'website_proxy_checked_at' => now()])->save();
+
+        return ['status' => $status, 'port' => (int) $desired, 'repaired' => $repaired];
+    }
+
+    /**
+     * @param  array{enabled: bool, port: ?int}  $live  the proxy rule ISPConfig currently has
+     */
+    public static function proxyHealth(int $desiredPort, array $live, ProxyPortProbe $probe): string
+    {
+        if (! $live['enabled'] || $live['port'] !== $desiredPort) {
+            return 'rule_missing';
+        }
+
+        return $probe->isListening($desiredPort) ? 'ok' : 'app_down';
     }
 
     /**
@@ -202,9 +267,13 @@ class WebsiteSettingsService
         $sslExpiresAt = $certificate['expires_at'];
         $sslMode = self::sslModeFromSite($site, $service->website_ssl_mode);
         $proxy = self::proxyFromSite($site['apache_directives'] ?? null);
+        $desiredPort = $service->website_proxy_desired_port ? (int) $service->website_proxy_desired_port : null;
+        $proxyHealth = $desiredPort && $service->status === 'active' ? self::proxyHealth($desiredPort, $proxy, $this->proxyProbe) : null;
         $syncedAt = now();
 
         $service->forceFill([
+            'website_proxy_health' => $proxyHealth,
+            'website_proxy_checked_at' => $desiredPort ? $syncedAt : $service->website_proxy_checked_at,
             'website_php_enabled' => $phpEnabled,
             'website_ssl_active' => $sslActive,
             'website_ssl_expires_at' => $sslExpiresAt,
@@ -222,7 +291,10 @@ class WebsiteSettingsService
                 'active' => $sslActive,
                 'domain' => $site['domain'] ?? $service->primary_domain,
             ],
-            'proxy' => $proxy,
+            // `desired_port`/`health` only when the client asked for a proxy:
+            // health is rule_missing (the site is showing raw files), app_down
+            // (rule fine, nothing answering on the port) or ok.
+            'proxy' => $proxy + ['desired_port' => $desiredPort, 'health' => $proxyHealth],
             'synced_at' => $syncedAt->toIso8601String(),
         ];
     }

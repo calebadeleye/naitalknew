@@ -95,6 +95,23 @@ class WebsiteSettingsController extends Controller
     }
 
     /**
+     * "Repair connection": re-applies the proxy the client set up. Same code
+     * path as saving it themselves, so it can't do anything their own save
+     * couldn't — it just remembers the port they chose.
+     */
+    public function repairProxy(Request $request, HostingService $service, WebsiteSettingsService $settings)
+    {
+        $this->authorize('manage', $service);
+
+        abort_if(! $service->website_proxy_desired_port, 422, 'No reverse proxy has been set up for this website, so there is nothing to repair.');
+        abort_if($service->status !== 'active', 422, 'This website is not active, so its connection cannot be repaired.');
+
+        $result = $this->attempt($service, fn () => $settings->setProxy($service, (int) $service->website_proxy_desired_port), 'repair_website_proxy', $request);
+
+        return response()->json($result);
+    }
+
+    /**
      * Runs a settings mutation/read, translating ISPConfig failures into a
      * plain 422 and logging every write (never the read) to the audit trail
      * and provisioning log, the same way every other client-facing hosting

@@ -182,6 +182,7 @@ Route::prefix('v1')->group(function (): void {
                     Route::post('/website/ssl/custom', [WebsiteSettingsController::class, 'installCustomSsl'])->middleware('throttle:hosting-resource-create');
                     Route::delete('/website/ssl', [WebsiteSettingsController::class, 'disableSsl'])->middleware('throttle:hosting-manual-sync');
                     Route::put('/website/proxy', [WebsiteSettingsController::class, 'updateProxy'])->middleware('throttle:hosting-manual-sync');
+                    Route::post('/website/proxy/repair', [WebsiteSettingsController::class, 'repairProxy'])->middleware('throttle:hosting-manual-sync');
 
                     Route::get('/files', [FileManagerController::class, 'index']);
                     Route::post('/files/upload', [FileManagerController::class, 'upload'])->middleware('throttle:hosting-resource-create');

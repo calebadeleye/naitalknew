@@ -333,7 +333,14 @@ export type FileManagerEntry = {
 export type WebsiteSettings = {
   php: { enabled: boolean };
   ssl: { enabled: boolean; mode: "free" | "custom" | null; active: boolean; domain: string | null };
-  proxy: { enabled: boolean; port: number | null };
+  proxy: {
+    enabled: boolean;
+    port: number | null;
+    /** Port the client asked for — remembered even if the rule later vanishes. Null when no proxy was set up. */
+    desired_port?: number | null;
+    /** rule_missing: visitors see the raw files instead of the app. app_down: connected, but nothing answers on the port. */
+    health?: "ok" | "rule_missing" | "app_down" | null;
+  };
   synced_at: string;
 };
 
@@ -452,7 +459,7 @@ export function HostingManagePanel({
     try {
       const settings = await laravelApi<WebsiteSettings>(`${base}/website`, token);
       setWebsiteSettings(settings);
-      setProxyPortInput(settings.proxy.port ? String(settings.proxy.port) : "");
+      setProxyPortInput((settings.proxy.port ?? settings.proxy.desired_port) ? String(settings.proxy.port ?? settings.proxy.desired_port) : "");
     } catch (error) {
       toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not load website settings." });
     } finally {
@@ -472,7 +479,7 @@ export function HostingManagePanel({
     try {
       const settings = await laravelApi<WebsiteSettings>(path, token, options);
       setWebsiteSettings(settings);
-      setProxyPortInput(settings.proxy.port ? String(settings.proxy.port) : "");
+      setProxyPortInput((settings.proxy.port ?? settings.proxy.desired_port) ? String(settings.proxy.port ?? settings.proxy.desired_port) : "");
       toast.push({ type: "success", message: successMessage });
     } catch (error) {
       toast.push({ type: "error", message: error instanceof Error ? error.message : "That did not work. Please try again." });
@@ -480,6 +487,11 @@ export function HostingManagePanel({
       setIsSavingWebsite(false);
     }
   };
+
+  // Banner at the top of the Website tab: a site whose app connection is broken is
+  // the most urgent thing on the page, so it must not hide inside the Advanced box.
+  const handleRepairConnection = () =>
+    void runWebsiteAction(`${base}/website/proxy/repair`, { method: "POST" }, "Connection repaired — your website is being served by your app again.");
 
   const loadSoftware = React.useCallback(async () => {
     setIsLoadingSoftware(true);
@@ -1350,6 +1362,30 @@ export function HostingManagePanel({
                 </div>
               ) : websiteSettings ? (
                 <div className="mt-5 grid gap-4">
+                  {websiteSettings.proxy.health === "rule_missing" && (
+                    <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-100" role="alert">
+                      <p className="font-black">Your website isn't reaching your app</p>
+                      <p className="mt-1 text-xs leading-5 text-red-100/80">
+                        The setting that connects your domain to your app on port {websiteSettings.proxy.desired_port} has gone missing, so visitors see an error page instead of your site.
+                        Repair it now — it takes a few seconds.
+                      </p>
+                      <button type="button" className="btn-primary mt-3 !min-h-9 !text-[11px]" disabled={isSavingWebsite} onClick={handleRepairConnection}>
+                        {isSavingWebsite ? "Repairing..." : "Repair connection"}
+                      </button>
+                    </div>
+                  )}
+                  {websiteSettings.proxy.health === "app_down" && (
+                    <div className="rounded-lg border border-yellow-500/40 bg-yellow-500/10 p-4 text-sm text-yellow-100" role="alert">
+                      <p className="font-black">Your app isn't answering</p>
+                      <p className="mt-1 text-xs leading-5 text-yellow-100/80">
+                        The connection to your app on port {websiteSettings.proxy.desired_port} is set up correctly, but nothing is running there, so visitors can't reach your site.
+                        Restart your application (for example over SSH), then check again — your site comes back on its own.
+                      </p>
+                      <button type="button" className="btn-outline mt-3 !min-h-9 !text-[11px]" disabled={isLoadingWebsite} onClick={() => void loadWebsite()}>
+                        Check again
+                      </button>
+                    </div>
+                  )}
                   <div className="client-service-row !items-start">
                     <div className="row-icon"><Code2 className="h-4 w-4" /></div>
                     <div className="min-w-0 flex-1">
@@ -1438,9 +1474,10 @@ export function HostingManagePanel({
                       <button type="button" className="btn-outline self-end" disabled={isSavingWebsite} onClick={handleSaveProxy}>
                         Save
                       </button>
-                      {websiteSettings.proxy.enabled && (
+                      {websiteSettings.proxy.enabled && websiteSettings.proxy.health !== "app_down" && (
                         <span className="status-pill paid self-end">Proxying to port {websiteSettings.proxy.port}</span>
                       )}
+                      {websiteSettings.proxy.health === "app_down" && <span className="status-pill failed self-end">App not responding</span>}
                     </div>
                   </div>
 
