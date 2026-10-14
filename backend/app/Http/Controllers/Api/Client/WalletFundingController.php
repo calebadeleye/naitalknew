@@ -6,6 +6,7 @@ use App\Exceptions\PaymentGatewayException;
 use App\Http\Controllers\Controller;
 use App\Models\Payment;
 use App\Services\Payments\FlutterwaveGateway;
+use App\Services\Payments\PaymentMethodSettings;
 use App\Services\Payments\PaystackGateway;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -20,6 +21,7 @@ class WalletFundingController extends Controller
 {
     public function paystack(Request $request, PaystackGateway $gateway)
     {
+        abort_unless(app(PaymentMethodSettings::class)->isAvailable('paystack'), 422, 'That payment method is not available at the moment. Please choose another one.');
         $payload = $request->validate(['amount_kobo' => ['required', 'integer', 'min:100']]);
         $client = $request->user()->client;
 
@@ -50,6 +52,7 @@ class WalletFundingController extends Controller
 
     public function flutterwave(Request $request, FlutterwaveGateway $gateway)
     {
+        abort_unless(app(PaymentMethodSettings::class)->isAvailable('flutterwave'), 422, 'That payment method is not available at the moment. Please choose another one.');
         $payload = $request->validate(['amount_kobo' => ['required', 'integer', 'min:100']]);
         $client = $request->user()->client;
 

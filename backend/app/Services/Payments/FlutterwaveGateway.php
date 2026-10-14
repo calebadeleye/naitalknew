@@ -7,9 +7,13 @@ use Illuminate\Support\Facades\Http;
 
 class FlutterwaveGateway
 {
+    public function __construct(private readonly PaymentMethodSettings $settings = new PaymentMethodSettings)
+    {
+    }
+
     public function initialize(string $email, string $name, int $amountKobo, string $reference, string $redirectUrl): array
     {
-        $response = Http::withToken((string) config('services.flutterwave.secret_key'))
+        $response = Http::withToken((string) $this->settings->value('flutterwave', 'secret_key'))
             ->baseUrl('https://api.flutterwave.com/v3')
             ->post('/payments', [
                 'tx_ref' => $reference,
@@ -36,7 +40,7 @@ class FlutterwaveGateway
 
     public function verify(string $reference): array
     {
-        $response = Http::withToken((string) config('services.flutterwave.secret_key'))
+        $response = Http::withToken((string) $this->settings->value('flutterwave', 'secret_key'))
             ->baseUrl('https://api.flutterwave.com/v3')
             ->get('/transactions/verify_by_reference', ['tx_ref' => $reference]);
 
@@ -62,7 +66,7 @@ class FlutterwaveGateway
      */
     public function chargeToken(string $token, int $amountKobo, string $reference, string $email): array
     {
-        $response = Http::withToken((string) config('services.flutterwave.secret_key'))
+        $response = Http::withToken((string) $this->settings->value('flutterwave', 'secret_key'))
             ->baseUrl('https://api.flutterwave.com/v3')
             ->post('/tokenized-charges', [
                 'token' => $token,
@@ -89,7 +93,7 @@ class FlutterwaveGateway
 
     public function verifyWebhookSignature(?string $signature): bool
     {
-        $expected = config('services.flutterwave.webhook_hash');
+        $expected = $this->settings->value('flutterwave', 'webhook_hash');
 
         if (! $expected || ! $signature) {
             return false;

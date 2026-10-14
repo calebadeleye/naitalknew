@@ -115,12 +115,16 @@ class SavedPaymentMethodService
      */
     public function defaultAutoRenewalMethod(Client $client): ?SavedPaymentMethod
     {
+        $settings = app(PaymentMethodSettings::class);
+
+        // A card saved on a gateway the admin has switched off is never charged.
         return SavedPaymentMethod::query()
             ->where('client_id', $client->id)
             ->where('is_active', true)
             ->where('use_for_auto_renewal', true)
             ->orderByDesc('is_default')
             ->orderByDesc('created_at')
-            ->first();
+            ->get()
+            ->first(fn (SavedPaymentMethod $method) => $settings->isAvailable($method->payment_provider));
     }
 }

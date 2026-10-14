@@ -116,6 +116,7 @@ import { Logo, Navbar, Footer, FloatingWhatsApp, SectionHeader, socialLinks, pay
 import { ClientHelpAssistant, OPEN_HELP_ASSISTANT_EVENT } from "../components/ClientHelpAssistant";
 import { TermsAgreement } from "../components/TermsAgreement";
 import { ClientSupportPage } from "../support/ClientSupportPage";
+import { isGateway, usePaymentOptions, type PaymentGatewayId } from "../shared/paymentOptions";
 import { PublicPage, PublicBreadcrumbs, usePublicImage, MarketingHero, MarketingCtaBand, FaqAccordionItem, FaqAccordionGroup } from "../shared/marketingWidgets";
 import { goToDomainCheckout, DomainPromoBadge, TldPriceCard, DomainFeatureItem, DomainSearchBar, DomainSearchSection, DomainGlobeIllustration } from "../shared/domainWidgets";
 import type { DomainFeature, PublicTldPricingRow } from "../shared/domainWidgets";
@@ -1864,7 +1865,7 @@ export function PaymentOptionsPanel({
   outstandingKobo: number;
   walletMode: "split" | "full-only";
   isInitiatingPayment: boolean;
-  onPayWithGateway: (invoiceNumber: string, gateway: "paystack" | "flutterwave") => Promise<void>;
+  onPayWithGateway: (invoiceNumber: string, gateway: PaymentGatewayId) => Promise<void>;
   onPayByBankTransfer: (invoiceNumber: string) => Promise<void>;
   toast: ReturnType<typeof useToast>;
   onPaid: () => void;
@@ -1921,7 +1922,9 @@ export function PaymentOptionsPanel({
     }
   };
 
-  const activeMethods = methods.filter((method) => method.is_active);
+  const paymentOptions = usePaymentOptions(token);
+  // Saved cards only work while the gateway they were saved on is switched on.
+  const activeMethods = methods.filter((method) => method.is_active && paymentOptions?.some((option) => option.method === method.payment_provider));
   const walletCoversFull = Boolean(wallet && wallet.balance_kobo >= outstandingKobo);
   const walletInsufficient = Boolean(wallet && wallet.balance_kobo > 0 && wallet.balance_kobo < outstandingKobo);
 
@@ -1970,30 +1973,40 @@ export function PaymentOptionsPanel({
         </button>
       ))}
 
-      <button
-        type="button"
-        className="btn-primary justify-center !min-h-9 !px-3 !py-1.5 !text-[11px]"
-        disabled={isInitiatingPayment}
-        onClick={() => void onPayWithGateway(invoiceNumber, "paystack")}
-      >
-        Pay with Paystack
-      </button>
-      <button
-        type="button"
-        className="btn-primary justify-center !min-h-9 !px-3 !py-1.5 !text-[11px]"
-        disabled={isInitiatingPayment}
-        onClick={() => void onPayWithGateway(invoiceNumber, "flutterwave")}
-      >
-        Pay with Flutterwave
-      </button>
-      <button
-        type="button"
-        className="btn-outline justify-center !min-h-9 !px-3 !py-1.5 !text-[11px]"
-        disabled={isInitiatingPayment}
-        onClick={() => void onPayByBankTransfer(invoiceNumber)}
-      >
-        Pay by Bank Transfer / Upload Proof
-      </button>
+      {paymentOptions === null && (
+        <div className="flex items-center justify-center gap-2 py-2 text-[11px] text-white/45">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading payment options...
+        </div>
+      )}
+
+      {paymentOptions?.map((option) =>
+        isGateway(option.method) ? (
+          <button
+            key={option.method}
+            type="button"
+            className="btn-primary justify-center !min-h-9 !px-3 !py-1.5 !text-[11px]"
+            disabled={isInitiatingPayment}
+            onClick={() => void onPayWithGateway(invoiceNumber, option.method as PaymentGatewayId)}
+          >
+            Pay with {option.label}
+            {option.currency !== "NGN" && <span className="font-normal opacity-70"> (charged in {option.currency})</span>}
+          </button>
+        ) : (
+          <button
+            key={option.method}
+            type="button"
+            className="btn-outline justify-center !min-h-9 !px-3 !py-1.5 !text-[11px]"
+            disabled={isInitiatingPayment}
+            onClick={() => void onPayByBankTransfer(invoiceNumber)}
+          >
+            Pay by Bank Transfer / Upload Proof
+          </button>
+        ),
+      )}
+
+      {paymentOptions?.length === 0 && !(wallet && wallet.balance_kobo > 0) && (
+        <p className="text-center text-[11px] text-white/55">Online payment isn't available right now. Please contact support to pay this invoice.</p>
+      )}
     </div>
   );
 }
@@ -2017,7 +2030,7 @@ export function ClientInvoicePage({
   toast: ReturnType<typeof useToast>;
   isInitiatingPayment: boolean;
   bankTransferInfo: BankTransferDetails | null;
-  onPayWithGateway: (invoiceNumber: string, gateway: "paystack" | "flutterwave") => Promise<void>;
+  onPayWithGateway: (invoiceNumber: string, gateway: PaymentGatewayId) => Promise<void>;
   onPayByBankTransfer: (invoiceNumber: string) => Promise<void>;
   onResetBankTransfer: () => void;
 }) {
@@ -2417,7 +2430,7 @@ export function ClientWalletPage({ token, toast }: { token: string; toast: Retur
   const [wallet, setWallet] = useState<WalletSummary | null>(null);
   const [transactions, setTransactions] = useState<WalletTransactionRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isFunding, setIsFunding] = useState<"paystack" | "flutterwave" | null>(null);
+  const [isFunding, setIsFunding] = useState<PaymentGatewayId | null>(null);
   const [fundAmount, setFundAmount] = useState("5000");
 
   const loadWallet = React.useCallback(() => {
@@ -2439,7 +2452,10 @@ export function ClientWalletPage({ token, toast }: { token: string; toast: Retur
     void loadWallet();
   }, [loadWallet]);
 
-  const fundWallet = async (gateway: "paystack" | "flutterwave") => {
+  const paymentOptions = usePaymentOptions(token);
+  const fundingGateways = (paymentOptions ?? []).filter((option) => option.method === "paystack" || option.method === "flutterwave");
+
+  const fundWallet = async (gateway: PaymentGatewayId) => {
     const amountNaira = Number(fundAmount);
     if (!amountNaira || amountNaira <= 0) {
       toast.push({ type: "error", message: "Enter a valid amount to fund." });
@@ -2482,22 +2498,21 @@ export function ClientWalletPage({ token, toast }: { token: string; toast: Retur
               />
             </label>
             <div className="mt-3 grid gap-2">
-              <button
-                type="button"
-                className="btn-primary justify-center !min-h-9 !px-3 !py-1.5 !text-[11px]"
-                disabled={isFunding !== null}
-                onClick={() => void fundWallet("paystack")}
-              >
-                {isFunding === "paystack" ? "Redirecting..." : "Fund with Paystack"}
-              </button>
-              <button
-                type="button"
-                className="btn-outline justify-center !min-h-9 !px-3 !py-1.5 !text-[11px]"
-                disabled={isFunding !== null}
-                onClick={() => void fundWallet("flutterwave")}
-              >
-                {isFunding === "flutterwave" ? "Redirecting..." : "Fund with Flutterwave"}
-              </button>
+              {/* Wallet top-ups are taken in Naira, through Paystack or Flutterwave only. */}
+              {fundingGateways.map((option, index) => (
+                <button
+                  key={option.method}
+                  type="button"
+                  className={`${index === 0 ? "btn-primary" : "btn-outline"} justify-center !min-h-9 !px-3 !py-1.5 !text-[11px]`}
+                  disabled={isFunding !== null}
+                  onClick={() => void fundWallet(option.method as PaymentGatewayId)}
+                >
+                  {isFunding === option.method ? "Redirecting..." : `Fund with ${option.label}`}
+                </button>
+              ))}
+              {paymentOptions !== null && fundingGateways.length === 0 && (
+                <p className="text-[11px] text-white/55">Online wallet funding isn't available right now.</p>
+              )}
             </div>
           </div>
         </div>
@@ -2867,7 +2882,7 @@ export function DomainOnlyCheckoutPage({
   navigate: (path: string) => void;
   toast: ReturnType<typeof useToast>;
   isInitiatingPayment: boolean;
-  onPayWithGateway: (invoiceNumber: string, gateway: "paystack" | "flutterwave") => Promise<void>;
+  onPayWithGateway: (invoiceNumber: string, gateway: PaymentGatewayId) => Promise<void>;
   onPayByBankTransfer: (invoiceNumber: string) => Promise<void>;
 }) {
   const [order, setOrder] = useState<DomainCheckoutResult | null>(null);
@@ -2956,7 +2971,7 @@ export function DomainTransferPage({
   navigate: (path: string) => void;
   toast: ReturnType<typeof useToast>;
   isInitiatingPayment: boolean;
-  onPayWithGateway: (invoiceNumber: string, gateway: "paystack" | "flutterwave") => Promise<void>;
+  onPayWithGateway: (invoiceNumber: string, gateway: PaymentGatewayId) => Promise<void>;
   onPayByBankTransfer: (invoiceNumber: string) => Promise<void>;
 }) {
   const [domainName, setDomainName] = useState("");
@@ -3354,7 +3369,7 @@ export function DomainAddHostingPage({
   navigate: (path: string) => void;
   toast: ReturnType<typeof useToast>;
   isInitiatingPayment: boolean;
-  onPayWithGateway: (invoiceNumber: string, gateway: "paystack" | "flutterwave") => Promise<void>;
+  onPayWithGateway: (invoiceNumber: string, gateway: PaymentGatewayId) => Promise<void>;
   onPayByBankTransfer: (invoiceNumber: string) => Promise<void>;
 }) {
   const [domain, setDomain] = useState<DomainRow | null>(null);
@@ -4431,6 +4446,8 @@ export function ClientPortal() {
     } else if (paymentStatus === "failed") {
       toast.push({ type: "error", message: "Payment verification failed. Please try again or contact support." });
       trackEvent("payment_failed", { transaction_id: invoiceParam || undefined, error_category: "gateway_failed" });
+    } else if (paymentStatus === "cancelled") {
+      toast.push({ type: "info", message: `Payment cancelled — invoice ${invoiceParam || ""} is still unpaid. You can pay it any time.` });
     } else if (paymentStatus === "not_found") {
       toast.push({ type: "error", message: "We could not find that payment. Please try again or contact support." });
       trackEvent("payment_failed", { transaction_id: invoiceParam || undefined, error_category: "not_found" });
@@ -4755,17 +4772,17 @@ export function ClientPortal() {
     }
   };
 
-  const handlePayWithGateway = async (invoiceNumber: string, gateway: "paystack" | "flutterwave") => {
+  const handlePayWithGateway = async (invoiceNumber: string, gateway: PaymentGatewayId) => {
     if (!clientToken || isInitiatingPayment) return;
     setIsInitiatingPayment(true);
 
     try {
-      const data = await laravelApi<{ authorization_url?: string; link?: string }>(
+      const data = await laravelApi<{ authorization_url?: string; link?: string; redirect_url?: string }>(
         `/api/v1/client/invoices/${invoiceNumber}/pay/${gateway}`,
         clientToken,
         { method: "POST" },
       );
-      const redirectUrl = data.authorization_url || data.link;
+      const redirectUrl = data.authorization_url || data.link || data.redirect_url;
       if (!redirectUrl) throw new Error("Could not start payment.");
 
       const pendingPayment = peekPendingPayment(invoiceNumber);

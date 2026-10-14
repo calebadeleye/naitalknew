@@ -8,6 +8,7 @@ use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\SavedPaymentMethod;
 use App\Services\Payments\ChargeSavedCardService;
+use App\Services\Payments\PaymentMethodSettings;
 use App\Services\Payments\ReconcileInvoicePaymentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -29,6 +30,7 @@ class SavedCardPaymentController extends Controller
         abort_if($invoice->status === 'paid', 422, 'This invoice has already been paid.');
         abort_if($paymentMethod->client_id !== $client->id, 403, 'This payment method does not belong to your account.');
         abort_if(! $paymentMethod->is_active, 422, 'This payment method is disabled.');
+        abort_unless(app(PaymentMethodSettings::class)->isAvailable($paymentMethod->payment_provider), 422, 'Card payments through '.ucfirst($paymentMethod->payment_provider).' are not available at the moment. Please choose another payment method.');
 
         $outstandingKobo = $invoice->outstanding_amount_kobo ?: max($invoice->total_kobo - $invoice->amount_paid_kobo, 0);
 

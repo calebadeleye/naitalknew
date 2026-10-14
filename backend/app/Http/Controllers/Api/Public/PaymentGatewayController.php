@@ -8,9 +8,11 @@ use App\Models\Payment;
 use App\Notifications\NaiTalkWalletFunded;
 use App\Services\Notifications\ClientNotifier;
 use App\Services\Payments\FlutterwaveGateway;
+use App\Services\Payments\PayPalGateway;
 use App\Services\Payments\PaystackGateway;
 use App\Services\Payments\ReconcileInvoicePaymentService;
 use App\Services\Payments\SavedPaymentMethodService;
+use App\Services\Payments\StripeGateway;
 use App\Services\Wallet\WalletService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -74,6 +76,74 @@ class PaymentGatewayController extends Controller
         $this->settle($reference, fn () => $gateway->verify($reference), $reconciler, $wallet, $savedCards, 'flutterwave');
 
         return response()->json(['message' => 'ok']);
+    }
+
+    public function stripeCallback(Request $request, StripeGateway $gateway, ReconcileInvoicePaymentService $reconciler, WalletService $wallet, SavedPaymentMethodService $savedCards)
+    {
+        $reference = (string) $request->query('reference');
+
+        return $this->settleAndRedirect($reference, fn () => $this->verifyStripe($reference, $gateway), $reconciler, $wallet, $savedCards, 'stripe');
+    }
+
+    public function stripeWebhook(Request $request, StripeGateway $gateway, ReconcileInvoicePaymentService $reconciler, WalletService $wallet, SavedPaymentMethodService $savedCards)
+    {
+        if (! $gateway->verifyWebhookSignature($request->getContent(), $request->header('Stripe-Signature'))) {
+            Log::warning('Rejected Stripe webhook with invalid signature.');
+
+            abort(401, 'Invalid webhook signature.');
+        }
+
+        $event = $request->json()->all();
+        $reference = (string) (data_get($event, 'data.object.metadata.reference') ?: data_get($event, 'data.object.client_reference_id'));
+
+        if (($event['type'] ?? null) !== 'checkout.session.completed' || ! $reference) {
+            return response()->json(['message' => 'ignored']);
+        }
+
+        // Re-verify server-side rather than trusting the webhook payload directly.
+        $this->settle($reference, fn () => $this->verifyStripe($reference, $gateway), $reconciler, $wallet, $savedCards, 'stripe');
+
+        return response()->json(['message' => 'ok']);
+    }
+
+    /** PayPal sends the client back here after they approve; capturing is what actually takes the money. */
+    public function paypalCallback(Request $request, PayPalGateway $gateway, ReconcileInvoicePaymentService $reconciler, WalletService $wallet, SavedPaymentMethodService $savedCards)
+    {
+        $reference = (string) $request->query('reference');
+
+        return $this->settleAndRedirect($reference, function () use ($reference, $gateway) {
+            $payment = Payment::query()->where('reference', $reference)->firstOrFail();
+
+            return $this->matchCharge($payment, $gateway->capture((string) data_get($payment->gateway_payload, 'charge.order_id')));
+        }, $reconciler, $wallet, $savedCards, 'paypal');
+    }
+
+    private function verifyStripe(string $reference, StripeGateway $gateway): array
+    {
+        $payment = Payment::query()->where('reference', $reference)->firstOrFail();
+
+        return $this->matchCharge($payment, $gateway->retrieveSession((string) data_get($payment->gateway_payload, 'charge.session_id')));
+    }
+
+    /**
+     * Stripe/PayPal may charge in another currency. The payment only counts if
+     * the gateway collected the full amount we asked for, in that currency;
+     * the invoice is then credited the Naira amount the charge was priced at.
+     *
+     * @param  array{successful: bool, amount_minor: int, currency: string, raw: array}  $result
+     */
+    private function matchCharge(Payment $payment, array $result): array
+    {
+        $charge = (array) data_get($payment->gateway_payload, 'charge', []);
+        $paidInFull = $result['successful']
+            && strtoupper((string) ($charge['currency'] ?? '')) === $result['currency']
+            && $result['amount_minor'] >= (int) ($charge['amount_minor'] ?? PHP_INT_MAX);
+
+        return [
+            'successful' => $paidInFull,
+            'amount_kobo' => $paidInFull ? (int) $payment->amount_kobo : 0,
+            'raw' => ['charge' => $charge, 'gateway' => $result['raw']],
+        ];
     }
 
     /**

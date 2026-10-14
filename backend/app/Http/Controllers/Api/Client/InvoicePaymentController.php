@@ -11,7 +11,10 @@ use App\Models\User;
 use App\Notifications\NaiTalkPaymentProofUploaded;
 use App\Services\Billing\Money;
 use App\Services\Payments\FlutterwaveGateway;
+use App\Services\Payments\PaymentMethodSettings;
+use App\Services\Payments\PayPalGateway;
 use App\Services\Payments\PaystackGateway;
+use App\Services\Payments\StripeGateway;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification as NotificationFacade;
 use Illuminate\Support\Str;
@@ -21,6 +24,7 @@ class InvoicePaymentController extends Controller
     public function paystack(Request $request, Invoice $invoice, PaystackGateway $gateway)
     {
         $this->authorizeInvoice($request, $invoice);
+        $this->ensureAvailable('paystack');
 
         $reference = $this->generateReference();
         $callbackUrl = rtrim(config('app.url'), '/').'/api/v1/payments/paystack/callback';
@@ -50,6 +54,7 @@ class InvoicePaymentController extends Controller
     public function flutterwave(Request $request, Invoice $invoice, FlutterwaveGateway $gateway)
     {
         $this->authorizeInvoice($request, $invoice);
+        $this->ensureAvailable('flutterwave');
 
         $reference = $this->generateReference();
         $redirectUrl = rtrim(config('app.url'), '/').'/api/v1/payments/flutterwave/callback';
@@ -76,9 +81,70 @@ class InvoicePaymentController extends Controller
         ]);
     }
 
+    /**
+     * Stripe Checkout. Charged in the currency the admin set for Stripe, at
+     * their Naira rate; the invoice is credited the Naira amount once Stripe
+     * confirms the full converted amount was paid.
+     */
+    public function stripe(Request $request, Invoice $invoice, StripeGateway $gateway, PaymentMethodSettings $settings)
+    {
+        $this->authorizeInvoice($request, $invoice);
+        $this->ensureAvailable('stripe');
+
+        $reference = $this->generateReference();
+        $charge = $settings->chargeFor('stripe', $invoice->payableKobo());
+        $callback = rtrim(config('app.url'), '/').'/api/v1/payments/stripe/callback?reference='.$reference;
+
+        try {
+            $session = $gateway->createCheckout(
+                $request->user()->email,
+                "NAI TALK invoice {$invoice->invoice_number}",
+                $charge['currency'],
+                $charge['amount_minor'],
+                $reference,
+                $callback,
+                $this->cancelUrl($invoice),
+            );
+        } catch (PaymentGatewayException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
+
+        $this->createPendingPayment($invoice, 'stripe', $reference, $charge + ['session_id' => $session['session_id']]);
+
+        return response()->json(['redirect_url' => $session['redirect_url'], 'reference' => $reference]);
+    }
+
+    /** PayPal Checkout — PayPal can't take Naira, so it is always converted at the admin's rate. */
+    public function paypal(Request $request, Invoice $invoice, PayPalGateway $gateway, PaymentMethodSettings $settings)
+    {
+        $this->authorizeInvoice($request, $invoice);
+        $this->ensureAvailable('paypal');
+
+        $reference = $this->generateReference();
+        $charge = $settings->chargeFor('paypal', $invoice->payableKobo());
+
+        try {
+            $order = $gateway->createOrder(
+                "NAI TALK invoice {$invoice->invoice_number}",
+                $charge['currency'],
+                $charge['amount_minor'],
+                $reference,
+                rtrim(config('app.url'), '/').'/api/v1/payments/paypal/callback?reference='.$reference,
+                $this->cancelUrl($invoice),
+            );
+        } catch (PaymentGatewayException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
+
+        $this->createPendingPayment($invoice, 'paypal', $reference, $charge + ['order_id' => $order['order_id']]);
+
+        return response()->json(['redirect_url' => $order['redirect_url'], 'reference' => $reference]);
+    }
+
     public function bankTransfer(Request $request, Invoice $invoice)
     {
         $this->authorizeInvoice($request, $invoice);
+        $this->ensureAvailable('bank_transfer');
 
         $invoice->openBankTransferPayment('awaiting_bank_transfer', $invoice->payableKobo());
 
@@ -131,6 +197,31 @@ class InvoicePaymentController extends Controller
 
         abort_if(! $client || $invoice->client_id !== $client->id, 403, 'This invoice does not belong to your account.');
         abort_if($invoice->status === 'paid', 422, 'This invoice has already been paid.');
+    }
+
+    private function ensureAvailable(string $method): void
+    {
+        abort_unless(app(PaymentMethodSettings::class)->isAvailable($method), 422, 'That payment method is not available at the moment. Please choose another one.');
+    }
+
+    /** @param  array<string, mixed>  $charge  what the gateway was asked to collect, kept for verification */
+    private function createPendingPayment(Invoice $invoice, string $gateway, string $reference, array $charge): Payment
+    {
+        return Payment::query()->create([
+            'client_id' => $invoice->client_id,
+            'invoice_id' => $invoice->id,
+            'gateway' => $gateway,
+            'reference' => $reference,
+            'status' => 'pending',
+            'amount_kobo' => $invoice->payableKobo(),
+            'currency' => 'NGN',
+            'gateway_payload' => ['charge' => $charge],
+        ]);
+    }
+
+    private function cancelUrl(Invoice $invoice): string
+    {
+        return rtrim(config('app.frontend_url'), '/').'/client/orders?payment=cancelled&invoice='.$invoice->invoice_number;
     }
 
     private function generateReference(): string

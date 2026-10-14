@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\Admin\FaqController;
 use App\Http\Controllers\Api\Admin\HostingPlanController;
 use App\Http\Controllers\Api\Admin\HostingServiceLifecycleController;
 use App\Http\Controllers\Api\Admin\BillingSettingsController as AdminBillingSettingsController;
+use App\Http\Controllers\Api\Admin\PaymentMethodsController as AdminPaymentMethodsController;
 use App\Http\Controllers\Api\Admin\FtpAccountController as AdminFtpAccountController;
 use App\Http\Controllers\Api\Admin\MailboxController as AdminMailboxController;
 use App\Http\Controllers\Api\Admin\SslCertificateController;
@@ -29,6 +30,7 @@ use App\Http\Controllers\Api\Admin\RecordsController;
 use App\Http\Controllers\Api\Admin\ServiceOfferingController as AdminServiceOfferingController;
 use App\Http\Controllers\Api\Admin\ServicesDashboardController;
 use App\Http\Controllers\Api\Admin\SupportTicketController as AdminSupportTicketController;
+use App\Http\Controllers\Api\Client\PaymentOptionsController;
 use App\Http\Controllers\Api\Client\SupportTicketController as ClientSupportTicketController;
 use App\Http\Controllers\Api\Admin\ServiceStatusController;
 use App\Http\Controllers\Api\Admin\WebsiteQuoteController as AdminWebsiteQuoteController;
@@ -97,6 +99,9 @@ Route::prefix('v1')->group(function (): void {
     Route::post('/payments/paystack/webhook', [PaymentGatewayController::class, 'paystackWebhook']);
     Route::get('/payments/flutterwave/callback', [PaymentGatewayController::class, 'flutterwaveCallback']);
     Route::post('/payments/flutterwave/webhook', [PaymentGatewayController::class, 'flutterwaveWebhook']);
+    Route::get('/payments/stripe/callback', [PaymentGatewayController::class, 'stripeCallback']);
+    Route::post('/payments/stripe/webhook', [PaymentGatewayController::class, 'stripeWebhook']);
+    Route::get('/payments/paypal/callback', [PaymentGatewayController::class, 'paypalCallback']);
 
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/auth/me', [AuthController::class, 'me']);
@@ -106,6 +111,7 @@ Route::prefix('v1')->group(function (): void {
 
         Route::middleware('role:client')->prefix('client')->group(function (): void {
             Route::get('/dashboard', ClientDashboardController::class);
+            Route::get('/payment-options', PaymentOptionsController::class);
             Route::get('/support-tickets', [ClientSupportTicketController::class, 'index']);
             Route::post('/support-tickets', [ClientSupportTicketController::class, 'store'])->middleware('throttle:support-ticket');
             Route::get('/support-tickets/{ticket}', [ClientSupportTicketController::class, 'show']);
@@ -145,6 +151,8 @@ Route::prefix('v1')->group(function (): void {
                 Route::post('/orders/hosting', [CheckoutController::class, 'store']);
                 Route::post('/invoices/{invoice:invoice_number}/pay/paystack', [InvoicePaymentController::class, 'paystack']);
                 Route::post('/invoices/{invoice:invoice_number}/pay/flutterwave', [InvoicePaymentController::class, 'flutterwave']);
+                Route::post('/invoices/{invoice:invoice_number}/pay/stripe', [InvoicePaymentController::class, 'stripe']);
+                Route::post('/invoices/{invoice:invoice_number}/pay/paypal', [InvoicePaymentController::class, 'paypal']);
                 Route::post('/invoices/{invoice:invoice_number}/pay/bank-transfer', [InvoicePaymentController::class, 'bankTransfer']);
                 Route::post('/invoices/{invoice:invoice_number}/pay/bank-transfer/proof', [InvoicePaymentController::class, 'uploadBankTransferProof'])->middleware('throttle:hosting-resource-create');
                 Route::post('/invoices/{invoice:invoice_number}/pay/wallet', [WalletPaymentController::class, 'pay']);
@@ -213,6 +221,8 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/ssl-certificates/refresh', [SslCertificateController::class, 'refresh']);
             Route::get('/settings/billing', [AdminBillingSettingsController::class, 'show']);
             Route::put('/settings/billing', [AdminBillingSettingsController::class, 'update']);
+            Route::get('/settings/payment-methods', [AdminPaymentMethodsController::class, 'show']);
+            Route::put('/settings/payment-methods/{method}', [AdminPaymentMethodsController::class, 'update']);
             Route::get('/analytics/overview', [AdminAnalyticsController::class, 'overview']);
             Route::get('/analytics/funnel', [AdminAnalyticsController::class, 'funnels']);
             Route::get('/analytics/service-pages', [AdminAnalyticsController::class, 'servicePages']);

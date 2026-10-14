@@ -7,9 +7,13 @@ use Illuminate\Support\Facades\Http;
 
 class PaystackGateway
 {
+    public function __construct(private readonly PaymentMethodSettings $settings = new PaymentMethodSettings)
+    {
+    }
+
     public function initialize(string $email, int $amountKobo, string $reference, string $callbackUrl): array
     {
-        $response = Http::withToken((string) config('services.paystack.secret_key'))
+        $response = Http::withToken((string) $this->settings->value('paystack', 'secret_key'))
             ->baseUrl('https://api.paystack.co')
             ->post('/transaction/initialize', [
                 'email' => $email,
@@ -34,7 +38,7 @@ class PaystackGateway
 
     public function verify(string $reference): array
     {
-        $response = Http::withToken((string) config('services.paystack.secret_key'))
+        $response = Http::withToken((string) $this->settings->value('paystack', 'secret_key'))
             ->baseUrl('https://api.paystack.co')
             ->get("/transaction/verify/{$reference}");
 
@@ -65,7 +69,7 @@ class PaystackGateway
      */
     public function chargeAuthorization(string $authorizationCode, string $email, int $amountKobo, string $reference): array
     {
-        $response = Http::withToken((string) config('services.paystack.secret_key'))
+        $response = Http::withToken((string) $this->settings->value('paystack', 'secret_key'))
             ->baseUrl('https://api.paystack.co')
             ->post('/transaction/charge_authorization', [
                 'authorization_code' => $authorizationCode,
@@ -96,7 +100,7 @@ class PaystackGateway
             return false;
         }
 
-        $expected = hash_hmac('sha512', $rawPayload, (string) config('services.paystack.secret_key'));
+        $expected = hash_hmac('sha512', $rawPayload, (string) $this->settings->value('paystack', 'secret_key'));
 
         return hash_equals($expected, $signature);
     }

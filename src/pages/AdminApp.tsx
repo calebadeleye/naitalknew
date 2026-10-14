@@ -116,6 +116,7 @@ import { goToDomainCheckout, DomainPromoBadge, TldPriceCard, DomainFeatureItem, 
 import type { DomainFeature, PublicTldPricingRow } from "../shared/domainWidgets";
 import { ServerCapacityPanel } from "../admin/ServerCapacityPanel";
 import { AdminSupportInbox } from "../admin/AdminSupportInbox";
+import { PaymentMethodsPanel } from "../admin/PaymentMethodsPanel";
 
 export const adminMetrics = [
   { label: "Total Revenue", value: "₦5,420,000", delta: "15.2%", icon: Wallet, tone: "lime" },
@@ -6610,6 +6611,8 @@ export function AdminApp() {
         {activeSection === "domainAssignments" && !routeClientId && !routeServiceId && <AdminDomainAssignmentPage adminToken={adminToken} />}
 
         {activeSection === "pricing" && <AdminVatSettingsPanel adminToken={adminToken} />}
+
+        {activeSection === "pricing" && <PaymentMethodsPanel adminToken={adminToken} />}
 
         {activeSection === "pricing" && (
           <section className="admin-panel">
