@@ -24,6 +24,7 @@ class SavedCardPaymentTest extends TestCase
     private function createUnpaidInvoiceWithSavedCard(string $email): array
     {
         $token = $this->postJson('/api/v1/auth/register', [
+            'terms_accepted' => true,
             'name' => 'Saved Card Client',
             'email' => $email,
             'password' => 'secret-password',
@@ -123,6 +124,7 @@ class SavedCardPaymentTest extends TestCase
 
         $this->app['auth']->forgetGuards();
         $intruderToken = $this->postJson('/api/v1/auth/register', [
+            'terms_accepted' => true,
             'name' => 'Intruder', 'email' => 'saved-card-intruder@example.test', 'password' => 'secret-password', 'phone' => '08000000077',
         ])->assertCreated()->json('token');
         $intruderUser = User::query()->where('email', 'saved-card-intruder@example.test')->firstOrFail();

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Client;
 
 use App\Http\Controllers\Controller;
+use App\Models\TermsAcceptance;
 use App\Services\Domains\DomainNameValidator;
 use App\Services\Domains\DomainOrderService;
 use App\Services\Domains\SpaceshipDomainAvailabilityService;
@@ -22,7 +23,8 @@ class DomainOrderController extends Controller
 
         $payload = $request->validate([
             'domain_name' => ['required', 'string', 'max:255', DomainNameValidator::rule()],
-        ]);
+            'terms_accepted' => ['accepted'],
+        ], ['terms_accepted.accepted' => 'Please agree to the Terms of Service to place this order.']);
 
         $domainName = $availability->normalize($payload['domain_name']);
 
@@ -33,7 +35,10 @@ class DomainOrderController extends Controller
         );
 
         try {
-            return response()->json($domainOrders->createDomainOnlyOrder($client, $domainName), 201);
+            $result = $domainOrders->createDomainOnlyOrder($client, $domainName);
+            TermsAcceptance::record($request, $request->user(), $client, 'domain_order', $result['order']->order_number ?? null);
+
+            return response()->json($result, 201);
         } catch (RuntimeException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
         }

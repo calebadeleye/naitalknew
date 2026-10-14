@@ -24,6 +24,7 @@ class WalletPaymentTest extends TestCase
     private function registerVerifiedClient(string $email): string
     {
         $token = $this->postJson('/api/v1/auth/register', [
+            'terms_accepted' => true,
             'name' => 'Wallet Payment Client',
             'email' => $email,
             'password' => 'secret-password',

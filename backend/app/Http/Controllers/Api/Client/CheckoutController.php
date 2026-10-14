@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Client;
 
 use App\Http\Controllers\Controller;
+use App\Models\TermsAcceptance;
 use App\Services\Billing\CheckoutService;
 use App\Services\Domains\DomainNameValidator;
 use App\Services\Domains\DomainOrderService;
@@ -41,9 +42,15 @@ class CheckoutController extends Controller
                 'Please search for this domain again to confirm it is still available before checking out.'
             );
 
-            return response()->json($domainOrders->createDomainAndHostingOrder($client, $domainName, $payload), 201);
+            $result = $domainOrders->createDomainAndHostingOrder($client, $domainName, $payload);
+            TermsAcceptance::record($request, $request->user(), $client, 'domain_hosting_order', $result['order']->order_number ?? null);
+
+            return response()->json($result, 201);
         }
 
-        return response()->json($checkout->createHostingOrder($payload, $client), 201);
+        $result = $checkout->createHostingOrder($payload, $client);
+        TermsAcceptance::record($request, $request->user(), $client, 'hosting_order', $result['order']->order_number ?? null);
+
+        return response()->json($result, 201);
     }
 }

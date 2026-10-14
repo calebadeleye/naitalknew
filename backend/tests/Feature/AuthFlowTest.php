@@ -17,6 +17,7 @@ class AuthFlowTest extends TestCase
         Notification::fake();
 
         $token = $this->postJson('/api/v1/auth/register', [
+            'terms_accepted' => true,
             'name' => 'Verify Me',
             'email' => $email,
             'password' => 'secret-password',
@@ -39,6 +40,7 @@ class AuthFlowTest extends TestCase
         Notification::fake();
 
         $response = $this->postJson('/api/v1/auth/register', [
+            'terms_accepted' => true,
             'name' => 'New Client',
             'email' => 'new-client@example.test',
             'password' => 'secret-password',

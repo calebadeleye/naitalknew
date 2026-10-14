@@ -20,6 +20,12 @@ class RegisterRequest extends FormRequest
             'phone' => ['nullable', 'string', 'max:60'],
             'company_name' => ['nullable', 'string', 'max:160'],
             'billing_address' => ['nullable', 'string', 'max:1000'],
+            'terms_accepted' => ['accepted'],
         ];
+    }
+
+    public function messages(): array
+    {
+        return ['terms_accepted.accepted' => 'Please agree to the Terms of Service to create your account.'];
     }
 }

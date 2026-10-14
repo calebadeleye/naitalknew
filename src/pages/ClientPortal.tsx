@@ -113,6 +113,7 @@ import { parseNairaAmount, formatNaira, formatKobo, toDateInputValue, formatDate
 import { fallbackClientLogos, fallbackProjects, fallbackReviews, fallbackSiteContent, whatsappUrl } from "../shared/siteDefaults";
 import { Logo, Navbar, Footer, FloatingWhatsApp, SectionHeader, socialLinks, paymentBadges, footerColumns } from "../shared/PublicLayout";
 import { ClientHelpAssistant, OPEN_HELP_ASSISTANT_EVENT } from "../components/ClientHelpAssistant";
+import { TermsAgreement } from "../components/TermsAgreement";
 import { PublicPage, PublicBreadcrumbs, usePublicImage, MarketingHero, MarketingCtaBand, FaqAccordionItem, FaqAccordionGroup } from "../shared/marketingWidgets";
 import { goToDomainCheckout, DomainPromoBadge, TldPriceCard, DomainFeatureItem, DomainSearchBar, DomainSearchSection, DomainGlobeIllustration } from "../shared/domainWidgets";
 import type { DomainFeature, PublicTldPricingRow } from "../shared/domainWidgets";
@@ -126,6 +127,7 @@ export const INITIAL_REGISTER = {
   billing_address: "",
   password: "",
   password_confirmation: "",
+  terms_accepted: false,
 };
 export const INITIAL_ORDER_DRAFT = {
   plan_slug: "",
@@ -2866,23 +2868,23 @@ export function DomainOnlyCheckoutPage({
   onPayByBankTransfer: (invoiceNumber: string) => Promise<void>;
 }) {
   const [order, setOrder] = useState<DomainCheckoutResult | null>(null);
-  const [isCreating, setIsCreating] = useState(true);
-  const hasCreatedRef = React.useRef(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
-  useEffect(() => {
-    if (hasCreatedRef.current || !domainName) return;
-    hasCreatedRef.current = true;
+  // The order is only created once the client has confirmed the domain and
+  // agreed to the terms — not just by landing on this page.
+  const createOrder = () => {
+    if (!domainName || isCreating || order) return;
     setIsCreating(true);
 
     laravelApi<DomainCheckoutResult>("/api/v1/client/domains/orders", token, {
       method: "POST",
-      body: JSON.stringify({ domain_name: domainName }),
+      body: JSON.stringify({ domain_name: domainName, terms_accepted: termsAccepted }),
     })
       .then(setOrder)
       .catch((error) => toast.push({ type: "error", message: error instanceof Error ? error.message : "Could not create your domain order." }))
       .finally(() => setIsCreating(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [domainName, token]);
+  };
 
   if (!domainName) {
     return (
@@ -2895,11 +2897,19 @@ export function DomainOnlyCheckoutPage({
     );
   }
 
-  if (isCreating || !order) {
+  if (!order) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center text-white/50">
-        <Loader2 className="h-6 w-6 animate-spin" />
-      </div>
+      <section className="mx-auto max-w-xl portal-card text-center">
+        <h2 className="text-xl font-black text-white">Domain Checkout</h2>
+        <p className="mt-3 text-sm text-white/60">
+          You're registering <strong className="text-white">{domainName}</strong>. An invoice will be created and emailed to you, and you can pay now or later.
+        </p>
+        <TermsAgreement className="mt-5" checked={termsAccepted} onChange={setTermsAccepted} />
+        <button type="button" className="btn-primary mt-5 w-full justify-center" disabled={isCreating || !termsAccepted} onClick={createOrder}>
+          {isCreating ? "Creating order..." : "Create order"}
+          {isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+        </button>
+      </section>
     );
   }
 
@@ -4287,6 +4297,7 @@ export function ClientPortal() {
   const [clientToken, setClientToken] = useState(() => sessionStorage.getItem("naitalk_laravel_client_token") || "");
   const [login, setLogin] = useState(INITIAL_LOGIN);
   const [registerForm, setRegisterForm] = useState(INITIAL_REGISTER);
+  const [orderTermsAccepted, setOrderTermsAccepted] = useState(false);
   const [forgotForm, setForgotForm] = useState({ email: "" });
   const [resetForm, setResetForm] = useState(() => {
     const params = new URLSearchParams(window.location.search);
@@ -4704,7 +4715,7 @@ export function ClientPortal() {
         invoice: { invoice_number: string; total_kobo: number; total?: string };
       }>("/api/v1/client/orders/hosting", clientToken, {
         method: "POST",
-        body: JSON.stringify({ ...orderDraft, terms_accepted: true }),
+        body: JSON.stringify({ ...orderDraft, terms_accepted: orderTermsAccepted }),
       });
 
       setCheckoutResult(checkout);
@@ -4915,7 +4926,11 @@ export function ClientPortal() {
                   />
                 </label>
               </div>
-              <button type="submit" className="btn-primary w-full justify-center" disabled={isLoading}>
+              <TermsAgreement
+                checked={registerForm.terms_accepted}
+                onChange={(checked) => setRegisterForm((current) => ({ ...current, terms_accepted: checked }))}
+              />
+              <button type="submit" className="btn-primary w-full justify-center" disabled={isLoading || !registerForm.terms_accepted}>
                 {isLoading ? "Creating account..." : "Create account"}
                 <ArrowRight className="h-4 w-4" />
               </button>
@@ -5416,7 +5431,8 @@ export function ClientPortal() {
               <p className="mt-3 text-sm text-white/60">
                 Create your order for {selectedPlan?.name || "your hosting plan"} — {formatNaira(orderTotal)}. An invoice will be created and emailed to you, and you can pay now or later.
               </p>
-              <button type="button" className="btn-primary mt-5 w-full justify-center" disabled={isSubmittingOrder} onClick={() => void handleSubmitOrder()}>
+              <TermsAgreement className="mt-5" checked={orderTermsAccepted} onChange={setOrderTermsAccepted} />
+              <button type="button" className="btn-primary mt-5 w-full justify-center" disabled={isSubmittingOrder || !orderTermsAccepted} onClick={() => void handleSubmitOrder()}>
                 {isSubmittingOrder ? "Creating order..." : "Create order"}
                 <ArrowRight className="h-4 w-4" />
               </button>

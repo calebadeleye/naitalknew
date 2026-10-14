@@ -72,6 +72,7 @@ describe("Client login/register form-state security", () => {
     const passwordInputs = document.querySelectorAll('input[autocomplete="new-password"]');
     await user.type(passwordInputs[0] as HTMLInputElement, "password123");
     await user.type(passwordInputs[1] as HTMLInputElement, "different456");
+    await user.click(screen.getByRole("checkbox", { name: /terms of service/i }));
 
     await user.click(screen.getByRole("button", { name: /create account/i }));
 

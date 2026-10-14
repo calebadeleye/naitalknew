@@ -29,6 +29,7 @@ class DomainOnlyCheckoutTest extends TestCase
         $this->verifyDomainAvailable($token, 'mynaitalkbiz.com');
 
         $response = $this->withToken($token)->postJson('/api/v1/client/domains/orders', [
+            'terms_accepted' => true,
             'domain_name' => 'mynaitalkbiz.com',
         ])->assertCreated();
 
@@ -50,6 +51,7 @@ class DomainOnlyCheckoutTest extends TestCase
         ['token' => $token] = $this->registerVerifiedDomainClient('domain-unverified@example.test');
 
         $this->withToken($token)->postJson('/api/v1/client/domains/orders', [
+            'terms_accepted' => true,
             'domain_name' => 'never-searched.com',
         ])->assertStatus(422);
     }
@@ -62,6 +64,7 @@ class DomainOnlyCheckoutTest extends TestCase
         $this->verifyDomainAvailable($token, 'stillunpaid.com');
 
         $this->withToken($token)->postJson('/api/v1/client/domains/orders', [
+            'terms_accepted' => true,
             'domain_name' => 'stillunpaid.com',
         ])->assertCreated();
 
@@ -79,6 +82,7 @@ class DomainOnlyCheckoutTest extends TestCase
         $this->verifyDomainAvailable($token, 'nowregistered.com');
 
         $checkout = $this->withToken($token)->postJson('/api/v1/client/domains/orders', [
+            'terms_accepted' => true,
             'domain_name' => 'nowregistered.com',
         ])->assertCreated();
 
@@ -109,6 +113,7 @@ class DomainOnlyCheckoutTest extends TestCase
         $this->verifyDomainAvailable($token, 'noduplicate.com');
 
         $checkout = $this->withToken($token)->postJson('/api/v1/client/domains/orders', [
+            'terms_accepted' => true,
             'domain_name' => 'noduplicate.com',
         ])->assertCreated();
 
@@ -143,6 +148,7 @@ class DomainOnlyCheckoutTest extends TestCase
         $this->verifyDomainAvailable($token, 'markmeregistered.com');
 
         $checkout = $this->withToken($token)->postJson('/api/v1/client/domains/orders', [
+            'terms_accepted' => true,
             'domain_name' => 'markmeregistered.com',
         ])->assertCreated();
 
@@ -178,6 +184,7 @@ class DomainOnlyCheckoutTest extends TestCase
         $this->verifyDomainAvailable($token, 'notyetpaid.com');
 
         $this->withToken($token)->postJson('/api/v1/client/domains/orders', [
+            'terms_accepted' => true,
             'domain_name' => 'notyetpaid.com',
         ])->assertCreated();
 

@@ -40,6 +40,7 @@ class AutoRenewalTest extends TestCase
     private function createActiveServiceDueForRenewal(string $email): HostingService
     {
         $token = $this->postJson('/api/v1/auth/register', [
+            'terms_accepted' => true,
             'name' => 'Auto Renewal Client',
             'email' => $email,
             'password' => 'secret-password',

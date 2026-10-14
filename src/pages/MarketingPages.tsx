@@ -1187,7 +1187,21 @@ export function PortfolioPage() {
   );
 }
 
-export function LegalPage({ title, sections }: { title: string; sections: Array<{ heading: string; body: string }> }) {
+type LegalSection = { heading: string; body?: string | string[]; list?: string[] };
+
+export function LegalPage({
+  title,
+  sections,
+  updated = "11 July 2026",
+  intro,
+}: {
+  title: string;
+  sections: LegalSection[];
+  updated?: string;
+  intro?: string;
+}) {
+  const paragraphs = (body?: string | string[]) => (body === undefined ? [] : Array.isArray(body) ? body : [body]);
+
   return (
     <PublicPage seoOverrides={{ title: `${title} | NAI TALK`, description: `${title} for NAI TALK's domains, hosting and website services.` }}>
       <PublicBreadcrumbs items={[{ label: title }]} />
@@ -1195,12 +1209,27 @@ export function LegalPage({ title, sections }: { title: string; sections: Array<
         <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6 lg:px-8">
           <span className="pub-eyebrow">Legal</span>
           <h1 className="mt-4 text-3xl font-black text-[#07111f] sm:text-4xl">{title}</h1>
-          <p className="mt-2 text-xs text-[#596273]">Last updated: 11 July 2026</p>
+          <p className="mt-2 text-xs text-[#596273]">Last updated: {updated}</p>
+          {intro && <p className="mt-6 text-sm leading-7 text-[#596273]">{intro}</p>}
           <div className="mt-8 grid gap-8">
-            {sections.map((section) => (
+            {sections.map((section, index) => (
               <div key={section.heading}>
-                <h2 className="text-lg font-black text-[#07111f]">{section.heading}</h2>
-                <p className="mt-2 text-sm leading-7 text-[#596273]">{section.body}</p>
+                <h2 className="text-lg font-black text-[#07111f]">
+                  {sections.length > 6 ? `${index + 1}. ` : ""}
+                  {section.heading}
+                </h2>
+                {paragraphs(section.body).map((paragraph) => (
+                  <p key={paragraph.slice(0, 40)} className="mt-2 text-sm leading-7 text-[#596273]">
+                    {paragraph}
+                  </p>
+                ))}
+                {section.list && (
+                  <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-7 text-[#596273]">
+                    {section.list.map((item) => (
+                      <li key={item.slice(0, 40)}>{item}</li>
+                    ))}
+                  </ul>
+                )}
               </div>
             ))}
           </div>
@@ -1225,17 +1254,136 @@ export function PrivacyPolicyPage() {
   );
 }
 
+/**
+ * Keep the "updated" date in step with TERMS_VERSION in backend/config/legal.php —
+ * every recorded acceptance stores that version.
+ */
 export function TermsOfServicePage() {
   return (
     <LegalPage
       title="Terms of Service"
+      updated="15 October 2026"
+      intro="These terms are an agreement between you and NAI TALK SERVICES (“NAI TALK”, “we”, “us”), of 7 Unity Road, Ikola, Lagos, Nigeria. They apply to every service you order from us. By creating an account, placing an order, or ticking “I agree” at checkout, you accept these terms. Please read them carefully — if you do not agree, do not use our services."
       sections={[
-        { heading: "Our services", body: "NAI TALK provides domain registration and transfer, web hosting, website care plans, business email hosting, website design, and related support services to clients in Nigeria and internationally." },
-        { heading: "Accounts & payments", body: "You are responsible for the accuracy of the information on your account and for keeping your login details secure. Invoices are payable by card, bank transfer, or your NAI TALK wallet before a service is activated or renewed." },
-        { heading: "Domains", body: "Domain registrations and transfers are subject to the policies of the relevant domain registry. NAI TALK acts as your registrar/reseller and is not responsible for delays or decisions made by registries outside our control." },
-        { heading: "Hosting & website care", body: "We provide the infrastructure, backups, and support described in your chosen plan. You remain responsible for the content you publish on your website." },
-        { heading: "Service suspension", body: "We may suspend a service for non-payment, abuse, or activity that threatens the security of our platform, after reasonable notice where practical." },
-        { heading: "Changes to these terms", body: "We may update these terms from time to time. Continued use of our services after an update means you accept the revised terms." },
+        {
+          heading: "Our services",
+          body: "NAI TALK provides domain registration and transfer, web hosting, website care plans, business email, SSL certificates, website design and development, and related support. What is included in each service — such as storage, email accounts and databases — is described on the plan or quote you order, and in your client area.",
+        },
+        {
+          heading: "Your account",
+          list: [
+            "You must be at least 18 years old, or have authority to act for the business you register.",
+            "Keep the information on your account — especially your email address and phone number — accurate and up to date. Renewal notices and other important messages are sent to the email address on your account.",
+            "You are responsible for keeping your login details, and the passwords for your hosting, email, databases and file access, secure, and for everything done with them. Tell us straight away if you suspect someone else has access.",
+            "You may ask us to transfer services to another person's account. We may ask for proof that you are entitled to do so.",
+          ],
+        },
+        {
+          heading: "Orders, prices and payment",
+          list: [
+            "Prices are in Nigerian Naira (₦) unless stated otherwise, and include VAT where it applies. The price you pay is the one shown on your invoice.",
+            "A service is set up once its invoice is paid. You can pay with the methods offered at checkout — card or bank payment through our payment partners, bank transfer, or your NAI TALK wallet. Bank transfers are applied once we confirm the money has arrived.",
+            "We never store your full card details; card payments are handled by our payment partners. If you save a card, only a secure token from the payment partner is kept, so it can be charged for renewals you have authorised.",
+            "If you pay more than an invoice total, the extra is added to your NAI TALK wallet and used towards future invoices.",
+          ],
+        },
+        {
+          heading: "Renewals and automatic renewal",
+          list: [
+            "Hosting and website care plans renew for the same billing period (for example, yearly) at the plan's current price. Renewals are charged for your plan only — extra products are charged only if you have subscribed to them.",
+            "We email a renewal invoice about 60 days before your renewal date, and remind you 30 days before, 7 days before, and on the renewal date while it remains unpaid.",
+            "If automatic renewal is switched on, we may, within the 7 days before your renewal date, take payment from your wallet balance and then from a saved card you have enabled for renewals. You can switch automatic renewal off, or remove a saved card, at any time in your client area.",
+            "If a plan's price changes, the new price applies from your next renewal and is shown on the renewal invoice.",
+            "Domains must be renewed before they expire. Domain renewal prices are set by the relevant registry and may change.",
+          ],
+        },
+        {
+          heading: "Unpaid renewals: grace period, suspension and deletion",
+          body: [
+            "If a hosting renewal is not paid by the renewal date, the service enters a 30-day grace period. During the grace period your website and email normally keep working, and paying the renewal invoice returns the service to normal.",
+            "If the renewal is still unpaid at the end of the grace period, the service is suspended: visitors see an “account suspended” page instead of your website. Paying the renewal invoice restores the service.",
+            "If it remains unpaid 14 days after suspension, the website and its files, email accounts and databases are permanently deleted from our servers. We warn you by email 7, 3 and 1 days before deletion. Deleted data cannot be recovered, so please keep your own copies.",
+          ],
+        },
+        {
+          heading: "Hosting, storage and fair use",
+          list: [
+            "Your plan's storage is shared by your website files, email and databases. When you approach your limit we will warn you; if you go over it, uploads and new email may stop working until you free up space or upgrade.",
+            "Hosting is shared with other clients. If a website uses so much processing power, memory or traffic that it affects other clients, we may limit it, ask you to upgrade, or suspend it until the problem is fixed. Where practical we will contact you first.",
+            "We take regular backups to protect our platform, but backups are not a guarantee. You are responsible for keeping your own up-to-date copies of your website, email and data.",
+            "If you run your own application on your hosting (for example a Node.js app), you are responsible for keeping it running, updated and secure.",
+          ],
+        },
+        {
+          heading: "Acceptable use",
+          body: "You must not use our services, or allow others to use them, to:",
+          list: [
+            "break any law of Nigeria or of the country where you or your visitors are;",
+            "send spam or unsolicited bulk email, or run phishing, scams or fraud;",
+            "host or spread malware, or attack, scan or gain unauthorised access to other systems;",
+            "host material that infringes someone else's copyright, trademark or other rights;",
+            "host content that sexually exploits children, promotes terrorism or violence, or incites hatred;",
+            "run cryptocurrency mining, open proxies, or anything else that places an unreasonable load on our servers.",
+          ],
+        },
+        {
+          heading: "Your content",
+          body: "You keep ownership of everything you publish or store on our services, and you are responsible for it, including having the right to use any text, images, software and plugins. You allow us to store, copy and transmit your content only as needed to provide the services, take backups and comply with the law.",
+        },
+        {
+          heading: "Domains",
+          list: [
+            "Domain registrations and transfers are subject to the rules of the relevant registry — for example NiRA for .ng domains and ICANN for .com and other generic domains. We act as your registrar or reseller and are not responsible for decisions or delays made by a registry.",
+            "You must provide accurate registrant contact details. A domain may be suspended by its registry if they are false.",
+            "A domain registered for you is yours. Registries may restrict transfers shortly after registration or transfer. A domain that expires may be held, charged a recovery fee, or released by the registry.",
+          ],
+        },
+        {
+          heading: "Website design and development",
+          body: "Design and development work is delivered to the scope, timeline and price in the quote you accept. Unless the quote says otherwise, work starts when the agreed deposit is paid, and ownership of the finished website passes to you when it has been paid for in full. Requests outside the agreed scope may be quoted separately.",
+        },
+        {
+          heading: "Support and availability",
+          body: [
+            "You can reach support through the support tickets in your client area, by email at info@naitalk.com, or on WhatsApp at 0708 705 7654.",
+            "We work to keep our services available at all times, but we cannot promise they will be uninterrupted or error-free. We may carry out maintenance, which we try to schedule at quiet times and announce in advance where it affects you.",
+          ],
+        },
+        {
+          heading: "Suspension or termination by us",
+          body: "We may suspend or end a service immediately if it is used in breach of the acceptable use rules, if it threatens the security or stability of our platform or other clients, or if the law requires it. In other cases — for example non-payment — we follow the notice timeline described above. Where practical we will tell you why and how to fix it.",
+        },
+        {
+          heading: "Cancelling a service",
+          body: "You can stop a service at any time by switching off automatic renewal and not paying its renewal, or by asking us to close it. Refunds are covered by our Refund Policy. Before a service ends, please download anything you want to keep — it will be deleted as described above.",
+        },
+        {
+          heading: "Privacy",
+          body: "We handle your personal information as described in our Privacy Policy, in line with the Nigeria Data Protection Act 2023.",
+        },
+        {
+          heading: "Limitation of liability",
+          body: [
+            "Nothing in these terms limits liability that cannot be limited by law.",
+            "Otherwise, we are not liable for indirect or consequential losses, such as loss of profit, business, goodwill or data, and our total liability to you for any claim is limited to the amount you paid us for the affected service in the 12 months before the claim.",
+          ],
+        },
+        {
+          heading: "Your responsibility to us",
+          body: "If a claim is made against NAI TALK because of content you host or the way you use our services in breach of these terms, you agree to cover the reasonable costs and losses this causes us.",
+        },
+        {
+          heading: "Changes to these terms",
+          body: "We may update these terms from time to time; the date at the top shows when they last changed. We will tell you by email or in your client area before any important change affects you. If you keep using our services after a change takes effect, the updated terms apply.",
+        },
+        {
+          heading: "Governing law and disputes",
+          body: "These terms are governed by the laws of the Federal Republic of Nigeria. If a dispute arises, please contact us first so we can try to resolve it. If we cannot resolve it together, it will be decided by the courts of Lagos State, Nigeria.",
+        },
+        {
+          heading: "Contact us",
+          body: "NAI TALK SERVICES, 7 Unity Road, Ikola, Lagos, Nigeria. Email: info@naitalk.com. Phone / WhatsApp: 0708 705 7654.",
+        },
       ]}
     />
   );

@@ -41,6 +41,7 @@ class DomainSearchTest extends TestCase
 
         // Never verified as available, so ordering it must be refused.
         $this->withToken($token)->postJson('/api/v1/client/domains/orders', [
+            'terms_accepted' => true,
             'domain_name' => 'alreadytaken.com',
         ])->assertStatus(422);
     }

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Models\Client;
+use App\Models\TermsAcceptance;
 use App\Models\User;
 use App\Notifications\NaiTalkPasswordReset;
 use App\Services\Clients\ClientActivityLogger;
@@ -42,6 +43,8 @@ class AuthController extends Controller
             'billing_address' => $payload['billing_address'] ?? null,
             'last_activity_at' => now(),
         ]);
+
+        TermsAcceptance::record($request, $user, $client, 'register');
 
         $user->sendEmailVerificationNotification();
 

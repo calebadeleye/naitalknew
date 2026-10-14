@@ -27,6 +27,7 @@ class HostingPlatformApiTest extends TestCase
     private function registerVerifiedClient(string $email): string
     {
         $token = $this->postJson('/api/v1/auth/register', [
+            'terms_accepted' => true,
             'name' => 'Verified Client',
             'email' => $email,
             'password' => 'secret-password',
@@ -81,6 +82,7 @@ class HostingPlatformApiTest extends TestCase
     public function test_registered_user_can_exist_without_ispconfig_mapping(): void
     {
         $response = $this->postJson('/api/v1/auth/register', [
+            'terms_accepted' => true,
             'name' => 'Prospect User',
             'email' => 'prospect-user@example.test',
             'password' => 'secret-password',
@@ -207,6 +209,7 @@ class HostingPlatformApiTest extends TestCase
         $existingInvoice = Invoice::query()->first();
 
         $token = $this->postJson('/api/v1/auth/register', [
+            'terms_accepted' => true,
             'name' => 'Unverified Client',
             'email' => 'unverified-client@example.test',
             'password' => 'secret-password',

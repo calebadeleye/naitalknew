@@ -104,6 +104,7 @@ class SavedPaymentMethodTest extends TestCase
     public function test_client_can_toggle_and_delete_a_saved_payment_method(): void
     {
         $token = $this->postJson('/api/v1/auth/register', [
+            'terms_accepted' => true,
             'name' => 'Card Owner',
             'email' => 'card-owner@example.test',
             'password' => 'secret-password',

@@ -12,6 +12,7 @@ trait CreatesDomainFixtures
     private function registerVerifiedDomainClient(string $email): array
     {
         $token = $this->postJson('/api/v1/auth/register', [
+            'terms_accepted' => true,
             'name' => 'Domain Test Client',
             'email' => $email,
             'password' => 'secret-password',
