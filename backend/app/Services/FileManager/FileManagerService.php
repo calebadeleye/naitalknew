@@ -37,7 +37,11 @@ class FileManagerService
 
             $entries = collect($this->transport->listDirectory($path))
                 ->when(! $includeHidden, fn ($rows) => $rows->reject(fn (array $row) => str_starts_with($row['name'], '.')))
-                ->sortBy([['type', 'desc'], ['name', 'asc']])
+                // Folders first, then files — each A–Z regardless of case.
+                ->sortBy([
+                    fn (array $a, array $b) => ($a['type'] === 'dir' ? 0 : 1) <=> ($b['type'] === 'dir' ? 0 : 1),
+                    fn (array $a, array $b) => strnatcasecmp($a['name'], $b['name']),
+                ])
                 ->values()
                 ->all();
 

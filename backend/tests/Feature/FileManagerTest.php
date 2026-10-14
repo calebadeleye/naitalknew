@@ -87,6 +87,27 @@ class FileManagerTest extends TestCase
         $this->assertSame($account->password, $fakeTransport->connectCalls[0]['password']);
     }
 
+    public function test_folders_are_listed_before_files_each_alphabetically(): void
+    {
+        $ispConfigFake = $this->fakeIspConfig();
+        $fakeTransport = $this->fakeTransport();
+        $service = $this->provisionedService($ispConfigFake);
+        $token = $this->clientToken($service);
+        $this->withToken($token)->getJson("/api/v1/client/services/{$service->id}/files")->assertStatus(202);
+
+        foreach (['zeta', 'Images', 'assets'] as $dir) {
+            mkdir($fakeTransport->rootDir()."/web/{$dir}");
+        }
+        foreach (['aaa.txt', 'Index.php', 'robots.txt'] as $file) {
+            file_put_contents($fakeTransport->rootDir()."/web/{$file}", 'x');
+        }
+
+        $names = collect($this->withToken($token)->getJson("/api/v1/client/services/{$service->id}/files")->assertOk()->json('entries'))->pluck('name')->all();
+        $expected = ['assets', 'Images', 'zeta', 'aaa.txt', 'Index.php', 'robots.txt'];
+
+        $this->assertSame($expected, array_values(array_intersect($names, $expected)));
+    }
+
     public function test_hidden_files_show_only_when_requested(): void
     {
         $ispConfigFake = $this->fakeIspConfig();
