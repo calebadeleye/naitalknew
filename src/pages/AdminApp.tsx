@@ -114,6 +114,7 @@ import { Logo, Navbar, Footer, FloatingWhatsApp, SectionHeader, socialLinks, pay
 import { PublicPage, PublicBreadcrumbs, usePublicImage, MarketingHero, MarketingCtaBand, FaqAccordionItem, FaqAccordionGroup } from "../shared/marketingWidgets";
 import { goToDomainCheckout, DomainPromoBadge, TldPriceCard, DomainFeatureItem, DomainSearchBar, DomainSearchSection, DomainGlobeIllustration } from "../shared/domainWidgets";
 import type { DomainFeature, PublicTldPricingRow } from "../shared/domainWidgets";
+import { ServerCapacityPanel } from "../admin/ServerCapacityPanel";
 
 export const adminMetrics = [
   { label: "Total Revenue", value: "₦5,420,000", delta: "15.2%", icon: Wallet, tone: "lime" },
@@ -884,6 +885,8 @@ export function AdminServicesGroupedDashboard({
         <h2 className="text-2xl font-black text-white">Active Services</h2>
         <p className="mt-1 text-sm text-white/58">Services grouped by type, with health and revenue at a glance. Click a group to filter the list below.</p>
       </div>
+
+      <ServerCapacityPanel adminToken={adminToken} />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {(groups || []).map((group) => (

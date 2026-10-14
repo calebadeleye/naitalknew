@@ -232,6 +232,7 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/orders', [RecordsController::class, 'orders']);
             Route::get('/services', [RecordsController::class, 'services']);
             Route::get('/services/grouped', [ServicesDashboardController::class, 'grouped']);
+            Route::get('/server-capacity', [ServicesDashboardController::class, 'capacity']);
             Route::get('/services/{service}', [RecordsController::class, 'serviceDetail']);
             Route::get('/invoices', [RecordsController::class, 'invoices']);
             Route::post('/invoices', [AdminInvoiceController::class, 'store']);

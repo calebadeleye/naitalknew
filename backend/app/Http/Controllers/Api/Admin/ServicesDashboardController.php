@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\HostingService;
+use App\Models\HostingUsageSnapshot;
 use App\Models\Invoice;
 use App\Services\Billing\Money;
 
@@ -42,6 +43,65 @@ class ServicesDashboardController extends Controller
         })->values();
 
         return response()->json(['data' => $groups]);
+    }
+
+    /**
+     * "How full is the server?": every website on ISPConfig, grouped by
+     * package, with the disk space each package promises against what is
+     * really used, and the space left on the VPS itself. The backend runs on
+     * the same VPS as the hosted sites, so the local disk is the server disk.
+     */
+    public function capacity()
+    {
+        $websites = HostingService::query()
+            ->whereHas('ispConfigServiceMappings', fn ($query) => $query->whereNotNull('ispconfig_website_id'))
+            ->with('hostingPlan:id,name')
+            ->get(['id', 'hosting_plan_id', 'status', 'plan_type']);
+
+        $latest = HostingUsageSnapshot::query()
+            ->whereIn('id', HostingUsageSnapshot::query()->selectRaw('max(id)')->whereIn('hosting_service_id', $websites->pluck('id'))->groupBy('hosting_service_id'))
+            ->get(['hosting_service_id', 'disk_used_mb', 'disk_quota_mb'])
+            ->keyBy('hosting_service_id');
+
+        $packages = $websites
+            ->groupBy(fn (HostingService $service) => $service->hostingPlan?->name ?? 'No package')
+            ->map(function ($services, string $name) use ($latest) {
+                $live = $services->whereNotIn('status', ['cancelled', 'terminated', 'deleted']);
+
+                return [
+                    'package' => $name,
+                    'active' => $services->where('status', 'active')->count(),
+                    'suspended_or_expired' => $live->where('status', '!=', 'active')->count(),
+                    'allocated_mb' => (int) $live->sum(fn ($s) => $latest[$s->id]->disk_quota_mb ?? 0),
+                    'used_mb' => (int) $live->sum(fn ($s) => $latest[$s->id]->disk_used_mb ?? 0),
+                ];
+            })
+            ->sortByDesc('active')
+            ->values();
+
+        // The backend lives on the same VPS disk as the hosted sites.
+        $path = config('hosting_lifecycle.server_disk_path') ?: base_path();
+        $total = @disk_total_space($path) ?: null;
+        $free = @disk_free_space($path) ?: null;
+
+        return response()->json([
+            'websites' => [
+                'active' => $packages->sum('active'),
+                'suspended_or_expired' => $packages->sum('suspended_or_expired'),
+            ],
+            'packages' => $packages,
+            'storage' => [
+                'allocated_mb' => $packages->sum('allocated_mb'),
+                'used_by_sites_mb' => $packages->sum('used_mb'),
+            ],
+            'disk' => $total ? [
+                'total_mb' => (int) round($total / 1048576),
+                'used_mb' => (int) round(($total - $free) / 1048576),
+                'free_mb' => (int) round($free / 1048576),
+                'used_percent' => round(($total - $free) / $total * 100, 1),
+            ] : null,
+            'checked_at' => now()->toIso8601String(),
+        ]);
     }
 
     /**
