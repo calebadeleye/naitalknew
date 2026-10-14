@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\HostingService;
 use App\Models\ProvisioningLog;
 use App\Services\Ispconfig\Exceptions\IspConfigApiException;
+use App\Services\Ispconfig\IpBlockList;
 use App\Services\Ispconfig\WebsiteSettingsService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -23,7 +24,8 @@ class WebsiteSettingsController extends Controller
     {
         $this->authorize('manage', $service);
 
-        return response()->json($this->attempt($service, fn () => $settings->read($service), 'read_website_settings'));
+        // your_ip helps a client avoid blocking themselves.
+        return response()->json($this->attempt($service, fn () => $settings->read($service), 'read_website_settings') + ['your_ip' => $request->ip()]);
     }
 
     public function updatePhp(Request $request, HostingService $service, WebsiteSettingsService $settings)
@@ -109,6 +111,32 @@ class WebsiteSettingsController extends Controller
         $result = $this->attempt($service, fn () => $settings->setProxy($service, (int) $service->website_proxy_desired_port), 'repair_website_proxy', $request);
 
         return response()->json($result);
+    }
+
+    /** Blocks an address or range from this website (visitors from it get "403 Forbidden"). */
+    public function blockIp(Request $request, HostingService $service, WebsiteSettingsService $settings)
+    {
+        $this->authorize('manage', $service);
+
+        $payload = $request->validate(['ip' => ['required', 'string', 'max:64'], 'note' => ['nullable', 'string', 'max:120']]);
+        $ip = IpBlockList::normalize($payload['ip']);
+        // An admin acting from "view as client" uses an impersonation token.
+        $addedBy = $request->user()->currentAccessToken()?->name === 'admin-impersonation' ? 'admin' : 'client';
+
+        $service->forceFill(['blocked_ips' => IpBlockList::withEntry($service->blocked_ips ?? [], $ip, $payload['note'] ?? null, $addedBy)])->save();
+
+        return response()->json($this->attempt($service, fn () => $settings->applyIpBlocks($service), 'block_ip', $request));
+    }
+
+    public function unblockIp(Request $request, HostingService $service, WebsiteSettingsService $settings)
+    {
+        $this->authorize('manage', $service);
+
+        $payload = $request->validate(['ip' => ['required', 'string', 'max:64']]);
+
+        $service->forceFill(['blocked_ips' => IpBlockList::withoutEntry($service->blocked_ips ?? [], $payload['ip'])])->save();
+
+        return response()->json($this->attempt($service, fn () => $settings->applyIpBlocks($service), 'unblock_ip', $request));
     }
 
     /**

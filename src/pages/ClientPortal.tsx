@@ -66,6 +66,7 @@ import {
   Send,
   Server,
   Settings,
+  ShieldBan,
   ShieldCheck,
   Smile,
   Star,
@@ -347,6 +348,9 @@ export type WebsiteSettings = {
     /** rule_missing: visitors see the raw files instead of the app. app_down: connected, but nothing answers on the port. */
     health?: "ok" | "rule_missing" | "app_down" | null;
   };
+  blocked_ips?: Array<{ ip: string; note: string | null; added_at: string; added_by: "client" | "admin" }>;
+  /** The visitor's own address, so they don't block themselves (only on the initial load). */
+  your_ip?: string;
   synced_at: string;
 };
 
@@ -404,6 +408,8 @@ export function HostingManagePanel({
   const [tab, setTab] = useState<HostingTabName>(initialTab || "overview");
   const [websiteSettings, setWebsiteSettings] = useState<WebsiteSettings | null>(null);
   const [isLoadingWebsite, setIsLoadingWebsite] = useState(false);
+  const [blockIpInput, setBlockIpInput] = useState("");
+  const [blockIpNote, setBlockIpNote] = useState("");
   const [isSavingWebsite, setIsSavingWebsite] = useState(false);
   const [proxyPortInput, setProxyPortInput] = useState("");
   const [customSslCert, setCustomSslCert] = useState("");
@@ -480,15 +486,17 @@ export function HostingManagePanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
-  const runWebsiteAction = async (path: string, options: RequestInit, successMessage: string) => {
+  const runWebsiteAction = async (path: string, options: RequestInit, successMessage: string): Promise<boolean> => {
     setIsSavingWebsite(true);
     try {
       const settings = await laravelApi<WebsiteSettings>(path, token, options);
-      setWebsiteSettings(settings);
+      setWebsiteSettings((current) => ({ ...settings, your_ip: settings.your_ip ?? current?.your_ip }));
       setProxyPortInput((settings.proxy.port ?? settings.proxy.desired_port) ? String(settings.proxy.port ?? settings.proxy.desired_port) : "");
       toast.push({ type: "success", message: successMessage });
+      return true;
     } catch (error) {
       toast.push({ type: "error", message: error instanceof Error ? error.message : "That did not work. Please try again." });
+      return false;
     } finally {
       setIsSavingWebsite(false);
     }
@@ -496,6 +504,19 @@ export function HostingManagePanel({
 
   // Banner at the top of the Website tab: a site whose app connection is broken is
   // the most urgent thing on the page, so it must not hide inside the Advanced box.
+  const handleBlockIp = () => {
+    const ip = blockIpInput.trim();
+    if (ip && ip === websiteSettings?.your_ip && !window.confirm("That is your own IP address — you won't be able to open your website from here. Block it anyway?")) return;
+    void runWebsiteAction(`${base}/website/blocked-ips`, { method: "POST", body: JSON.stringify({ ip, note: blockIpNote.trim() || null }) }, `${ip} is now blocked from this website.`).then((ok) => {
+      if (!ok) return;
+      setBlockIpInput("");
+      setBlockIpNote("");
+    });
+  };
+
+  const handleUnblockIp = (ip: string) =>
+    void runWebsiteAction(`${base}/website/blocked-ips`, { method: "DELETE", body: JSON.stringify({ ip }) }, `${ip} is unblocked.`);
+
   const handleRepairConnection = () =>
     void runWebsiteAction(`${base}/website/proxy/repair`, { method: "POST" }, "Connection repaired — your website is being served by your app again.");
 
@@ -1485,6 +1506,54 @@ export function HostingManagePanel({
                       )}
                       {websiteSettings.proxy.health === "app_down" && <span className="status-pill failed self-end">App not responding</span>}
                     </div>
+                  </div>
+
+                  <div className="rounded-lg border border-white/10 bg-black/20 p-4">
+                    <div className="flex items-center gap-2">
+                      <ShieldBan className="h-4 w-4 text-white/60" />
+                      <p className="font-bold text-white">Blocked IP addresses</p>
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-white/48">
+                      Seeing suspicious activity — repeated login attempts, spam or scraping? Block the address (or a range like 203.0.113.0/24) and
+                      visitors from it get "403 Forbidden" on this website.
+                      {websiteSettings.your_ip && (
+                        <>
+                          {" "}Your own address is <strong className="text-white/75">{websiteSettings.your_ip}</strong> — don't block it, or you won't be able to open your site.
+                        </>
+                      )}
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-end gap-2">
+                      <label className="admin-field min-w-[180px] flex-1">
+                        <span>IP address or range</span>
+                        <input value={blockIpInput} onChange={(event) => setBlockIpInput(event.target.value)} placeholder="e.g. 203.0.113.5" maxLength={64} />
+                      </label>
+                      <label className="admin-field min-w-[180px] flex-1">
+                        <span>Note (optional)</span>
+                        <input value={blockIpNote} onChange={(event) => setBlockIpNote(event.target.value)} placeholder="e.g. spam sign-ups" maxLength={120} />
+                      </label>
+                      <button type="button" className="btn-outline" disabled={isSavingWebsite || !blockIpInput.trim()} onClick={handleBlockIp}>
+                        Block
+                      </button>
+                    </div>
+                    {(websiteSettings.blocked_ips ?? []).length > 0 && (
+                      <ul className="mt-3 grid gap-1.5">
+                        {(websiteSettings.blocked_ips ?? []).map((entry) => (
+                          <li key={entry.ip} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-white/[0.04] px-3 py-2 text-xs">
+                            <span className="min-w-0">
+                              <strong className="text-white">{entry.ip}</strong>
+                              {entry.note && <span className="text-white/50"> — {entry.note}</span>}
+                              <span className="block text-white/35">
+                                Blocked {formatDateTime(entry.added_at)}
+                                {entry.added_by === "admin" ? " by NAI TALK support" : ""}
+                              </span>
+                            </span>
+                            <button type="button" className="font-bold text-primary hover:underline" disabled={isSavingWebsite} onClick={() => handleUnblockIp(entry.ip)}>
+                              Unblock
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
 
                   <p className="text-[11px] text-white/35">Last checked {formatDateTime(websiteSettings.synced_at)}.</p>

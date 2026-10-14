@@ -30,6 +30,10 @@ class WebsiteSettingsService
 
     private const PROXY_BLOCK_END = '# END NAI-TALK-PROXY';
 
+    private const IPBLOCK_START = '# BEGIN NAI-TALK-IPBLOCK (do not edit by hand — managed from your NAI TALK dashboard)';
+
+    private const IPBLOCK_END = '# END NAI-TALK-IPBLOCK';
+
     public function __construct(
         private readonly IspConfigClient $ispConfig,
         private readonly LiveCertificateChecker $certificateChecker = new LiveCertificateChecker,
@@ -295,6 +299,7 @@ class WebsiteSettingsService
             // health is rule_missing (the site is showing raw files), app_down
             // (rule fine, nothing answering on the port) or ok.
             'proxy' => $proxy + ['desired_port' => $desiredPort, 'health' => $proxyHealth],
+            'blocked_ips' => array_values($service->blocked_ips ?? []),
             'synced_at' => $syncedAt->toIso8601String(),
         ];
     }
@@ -327,6 +332,46 @@ class WebsiteSettingsService
     /**
      * @return array{enabled: bool, port: ?int}
      */
+    /**
+     * Writes the website's blocked-IP rule (its own list + the all-websites
+     * list) into ISPConfig, or removes it when nothing is blocked. Matching
+     * visitors get "403 Forbidden"; everyone else is untouched, because the
+     * rule only applies inside <If> for those addresses — it can't loosen
+     * any protection the site already has (e.g. .htaccess rules).
+     */
+    public function applyIpBlocks(HostingService $service): array
+    {
+        $sessionId = $this->ispConfig->login();
+
+        try {
+            $site = $this->getSite($service, $sessionId);
+            $current = (string) ($site['apache_directives'] ?? '');
+            $ips = IpBlockList::effectiveFor($service);
+            $without = trim(preg_replace('/'.preg_quote(self::IPBLOCK_START, '/').'.*?'.preg_quote(self::IPBLOCK_END, '/').'/s', '', $current) ?? '');
+            $new = $ips === [] ? $without : trim($this->buildIpBlock($ips)."\n\n".$without);
+
+            if (trim($new) !== trim($current)) {
+                $mapping = $this->mapping($service);
+                $this->ispConfig->sitesWebDomainUpdate($sessionId, (int) $mapping->clientMapping->ispconfig_client_id, (int) $mapping->ispconfig_website_id, [
+                    'apache_directives' => $new,
+                ]);
+                $site = $this->getSite($service, $sessionId);
+            }
+
+            return $this->cache($service, $site);
+        } finally {
+            $this->ispConfig->logout($sessionId);
+        }
+    }
+
+    /** @param  array<int, string>  $ips */
+    private function buildIpBlock(array $ips): string
+    {
+        $condition = implode(' || ', array_map(fn (string $ip) => "-R '{$ip}'", $ips));
+
+        return implode("\n", [self::IPBLOCK_START, "<If \"{$condition}\">", '    Require all denied', '</If>', self::IPBLOCK_END]);
+    }
+
     public static function proxyFromSite(?string $apacheDirectives): array
     {
         if ($apacheDirectives && preg_match('/ProxyPass \/ http:\/\/127\.0\.0\.1:(\d+)\//', $apacheDirectives, $matches)) {

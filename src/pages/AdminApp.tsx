@@ -117,6 +117,7 @@ import type { DomainFeature, PublicTldPricingRow } from "../shared/domainWidgets
 import { ServerCapacityPanel } from "../admin/ServerCapacityPanel";
 import { AdminSupportInbox } from "../admin/AdminSupportInbox";
 import { PaymentMethodsPanel } from "../admin/PaymentMethodsPanel";
+import { GlobalBlockedIpsPanel } from "../admin/GlobalBlockedIpsPanel";
 
 export const adminMetrics = [
   { label: "Total Revenue", value: "₦5,420,000", delta: "15.2%", icon: Wallet, tone: "lime" },
@@ -889,6 +890,8 @@ export function AdminServicesGroupedDashboard({
       </div>
 
       <ServerCapacityPanel adminToken={adminToken} />
+
+      <GlobalBlockedIpsPanel adminToken={adminToken} />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {(groups || []).map((group) => (

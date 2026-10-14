@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\Admin\FaqController;
 use App\Http\Controllers\Api\Admin\HostingPlanController;
 use App\Http\Controllers\Api\Admin\HostingServiceLifecycleController;
 use App\Http\Controllers\Api\Admin\BillingSettingsController as AdminBillingSettingsController;
+use App\Http\Controllers\Api\Admin\BlockedIpsController as AdminBlockedIpsController;
 use App\Http\Controllers\Api\Admin\PaymentMethodsController as AdminPaymentMethodsController;
 use App\Http\Controllers\Api\Admin\FtpAccountController as AdminFtpAccountController;
 use App\Http\Controllers\Api\Admin\MailboxController as AdminMailboxController;
@@ -199,6 +200,8 @@ Route::prefix('v1')->group(function (): void {
                     Route::delete('/website/ssl', [WebsiteSettingsController::class, 'disableSsl'])->middleware('throttle:hosting-manual-sync');
                     Route::put('/website/proxy', [WebsiteSettingsController::class, 'updateProxy'])->middleware('throttle:hosting-manual-sync');
                     Route::post('/website/proxy/repair', [WebsiteSettingsController::class, 'repairProxy'])->middleware('throttle:hosting-manual-sync');
+                    Route::post('/website/blocked-ips', [WebsiteSettingsController::class, 'blockIp'])->middleware('throttle:hosting-resource-create');
+                    Route::delete('/website/blocked-ips', [WebsiteSettingsController::class, 'unblockIp'])->middleware('throttle:hosting-resource-create');
 
                     Route::get('/files', [FileManagerController::class, 'index']);
                     Route::post('/files/upload', [FileManagerController::class, 'upload'])->middleware('throttle:hosting-resource-create');
@@ -251,6 +254,9 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/services', [RecordsController::class, 'services']);
             Route::get('/services/grouped', [ServicesDashboardController::class, 'grouped']);
             Route::get('/server-capacity', [ServicesDashboardController::class, 'capacity']);
+            Route::get('/blocked-ips', [AdminBlockedIpsController::class, 'index']);
+            Route::post('/blocked-ips', [AdminBlockedIpsController::class, 'store']);
+            Route::delete('/blocked-ips', [AdminBlockedIpsController::class, 'destroy']);
             Route::get('/services/{service}', [RecordsController::class, 'serviceDetail']);
             Route::get('/invoices', [RecordsController::class, 'invoices']);
             Route::post('/invoices', [AdminInvoiceController::class, 'store']);
