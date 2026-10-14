@@ -9,6 +9,9 @@ use App\Models\Invoice;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Notifications\NaiTalkAutoRenewalSuccess;
+use App\Models\AuditLog;
+use App\Notifications\ClientNotificationFailed;
+use App\Notifications\NaiTalkAutoRenewalFailed;
 use App\Notifications\NaiTalkRenewalPaymentReminder;
 use App\Services\Payments\SavedPaymentMethodService;
 use App\Services\Wallet\WalletService;
@@ -148,6 +151,58 @@ class AutoRenewalTest extends TestCase
             'hosting_service_id' => $service->id,
             'action' => 'auto_renewal_failed',
         ]);
+    }
+
+    public function test_an_invoice_with_nothing_to_charge_is_reminded_weekly_and_never_alerts_admins(): void
+    {
+        Notification::fake();
+        $this->seed();
+        $admin = User::factory()->create(['role' => 'super_admin', 'email' => 'info-admin@example.test']);
+
+        $service = $this->createActiveServiceDueForRenewal('renewal-no-card@example.test');
+        $this->runAutoRenewalPipeline();
+
+        // Three more nightly runs inside the same week: nothing more is sent.
+        foreach ([1, 2, 3] as $night) {
+            $this->travel($night)->days();
+            app()->call([app(ProcessAutoRenewalPaymentJob::class), 'handle']);
+        }
+
+        Notification::assertSentToTimes($service->client->user, NaiTalkRenewalPaymentReminder::class, 1);
+        Notification::assertNotSentTo($admin, ClientNotificationFailed::class);
+        $this->assertSame(1, AuditLog::where('hosting_service_id', $service->id)->where('action', 'auto_renewal_failed')->count());
+
+        // A week later the client is reminded again — still no admin noise.
+        $this->travel(8)->days();
+        app()->call([app(ProcessAutoRenewalPaymentJob::class), 'handle']);
+        Notification::assertSentToTimes($service->client->user, NaiTalkRenewalPaymentReminder::class, 2);
+        Notification::assertNotSentTo($admin, ClientNotificationFailed::class);
+    }
+
+    public function test_a_declined_card_alerts_admins_exactly_once_not_every_night(): void
+    {
+        Notification::fake();
+        $this->seed();
+        $admin = User::factory()->create(['role' => 'super_admin', 'email' => 'info-admin2@example.test']);
+
+        $service = $this->createActiveServiceDueForRenewal('renewal-declined-card@example.test');
+        $card = app(SavedPaymentMethodService::class)->captureFromGatewayPayload($service->client, 'paystack', [
+            'authorization' => ['authorization_code' => 'AUTH_declined', 'reusable' => true, 'last4' => '0001'],
+        ]);
+        $card->forceFill(['use_for_auto_renewal' => true])->save();
+        Http::fake(['api.paystack.co/transaction/charge_authorization' => Http::response(['status' => true, 'data' => ['status' => 'failed']], 200)]);
+
+        $this->runAutoRenewalPipeline();
+        for ($night = 1; $night <= 14; $night++) {
+            $this->travel(1)->days();
+            app()->call([app(ProcessAutoRenewalPaymentJob::class), 'handle']);
+        }
+
+        // Client: one email every 3 days, not 15. Admin: a single alert.
+        $clientEmails = Notification::sent($service->client->user, NaiTalkAutoRenewalFailed::class)->count();
+        $this->assertGreaterThanOrEqual(4, $clientEmails);
+        $this->assertLessThanOrEqual(6, $clientEmails);
+        Notification::assertSentToTimes($admin, ClientNotificationFailed::class, 1);
     }
 
     public function test_auto_renewal_splits_between_wallet_and_enabled_card_when_wallet_is_insufficient(): void

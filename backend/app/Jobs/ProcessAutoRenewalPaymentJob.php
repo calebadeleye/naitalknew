@@ -209,6 +209,24 @@ class ProcessAutoRenewalPaymentJob implements ShouldQueue
 
     private function onFailure(HostingService $service, Invoice $invoice, string $reason, ClientNotifier $notifier): void
     {
+        // Having nothing to charge (no wallet balance, no enabled card) isn't a
+        // failure of ours — it's just an unpaid invoice. It gets a gentle weekly
+        // reminder and never alerts the admins. A card that was actually declined
+        // is retried nightly but emailed about only every few days.
+        $nothingToCharge = $reason === 'no_saved_card_enabled_for_auto_renewal' || $reason === 'no_saved_card';
+        $quietDays = $nothingToCharge ? 7 : 3;
+
+        $alreadyToldRecently = AuditLog::query()
+            ->where('hosting_service_id', $service->id)
+            ->where('invoice_id', $invoice->id)
+            ->where('action', 'auto_renewal_failed')
+            ->where('created_at', '>=', now()->subDays($quietDays))
+            ->exists();
+
+        if ($alreadyToldRecently) {
+            return;
+        }
+
         AuditLog::query()->create([
             'client_id' => $service->client_id,
             'hosting_service_id' => $service->id,
@@ -222,7 +240,7 @@ class ProcessAutoRenewalPaymentJob implements ShouldQueue
 
         $notifier->notify(
             client: $service->client,
-            notification: $reason === 'no_saved_card_enabled_for_auto_renewal' || $reason === 'no_saved_card'
+            notification: $nothingToCharge
                 ? new NaiTalkRenewalPaymentReminder($invoice)
                 : new NaiTalkAutoRenewalFailed($invoice, $reason),
             template: 'auto_renewal_failed',
@@ -230,7 +248,9 @@ class ProcessAutoRenewalPaymentJob implements ShouldQueue
             service: $service,
         );
 
-        $this->escalateIfRepeated($service, $invoice);
+        if (! $nothingToCharge) {
+            $this->escalateIfRepeated($service, $invoice);
+        }
     }
 
     private function escalateIfRepeated(HostingService $service, Invoice $invoice): void
@@ -243,7 +263,8 @@ class ProcessAutoRenewalPaymentJob implements ShouldQueue
             ->where('action', 'auto_renewal_failed')
             ->count();
 
-        if ($failureCount < $threshold) {
+        // Exactly once per invoice — not on every later failure too.
+        if ($failureCount !== $threshold) {
             return;
         }
 
