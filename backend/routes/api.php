@@ -28,6 +28,8 @@ use App\Http\Controllers\Api\Admin\ProvisioningController;
 use App\Http\Controllers\Api\Admin\RecordsController;
 use App\Http\Controllers\Api\Admin\ServiceOfferingController as AdminServiceOfferingController;
 use App\Http\Controllers\Api\Admin\ServicesDashboardController;
+use App\Http\Controllers\Api\Admin\SupportTicketController as AdminSupportTicketController;
+use App\Http\Controllers\Api\Client\SupportTicketController as ClientSupportTicketController;
 use App\Http\Controllers\Api\Admin\ServiceStatusController;
 use App\Http\Controllers\Api\Admin\WebsiteQuoteController as AdminWebsiteQuoteController;
 use App\Http\Controllers\Api\AuthController;
@@ -104,6 +106,12 @@ Route::prefix('v1')->group(function (): void {
 
         Route::middleware('role:client')->prefix('client')->group(function (): void {
             Route::get('/dashboard', ClientDashboardController::class);
+            Route::get('/support-tickets', [ClientSupportTicketController::class, 'index']);
+            Route::post('/support-tickets', [ClientSupportTicketController::class, 'store'])->middleware('throttle:support-ticket');
+            Route::get('/support-tickets/{ticket}', [ClientSupportTicketController::class, 'show']);
+            Route::post('/support-tickets/{ticket}/replies', [ClientSupportTicketController::class, 'reply'])->middleware('throttle:support-ticket');
+            Route::post('/support-tickets/{ticket}/close', [ClientSupportTicketController::class, 'close']);
+            Route::get('/support-tickets/{ticket}/messages/{message}/attachments/{index}', [ClientSupportTicketController::class, 'attachment'])->whereNumber('index');
             Route::get('/services/catalog', ServiceCatalogController::class);
             Route::get('/orders', [OrderController::class, 'index']);
             Route::get('/orders/{order:order_number}/invoice', [InvoiceController::class, 'show']);
@@ -241,7 +249,11 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/invoices/{invoice:invoice_number}/reject-bank-transfer', [AdminInvoicePaymentController::class, 'rejectBankTransfer']);
             Route::get('/payments/{payment}/receipt', [AdminInvoicePaymentController::class, 'downloadReceipt']);
             Route::get('/payments', [RecordsController::class, 'payments']);
-            Route::get('/support-tickets', [RecordsController::class, 'tickets']);
+            Route::get('/support-tickets', [AdminSupportTicketController::class, 'index']);
+            Route::get('/support-tickets/{ticket}', [AdminSupportTicketController::class, 'show']);
+            Route::post('/support-tickets/{ticket}/replies', [AdminSupportTicketController::class, 'reply']);
+            Route::patch('/support-tickets/{ticket}', [AdminSupportTicketController::class, 'update']);
+            Route::get('/support-tickets/{ticket}/messages/{message}/attachments/{index}', [AdminSupportTicketController::class, 'attachment'])->whereNumber('index');
             Route::get('/provisioning-logs', [RecordsController::class, 'provisioningLogs']);
             Route::get('/ispconfig-client-mappings', [RecordsController::class, 'ispConfigClientMappings']);
             Route::get('/audit-logs', [RecordsController::class, 'auditLogs']);

@@ -32,8 +32,18 @@ class AddHelpArticlesCommandTest extends TestCase
 
         $this->assertSame(7, KnowledgeBaseArticle::query()->where('slug', '!=', 'how-to-raise-a-support-ticket')->published()->count());
         $this->assertDatabaseHas('knowledge_base_articles', ['slug' => 'how-to-download-your-receipt', 'status' => 'published']);
-        $this->assertSame('How to Get Help and Support', $support->fresh()->title);
+        $this->assertSame('How to Raise a Support Ticket', $support->fresh()->title);
         $this->assertStringNotContainsString('support ticket from your dashboard', $support->fresh()->content);
+        $this->assertStringContainsString('click Support Tickets in the client area menu', $support->fresh()->content);
+    }
+
+    public function test_the_whatsapp_only_wording_from_before_tickets_existed_is_brought_up_to_date(): void
+    {
+        $support = $this->seedOriginalSupportArticle('For anything it can\'t answer, use "Chat with our team on WhatsApp" in the help assistant.');
+
+        $this->artisan('kb:add-help-articles')->assertSuccessful();
+
+        $this->assertStringContainsString('click Support Tickets in the client area menu', $support->fresh()->content);
     }
 
     public function test_it_is_safe_to_re_run_and_never_overwrites_admin_edits(): void

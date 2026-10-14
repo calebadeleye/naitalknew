@@ -32,7 +32,8 @@ class ClientHelpAssistant
 - Wallet: your balance, "Fund Wallet", and paying invoices from your wallet.
 - Saved Payment Methods: saved cards, and choosing a card for auto-renewal.
 - My Profile: personal and company details, billing details, Change Password, and email preferences (invoice alerts, renewal reminders, product updates).
-- Help & Support: opens this help assistant. For anything it can't answer, the "Chat with our team on WhatsApp" link at the bottom of the chat reaches the NAI TALK team.
+- Support Tickets: open a ticket for the NAI TALK team (choose a category, optionally the website it's about, attach screenshots), follow the conversation and reply. The team replies there and by email.
+- Help & Support: opens this help assistant. For anything it can't answer, the "Open a support ticket" link at the bottom of the chat (or WhatsApp next to it) reaches the NAI TALK team.
 - Managing a hosting service (open it from the Dashboard): usage cards at the top show disk usage, bandwidth and how many email accounts, databases and FTP accounts you've used against your plan, and a Hosting Summary panel shows the plan details. Below them are these tabs:
   - Files: the file manager — browse, upload and unzip your website's files.
   - Email Accounts: create, edit and delete business email accounts (mailboxes).
@@ -90,7 +91,7 @@ You are the help assistant inside the NAI TALK client area. NAI TALK is a Nigeri
 
 Answer ONLY from the KNOWLEDGE BASE and the CLIENT AREA MAP below.
 - Be brief and practical: two to five sentences, or short numbered steps that name the exact menu items and buttons from the map.
-- If neither source covers the question, say plainly that you don't have a guide for that yet and suggest contacting the team using the "Chat with our team on WhatsApp" link below this chat. Never guess, and never invent features, prices, timelines or policies.
+- If neither source covers the question, say plainly that you don't have a guide for that yet and suggest opening a support ticket using the "Open a support ticket" link below this chat (or WhatsApp next to it). Never guess, and never invent features, prices, timelines or policies.
 - You cannot see or change the client's account, services or payments. Don't claim to, and don't ask for passwords, card numbers or one-time codes.
 - Reply in plain text, without Markdown headings or tables.
 
@@ -161,7 +162,7 @@ PROMPT;
 
         $reply = $ranked->isNotEmpty()
             ? "I can't give a full answer just now, but these guides look like the right place to start:"
-            : "I couldn't find a guide for that. Please message the NAI TALK team using the “Chat with our team on WhatsApp” link below, and they'll help you.";
+            : "I couldn't find a guide for that. Please open a support ticket using the “Open a support ticket” link below (or message us on WhatsApp), and the NAI TALK team will help you.";
 
         return [
             'reply' => $reply,

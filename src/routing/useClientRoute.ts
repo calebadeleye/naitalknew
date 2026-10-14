@@ -24,7 +24,10 @@ export type ClientRouteName =
   | "domains"
   | "domain-detail"
   | "domain-contact"
-  | "profile";
+  | "profile"
+  | "support"
+  | "support-new"
+  | "support-ticket";
 
 const ROUTE_SEGMENTS: Record<string, ClientRouteName> = {
   login: "login",
@@ -46,12 +49,15 @@ const ROUTE_SEGMENTS: Record<string, ClientRouteName> = {
   domains: "domains",
   "domain-contact": "domain-contact",
   profile: "profile",
+  support: "support",
+  "support/new": "support-new",
 };
 
 const HOSTING_MANAGE_PATTERN = /^services\/(\d+)\/manage$/;
 const ORDER_NUMBER_PATTERN = /^orders\/([A-Za-z0-9-]+)$/;
 const INVOICE_NUMBER_PATTERN = /^invoices\/([A-Za-z0-9-]+)$/;
 const DOMAIN_DETAIL_PATTERN = /^domains\/(\d+)$/;
+const SUPPORT_TICKET_PATTERN = /^support\/(TKT-[A-Za-z0-9-]+)$/;
 
 function parseRoute(pathname: string): ClientRouteName {
   const segment = pathname.replace(/^\/client\/?/, "").replace(/\/$/, "");
@@ -60,6 +66,7 @@ function parseRoute(pathname: string): ClientRouteName {
   if (ORDER_NUMBER_PATTERN.test(segment)) return "invoice-detail";
   if (INVOICE_NUMBER_PATTERN.test(segment)) return "invoice-by-number";
   if (DOMAIN_DETAIL_PATTERN.test(segment)) return "domain-detail";
+  if (SUPPORT_TICKET_PATTERN.test(segment)) return "support-ticket";
 
   for (const [prefix, route] of Object.entries(ROUTE_SEGMENTS)) {
     if (segment === prefix) return route;
@@ -96,6 +103,13 @@ function parseDomainId(pathname: string): number | null {
   return match ? Number(match[1]) : null;
 }
 
+function parseTicketNumber(pathname: string): string | null {
+  const segment = pathname.replace(/^\/client\/?/, "").replace(/\/$/, "");
+  const match = segment.match(SUPPORT_TICKET_PATTERN);
+
+  return match ? match[1] : null;
+}
+
 export function navigateClient(path: string) {
   window.history.pushState(null, "", path);
   window.dispatchEvent(new Event("naitalk:navigate"));
@@ -108,6 +122,7 @@ export function useClientRoute() {
   const [orderNumber, setOrderNumber] = useState<string | null>(() => parseOrderNumber(window.location.pathname));
   const [invoiceNumber, setInvoiceNumber] = useState<string | null>(() => parseInvoiceNumber(window.location.pathname));
   const [domainId, setDomainId] = useState<number | null>(() => parseDomainId(window.location.pathname));
+  const [ticketNumber, setTicketNumber] = useState<string | null>(() => parseTicketNumber(window.location.pathname));
 
   const sync = useCallback(() => {
     setRoute(parseRoute(window.location.pathname));
@@ -116,6 +131,7 @@ export function useClientRoute() {
     setOrderNumber(parseOrderNumber(window.location.pathname));
     setInvoiceNumber(parseInvoiceNumber(window.location.pathname));
     setDomainId(parseDomainId(window.location.pathname));
+    setTicketNumber(parseTicketNumber(window.location.pathname));
   }, []);
 
   useEffect(() => {
@@ -138,5 +154,5 @@ export function useClientRoute() {
     navigateClient(path);
   }, []);
 
-  return { route, search, hostingServiceId, orderNumber, invoiceNumber, domainId, navigate };
+  return { route, search, hostingServiceId, orderNumber, invoiceNumber, domainId, ticketNumber, navigate };
 }

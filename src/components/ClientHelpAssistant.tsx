@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-import { BookOpen, Loader2, MessageCircle, Send, Sparkles, X } from "lucide-react";
+import { BookOpen, LifeBuoy, Loader2, MessageCircle, Send, Sparkles, X } from "lucide-react";
 import { laravelApi } from "../shared/api";
 import { whatsappUrl } from "../shared/siteDefaults";
+import { navigateClient } from "../routing/useClientRoute";
 
 type AssistantArticle = { title: string; slug: string; url: string };
 type AssistantMessage = { role: "user" | "assistant"; content: string; articles?: AssistantArticle[] };
@@ -215,14 +216,22 @@ export function ClientHelpAssistant() {
                 <Send className="h-4 w-4" />
               </button>
             </div>
-            <a
-              href={whatsappUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-white/55 hover:text-primary"
-            >
-              <MessageCircle className="h-3.5 w-3.5" /> Prefer a person? Chat with our team on WhatsApp
-            </a>
+            <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-bold text-white/55">
+              <span>Prefer a person?</span>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 hover:text-primary"
+                onClick={() => {
+                  setIsOpen(false);
+                  navigateClient("/client/support/new");
+                }}
+              >
+                <LifeBuoy className="h-3.5 w-3.5" /> Open a support ticket
+              </button>
+              <a href={whatsappUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:text-primary">
+                <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+              </a>
+            </p>
           </form>
         </section>
       )}

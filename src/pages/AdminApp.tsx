@@ -115,6 +115,7 @@ import { PublicPage, PublicBreadcrumbs, usePublicImage, MarketingHero, Marketing
 import { goToDomainCheckout, DomainPromoBadge, TldPriceCard, DomainFeatureItem, DomainSearchBar, DomainSearchSection, DomainGlobeIllustration } from "../shared/domainWidgets";
 import type { DomainFeature, PublicTldPricingRow } from "../shared/domainWidgets";
 import { ServerCapacityPanel } from "../admin/ServerCapacityPanel";
+import { AdminSupportInbox } from "../admin/AdminSupportInbox";
 
 export const adminMetrics = [
   { label: "Total Revenue", value: "₦5,420,000", delta: "15.2%", icon: Wallet, tone: "lime" },
@@ -6315,7 +6316,9 @@ export function AdminApp() {
           />
         )}
 
-        {isRecordSection(activeSection) && !routeClientId && !routeServiceId && (
+        {activeSection === "support" && !routeClientId && !routeServiceId && <AdminSupportInbox adminToken={adminToken} />}
+
+        {isRecordSection(activeSection) && activeSection !== "support" && !routeClientId && !routeServiceId && (
           <AdminRecordsSection
             title={adminRecordLabels[activeSection].title}
             description={adminRecordLabels[activeSection].description}

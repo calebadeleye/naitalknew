@@ -39,6 +39,7 @@ import {
   Image as ImageIcon,
   KeyRound,
   LayoutDashboard,
+  LifeBuoy,
   Link2,
   Linkedin,
   List,
@@ -114,6 +115,7 @@ import { fallbackClientLogos, fallbackProjects, fallbackReviews, fallbackSiteCon
 import { Logo, Navbar, Footer, FloatingWhatsApp, SectionHeader, socialLinks, paymentBadges, footerColumns } from "../shared/PublicLayout";
 import { ClientHelpAssistant, OPEN_HELP_ASSISTANT_EVENT } from "../components/ClientHelpAssistant";
 import { TermsAgreement } from "../components/TermsAgreement";
+import { ClientSupportPage } from "../support/ClientSupportPage";
 import { PublicPage, PublicBreadcrumbs, usePublicImage, MarketingHero, MarketingCtaBand, FaqAccordionItem, FaqAccordionGroup } from "../shared/marketingWidgets";
 import { goToDomainCheckout, DomainPromoBadge, TldPriceCard, DomainFeatureItem, DomainSearchBar, DomainSearchSection, DomainGlobeIllustration } from "../shared/domainWidgets";
 import type { DomainFeature, PublicTldPricingRow } from "../shared/domainWidgets";
@@ -147,8 +149,9 @@ export const portalNavLinks = [
   { icon: Wallet, label: "Wallet", route: "wallet" as ClientRouteName, path: "/client/wallet" },
   { icon: CreditCard, label: "Saved Payment Methods", route: "payment-methods" as ClientRouteName, path: "/client/payment-methods" },
   { icon: User, label: "My Profile", route: "profile" as ClientRouteName, path: "/client/profile" },
-  // There is no ticket system: this opens the help assistant, which answers from the
-  // knowledge base and links straight to WhatsApp for anything it can't answer.
+  { icon: LifeBuoy, label: "Support Tickets", route: "support" as ClientRouteName, path: "/client/support" },
+  // Opens the help assistant, which answers from the knowledge base and points
+  // to a support ticket (or WhatsApp) for anything it can't answer.
   { icon: MessageCircle, label: "Help & Support", route: null, path: null },
   { icon: LogOut, label: "Logout", route: null, path: null },
 ];
@@ -194,7 +197,7 @@ export function ClientPortalShell({
             <button
               key={item.label}
               type="button"
-              className={route === item.route ? "portal-nav active" : "portal-nav"}
+              className={route === item.route || (item.route === "support" && route.startsWith("support")) ? "portal-nav active" : "portal-nav"}
               onClick={() => {
                 setIsMobileNavOpen(false);
                 if (item.label === "Logout") {
@@ -4293,7 +4296,7 @@ export function HostingModalContent({
 
 export function ClientPortal() {
   const toast = useToast();
-  const { route, search, hostingServiceId, orderNumber, invoiceNumber, domainId, navigate } = useClientRoute();
+  const { route, search, hostingServiceId, orderNumber, invoiceNumber, domainId, ticketNumber, navigate } = useClientRoute();
   const [clientToken, setClientToken] = useState(() => sessionStorage.getItem("naitalk_laravel_client_token") || "");
   const [login, setLogin] = useState(INITIAL_LOGIN);
   const [registerForm, setRegisterForm] = useState(INITIAL_REGISTER);
@@ -5515,6 +5518,21 @@ export function ClientPortal() {
         hideWelcomeHeader
       >
         <HostingManagePanel serviceId={hostingServiceId} token={clientToken} navigate={navigate} toast={toast} initialTab={search.get("tab") === "website" ? "website" : undefined} />
+      </ClientPortalShell>
+    );
+  }
+
+  if (route === "support" || route === "support-new" || route === "support-ticket") {
+    return (
+      <ClientPortalShell
+        dashboard={dashboard}
+        route={route}
+        isVerified={isVerified}
+        navigate={navigate}
+        onLogout={() => void handleClientLogout()}
+        onProfileClick={() => navigate("/client/profile")}
+      >
+        <ClientSupportPage token={clientToken} toast={toast} navigate={navigate} ticketNumber={ticketNumber} isNew={route === "support-new"} />
       </ClientPortalShell>
     );
   }

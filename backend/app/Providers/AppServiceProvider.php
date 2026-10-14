@@ -82,6 +82,8 @@ class AppServiceProvider extends ServiceProvider
 
         RateLimiter::for('hosting-manual-sync', fn ($request) => Limit::perMinute(3)->by($request->user()?->id ?: $request->ip()));
 
+        RateLimiter::for('support-ticket', fn ($request) => Limit::perMinute(10)->by($request->user()?->id ?: $request->ip()));
+
         RateLimiter::for('website-quote', fn ($request) => Limit::perMinute(5)->by($request->ip()));
 
         RateLimiter::for('tracking', fn ($request) => Limit::perMinute(60)->by($request->ip()));

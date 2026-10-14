@@ -77,12 +77,15 @@ class AddHelpArticlesCommand extends Command
 
     private const SUPPORT_SLUG = 'how-to-raise-a-support-ticket';
 
-    /** The sentence in the original article describing a ticket system that doesn't exist. */
+    /** The sentence in the original article, describing a ticket button that never existed in that form. */
     private const SUPPORT_WRONG_TEXT = 'opening a support ticket from your dashboard';
 
-    private const SUPPORT_TITLE = 'How to Get Help and Support';
+    private const SUPPORT_TITLE = 'How to Raise a Support Ticket';
 
-    private const SUPPORT_CONTENT = "Click Help & Support in the client area menu (or the Need help? button) to ask the help assistant how to do something — it answers from these help guides and links you to the right one.\n\nFor anything it can't answer, or anything about your own account, message the NAI TALK team on WhatsApp: use \"Chat with our team on WhatsApp\" in the help assistant, or the WhatsApp button on our website. Include your domain or service name so we can look into it faster. Priority support is included on Business and Premium Website Care plans.";
+    private const SUPPORT_CONTENT = "To reach the NAI TALK team, click Support Tickets in the client area menu, then New ticket. Give it a short subject, choose a category (for example My website, Email, Domain or Billing & payments), pick the website it's about if there is one, and describe what's happening — you can attach up to 3 screenshots or files. We reply on the ticket and email you when we do; you can reply back, and close the ticket once it's sorted (replying reopens it).\n\nFor quick how-to questions, click Help & Support (or the Need help? button) to ask the help assistant — it answers instantly from these guides. You can also message us on WhatsApp. Priority support is included on Business and Premium Website Care plans.";
+
+    /** Earlier wording of this article, written before tickets existed — replaced when the command runs. */
+    private const SUPPORT_OUTDATED_TEXT = 'Chat with our team on WhatsApp';
 
     public function handle(): int
     {
@@ -119,7 +122,7 @@ class AddHelpArticlesCommand extends Command
 
         $support = KnowledgeBaseArticle::query()->where('slug', self::SUPPORT_SLUG)->first();
 
-        if ($support && str_contains((string) $support->content, self::SUPPORT_WRONG_TEXT)) {
+        if ($support && (str_contains((string) $support->content, self::SUPPORT_WRONG_TEXT) || str_contains((string) $support->content, self::SUPPORT_OUTDATED_TEXT))) {
             if (! $dryRun) {
                 $support->forceFill([
                     'title' => self::SUPPORT_TITLE,

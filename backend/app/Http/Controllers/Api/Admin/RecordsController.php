@@ -20,7 +20,6 @@ use App\Models\IspConfigClientMapping;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\ProvisioningLog;
-use App\Models\SupportTicket;
 use App\Models\WebsiteQuoteRequest;
 use Illuminate\Http\Request;
 
@@ -177,17 +176,6 @@ class RecordsController extends Controller
                 ->paginate(20)
                 ->withQueryString()
         );
-    }
-
-    public function tickets(Request $request)
-    {
-        return SupportTicket::query()
-            ->with(['client.user', 'hostingService'])
-            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
-            ->when($request->filled('priority'), fn ($query) => $query->where('priority', $request->string('priority')))
-            ->latest()
-            ->paginate(20)
-            ->withQueryString();
     }
 
     public function provisioningLogs(Request $request)

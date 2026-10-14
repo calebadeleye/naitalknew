@@ -5,7 +5,8 @@ export async function laravelApi<T>(path: string, token?: string, options: Reque
   const headers = new Headers(options.headers);
   headers.set("Accept", "application/json");
 
-  if (options.body && !headers.has("Content-Type")) {
+  // FormData (file uploads) must keep the browser's own multipart Content-Type.
+  if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -24,4 +25,21 @@ export async function laravelApi<T>(path: string, token?: string, options: Reque
   }
 
   return payload as T;
+}
+
+/** Downloads a file from an authenticated API endpoint and hands it to the browser to save. */
+export async function downloadLaravelFile(path: string, token: string, fallbackName: string): Promise<void> {
+  const response = await fetch(`${LARAVEL_API_BASE_URL}${path}`, { headers: { Authorization: `Bearer ${token}` } });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.message || "Download failed.");
+  }
+
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fallbackName;
+  link.click();
+  URL.revokeObjectURL(url);
 }
