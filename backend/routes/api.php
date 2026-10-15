@@ -268,6 +268,7 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/payments/{payment}/receipt', [AdminInvoicePaymentController::class, 'downloadReceipt']);
             Route::get('/payments', [RecordsController::class, 'payments']);
             Route::get('/support-tickets', [AdminSupportTicketController::class, 'index']);
+            Route::get('/support-tickets/summary', [AdminSupportTicketController::class, 'needsReply']);
             Route::get('/support-tickets/{ticket}', [AdminSupportTicketController::class, 'show']);
             Route::post('/support-tickets/{ticket}/replies', [AdminSupportTicketController::class, 'reply']);
             Route::patch('/support-tickets/{ticket}', [AdminSupportTicketController::class, 'update']);

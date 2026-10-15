@@ -65,8 +65,30 @@ class SupportTicketTest extends TestCase
         $this->assertArrayNotHasKey('attachments', $response->json('messages.0'), 'storage paths must not leak');
 
         Notification::assertSentTo($this->admin, SupportTicketActivity::class, fn ($n) => $n->event === 'opened');
+        $this->assertDatabaseHas('notification_logs', ['template' => 'support_ticket_staff_opened', 'recipient' => $this->admin->email, 'status' => 'sent']);
 
         $this->withToken($token)->get("/api/v1/client/support-tickets/{$number}/messages/{$response->json('messages.0.id')}/attachments/0")->assertOk();
+
+        // The admin bell's count.
+        $this->withToken($this->tokenFor($this->admin))->getJson('/api/v1/admin/support-tickets/summary')->assertOk()->assertJsonPath('needs_reply', 1);
+    }
+
+    public function test_a_staff_email_that_fails_is_logged_and_the_ticket_is_still_opened(): void
+    {
+        Notification::swap(new class extends \Illuminate\Support\Testing\Fakes\NotificationFake
+        {
+            public function sendNow($notifiables, $notification, ?array $channels = null)
+            {
+                throw new \RuntimeException('Resend rejected the message');
+            }
+        });
+        $service = $this->clientService();
+
+        $this->withToken($this->tokenFor($service->client->user))->postJson('/api/v1/client/support-tickets', [
+            'subject' => 'Email down', 'category' => 'email', 'message' => 'No mail since yesterday.',
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('notification_logs', ['template' => 'support_ticket_staff_opened', 'status' => 'failed', 'failure_reason' => 'Resend rejected the message']);
     }
 
     public function test_staff_reply_marks_it_answered_and_emails_the_client_who_can_reply_back(): void

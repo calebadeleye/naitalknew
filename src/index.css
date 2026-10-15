@@ -1026,14 +1026,6 @@
     @apply text-xs font-bold text-white/54;
   }
 
-  .revenue-chart {
-    @apply mt-5 overflow-hidden rounded-lg border border-white/10 bg-black/20 p-3;
-  }
-
-  .revenue-chart svg {
-    @apply h-64 w-full;
-  }
-
   .data-row,
   .client-service-row,
   .system-row {
@@ -1914,7 +1906,7 @@
 
 /* bg-black/20-style inset boxes (in markup or applied in a rule above): a
    soft grey instead of a dark wash. */
-[data-theme="light"] :is([class*="bg-black/"], .client-service-row, .system-row, .revenue-chart, .admin-check) {
+[data-theme="light"] :is([class*="bg-black/"], .client-service-row, .system-row, .admin-check) {
   background-color: #f4f6f8;
 }
 

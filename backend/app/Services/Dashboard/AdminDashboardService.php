@@ -66,7 +66,6 @@ class AdminDashboardService
                 ['label' => 'Active Services', 'value' => HostingService::query()->where('status', 'active')->count()],
                 ['label' => 'New Clients', 'value' => $newClientsQuery->count()],
             ],
-            'revenue_overview' => $this->monthlyRevenue(),
             'upcoming_renewals' => HostingService::query()
                 ->with(['client.user', 'hostingPlan'])
                 ->whereNotNull('renews_at')
@@ -125,28 +124,5 @@ class AdminDashboardService
                 ]),
             'provisioning' => ProvisioningLog::query()->latest()->limit(10)->get(),
         ];
-    }
-
-    private function monthlyRevenue(): array
-    {
-        return collect(range(5, 0))
-            ->map(function (int $monthsAgo) {
-                $month = now()->subMonths($monthsAgo);
-
-                $amount = Payment::query()
-                    ->where('status', 'paid')
-                    ->whereBetween('paid_at', [
-                        Carbon::parse($month)->startOfMonth(),
-                        Carbon::parse($month)->endOfMonth(),
-                    ])
-                    ->sum('amount_kobo');
-
-                return [
-                    'month' => $month->format('M Y'),
-                    'amount' => Money::naira($amount),
-                    'raw' => $amount,
-                ];
-            })
-            ->all();
     }
 }

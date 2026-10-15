@@ -47,7 +47,6 @@ export type AdminDashboardMetric = {
 export type AdminDashboardSnapshot = {
   pending_payment_reviews: number;
   metrics: AdminDashboardMetric[];
-  revenue_overview: Array<{ month: string; amount: string; raw: number }>;
   upcoming_renewals: Array<{
     service_number: string;
     client: string | null;

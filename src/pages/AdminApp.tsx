@@ -119,6 +119,7 @@ import { AdminSupportInbox } from "../admin/AdminSupportInbox";
 import { PaymentMethodsPanel } from "../admin/PaymentMethodsPanel";
 import { GlobalBlockedIpsPanel } from "../admin/GlobalBlockedIpsPanel";
 import { AreaThemeToggle, useAreaTheme } from "../shared/areaTheme";
+import { useTicketsNeedingReply } from "../admin/useTicketsNeedingReply";
 
 export const adminMetrics = [
   { label: "Total Revenue", value: "₦5,420,000", delta: "15.2%", icon: Wallet, tone: "lime" },
@@ -1094,26 +1095,7 @@ export function AdminDashboardOverview({
         })}
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1.15fr_0.95fr_1.1fr]">
-        <article className="dashboard-card">
-          <div className="flex items-center justify-between">
-            <h3>Revenue Overview</h3>
-            <span>This year</span>
-          </div>
-          <div className="revenue-chart" aria-hidden="true">
-            <svg viewBox="0 0 520 240" role="img">
-              <defs>
-                <linearGradient id="revenueFill" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0%" stopColor="#9bea16" stopOpacity="0.45" />
-                  <stop offset="100%" stopColor="#9bea16" stopOpacity="0.02" />
-                </linearGradient>
-              </defs>
-              <path d="M16 196 C70 154, 90 88, 132 105 C178 123, 188 155, 232 142 C276 129, 285 91, 326 119 C368 146, 390 110, 426 100 C462 90, 486 112, 504 65 L504 220 L16 220 Z" fill="url(#revenueFill)" />
-              <path d="M16 196 C70 154, 90 88, 132 105 C178 123, 188 155, 232 142 C276 129, 285 91, 326 119 C368 146, 390 110, 426 100 C462 90, 486 112, 504 65" fill="none" stroke="#9bea16" strokeWidth="5" strokeLinecap="round" />
-            </svg>
-          </div>
-        </article>
-
+      <div className="grid gap-5 xl:grid-cols-[0.95fr_1.1fr]">
         <article className="dashboard-card">
           <div className="flex items-center justify-between">
             <h3>Upcoming Renewals</h3>
@@ -5085,7 +5067,18 @@ export function AdminApp() {
   const CONTENT_EDITOR_SECTIONS: AdminSectionId[] = ["logo", "clientLogos", "portfolio", "testimonials", "pricing"];
   const isContentEditorSection = CONTENT_EDITOR_SECTIONS.includes(activeSection);
 
+  const ticketsNeedingReply = useTicketsNeedingReply(isAuthenticated ? adminToken : "");
+
   const notificationItems: Array<{ id: string; label: string; section: AdminSectionId }> = [
+    ...(ticketsNeedingReply > 0
+      ? [
+          {
+            id: "support-tickets",
+            label: `${ticketsNeedingReply} support ${ticketsNeedingReply === 1 ? "ticket needs" : "tickets need"} a reply`,
+            section: "support" as AdminSectionId,
+          },
+        ]
+      : []),
     ...(dashboardData?.pending_payment_reviews
       ? [
           {

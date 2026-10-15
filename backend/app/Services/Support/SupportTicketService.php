@@ -3,6 +3,7 @@
 namespace App\Services\Support;
 
 use App\Models\Client;
+use App\Models\NotificationLog;
 use App\Models\SupportTicket;
 use App\Models\SupportTicketMessage;
 use App\Models\User;
@@ -14,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Throwable;
 
 /**
  * The rules of a support conversation, shared by the client and admin APIs:
@@ -137,12 +139,37 @@ class SupportTicketService
         return $file && Storage::disk('local')->exists($file['path']) ? ['path' => $file['path'], 'name' => $file['name']] : null;
     }
 
+    /**
+     * Emails every admin now (not via the queue) and records each attempt in
+     * notification_logs, so a missing "new ticket" email can be traced.
+     */
     private function tellStaff(SupportTicket $ticket, string $event): void
     {
-        $staff = User::query()->whereIn('role', ['super_admin', 'admin_staff'])->get();
+        $ticket = $ticket->fresh(['client.user', 'hostingService']);
+        $notification = new SupportTicketActivity($ticket, $event);
 
-        if ($staff->isNotEmpty()) {
-            Notification::send($staff, new SupportTicketActivity($ticket->fresh(['client.user', 'hostingService']), $event));
+        foreach (User::query()->whereIn('role', ['super_admin', 'admin_staff'])->get() as $admin) {
+            $failure = null;
+
+            try {
+                Notification::sendNow($admin, $notification);
+            } catch (Throwable $exception) {
+                $failure = $exception->getMessage();
+                report($exception);
+            }
+
+            NotificationLog::query()->create([
+                'client_id' => $ticket->client_id,
+                'hosting_service_id' => $ticket->hosting_service_id,
+                'channel' => 'mail',
+                'template' => 'support_ticket_staff_'.$event,
+                'subject' => "[{$ticket->ticket_number}] {$ticket->subject}",
+                'recipient' => $admin->email,
+                'status' => $failure ? 'failed' : 'sent',
+                'failure_reason' => $failure,
+                'payload' => ['ticket_number' => $ticket->ticket_number],
+                'sent_at' => now(),
+            ]);
         }
     }
 

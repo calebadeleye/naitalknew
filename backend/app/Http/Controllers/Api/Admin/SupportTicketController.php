@@ -47,6 +47,12 @@ class SupportTicketController extends Controller
         ]);
     }
 
+    /** For the admin notification bell, polled every minute — kept to one count query. */
+    public function needsReply()
+    {
+        return response()->json(['needs_reply' => SupportTicket::query()->where('status', 'open')->count()]);
+    }
+
     public function show(SupportTicket $ticket)
     {
         return response()->json($this->detail($ticket));
