@@ -8,6 +8,7 @@ import {
   ArrowUpRight,
   Activity,
   BadgeCheck,
+  BarChart3,
   Bell,
   BookOpen,
   Bot,
@@ -117,6 +118,7 @@ import { Logo, Navbar, Footer, FloatingWhatsApp, SectionHeader, socialLinks, pay
 import { ClientHelpAssistant, OPEN_HELP_ASSISTANT_EVENT } from "../components/ClientHelpAssistant";
 import { TermsAgreement } from "../components/TermsAgreement";
 import { ClientSupportPage } from "../support/ClientSupportPage";
+import { WebsiteStatisticsPanel } from "../hosting/WebsiteStatisticsPanel";
 import { isGateway, usePaymentOptions, type PaymentGatewayId } from "../shared/paymentOptions";
 import { PublicPage, PublicBreadcrumbs, usePublicImage, MarketingHero, MarketingCtaBand, FaqAccordionItem, FaqAccordionGroup } from "../shared/marketingWidgets";
 import { goToDomainCheckout, DomainPromoBadge, TldPriceCard, DomainFeatureItem, DomainSearchBar, DomainSearchSection, DomainGlobeIllustration } from "../shared/domainWidgets";
@@ -327,7 +329,7 @@ export type HostingFtpAccount = {
   last_synced_at: string | null;
 };
 
-export type HostingTabName = "overview" | "email" | "databases" | "ftp" | "website" | "software";
+export type HostingTabName = "overview" | "email" | "databases" | "ftp" | "website" | "statistics" | "software";
 
 export type FileManagerEntry = {
   name: string;
@@ -953,6 +955,7 @@ export function HostingManagePanel({
             ["databases", Database, "Databases"],
             ["ftp", KeyRound, "SSH/SFTP"],
             ["website", Globe2, "Website"],
+            ["statistics", BarChart3, "Statistics"],
             ["software", Puzzle, "Software"],
           ] as [HostingTabName, React.ComponentType<{ className?: string }>, string][]
         ).map(([id, Icon, label]) => (
@@ -1563,6 +1566,8 @@ export function HostingManagePanel({
               )}
             </div>
           )}
+
+          {tab === "statistics" && <WebsiteStatisticsPanel serviceId={serviceId} token={token} />}
 
           {tab === "software" && (
             <div>

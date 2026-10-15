@@ -39,5 +39,10 @@ return [
 
     // Where a suspended website's visitors are sent (ISPConfig redirect). Must
     // end with "/" — ISPConfig appends the requested path to it.
+    // Fetch each site's AWStats report from Apache on this server (127.0.0.1)
+    // rather than over the internet. Turn off only if the backend moves to a
+    // different machine from the hosted sites.
+    'stats_fetch_via_loopback' => (bool) env('HOSTING_STATS_FETCH_VIA_LOOPBACK', true),
+
     'suspended_page_url' => env('HOSTING_SUSPENDED_PAGE_URL', 'https://www.naitalk.com/account-suspended/'),
 ];

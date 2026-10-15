@@ -9,6 +9,7 @@ use App\Jobs\GenerateRenewalInvoiceJob;
 use App\Jobs\ProcessAutoRenewalPaymentJob;
 use App\Jobs\RenewDomainJob;
 use App\Jobs\RepairWebsiteProxiesJob;
+use App\Jobs\SyncSiteStatisticsJob;
 use App\Jobs\SendDomainExpiryReminderJob;
 use App\Jobs\SendHostingExpiryReminderJob;
 use App\Jobs\SuspendExpiredHostingJob;
@@ -39,6 +40,10 @@ Schedule::job(new SyncHostingUsageSnapshotJob)->hourly();
 // Client-run apps (reverse proxy): put a vanished proxy rule back and alert the
 // client when their app stops answering. Cheap — one ISPConfig read per proxied site.
 Schedule::job(new RepairWebsiteProxiesJob)->everyTenMinutes();
+
+// Visitor statistics for the client Statistics tab, copied from each site's
+// AWStats report after ISPConfig rebuilds it overnight.
+Schedule::job(new SyncSiteStatisticsJob)->dailyAt('06:20');
 Schedule::job(new SyncMailboxesJob)->everySixHours();
 Schedule::job(new SyncDatabasesJob)->everySixHours();
 Schedule::job(new SyncFtpAccountsJob)->everySixHours();

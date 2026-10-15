@@ -394,6 +394,8 @@ class WebsiteSettingsService
             self::PROXY_BLOCK_START,
             'ProxyPreserveHost On',
             'ProxyPass /.well-known/acme-challenge/ !',
+            // The site's visitor statistics (AWStats, password-protected).
+            'ProxyPass /stats !',
             "ProxyPass / http://127.0.0.1:{$port}/",
             "ProxyPassReverse / http://127.0.0.1:{$port}/",
             self::PROXY_BLOCK_END,

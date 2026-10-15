@@ -6,6 +6,7 @@ use App\Models\HostingService;
 use App\Models\HostingUsageSnapshot;
 use App\Models\ProvisioningLog;
 use App\Services\Hosting\HostingUsageAlertService;
+use App\Services\Hosting\SiteStatisticsService;
 use App\Services\Ispconfig\Exceptions\IspConfigApiException;
 use App\Services\Ispconfig\IspConfigClient;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -79,6 +80,9 @@ class SyncHostingUsageSnapshotJob implements ShouldQueue
                     $mailMb = $this->mailUsedMb($usage['mail'], (string) $service->primary_domain) ?? $previous?->mail_used_mb ?? 0;
                     $databaseMb = $this->databaseUsedMb($usage['databases'], $websiteId, $service->databaseRecords->pluck('database_name')->filter()->all()) ?? $previous?->database_used_mb ?? 0;
                     $bandwidthMb = $this->bandwidthUsedMb($usage['traffic'], (string) $service->primary_domain, $websiteId) ?? $previous?->bandwidth_used_mb ?? 0;
+                    // ISPConfig's traffic counter has read 0 when its log
+                    // pipeline was down; the AWStats figures are a second source.
+                    $bandwidthMb = max($bandwidthMb, SiteStatisticsService::bandwidthThisMonthMb($service));
 
                     $snapshot = HostingUsageSnapshot::query()->create([
                         'hosting_service_id' => $service->id,

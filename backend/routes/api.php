@@ -51,6 +51,7 @@ use App\Http\Controllers\Api\Client\Hosting\MailboxController;
 use App\Http\Controllers\Api\Client\Hosting\FileManagerController;
 use App\Http\Controllers\Api\Client\Hosting\SoftwareController;
 use App\Http\Controllers\Api\Client\Hosting\WebsiteSettingsController;
+use App\Http\Controllers\Api\Client\Hosting\WebsiteStatisticsController;
 use App\Http\Controllers\Api\Client\InvoiceController;
 use App\Http\Controllers\Api\Client\InvoicePaymentController;
 use App\Http\Controllers\Api\Client\OrderController;
@@ -200,6 +201,7 @@ Route::prefix('v1')->group(function (): void {
                     Route::delete('/website/ssl', [WebsiteSettingsController::class, 'disableSsl'])->middleware('throttle:hosting-manual-sync');
                     Route::put('/website/proxy', [WebsiteSettingsController::class, 'updateProxy'])->middleware('throttle:hosting-manual-sync');
                     Route::post('/website/proxy/repair', [WebsiteSettingsController::class, 'repairProxy'])->middleware('throttle:hosting-manual-sync');
+                    Route::get('/statistics', [WebsiteStatisticsController::class, 'show']);
                     Route::post('/website/blocked-ips', [WebsiteSettingsController::class, 'blockIp'])->middleware('throttle:hosting-resource-create');
                     Route::delete('/website/blocked-ips', [WebsiteSettingsController::class, 'unblockIp'])->middleware('throttle:hosting-resource-create');
 

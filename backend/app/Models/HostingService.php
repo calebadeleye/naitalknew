@@ -34,6 +34,8 @@ class HostingService extends Model
         'website_proxy_health',
         'website_proxy_checked_at',
         'blocked_ips',
+        'stats_password',
+        'stats_synced_at',
         'lifecycle_exempt',
         'lifecycle_exempt_reason',
         'provisioning_status',
@@ -73,6 +75,8 @@ class HostingService extends Model
         'website_settings_synced_at',
     ];
 
+    protected $hidden = ['stats_password'];
+
     protected function casts(): array
     {
         return [
@@ -90,6 +94,7 @@ class HostingService extends Model
             'lifecycle_exempt' => 'boolean',
             'website_proxy_checked_at' => 'datetime',
             'blocked_ips' => 'array',
+            'stats_synced_at' => 'datetime',
             'provisioning_override_approved_at' => 'datetime',
             'provisioning_payload' => 'array',
             'imported_at' => 'datetime',
