@@ -6,6 +6,7 @@ use App\Models\MailboxRecord;
 use App\Models\ProvisioningLog;
 use App\Services\Ispconfig\Exceptions\IspConfigApiException;
 use App\Services\Ispconfig\IspConfigClient;
+use App\Services\Ispconfig\MailboxQuota;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -54,7 +55,7 @@ class SyncMailboxesJob implements ShouldQueue
 
                         $mailbox->forceFill([
                             'status' => ($remote['postfix'] ?? 'y') === 'y' ? 'active' : 'disabled',
-                            'quota_mb' => isset($remote['quota']) ? (int) $remote['quota'] : $mailbox->quota_mb,
+                            'quota_mb' => isset($remote['quota']) ? MailboxQuota::toMb($remote['quota']) : $mailbox->quota_mb,
                             'last_synced_at' => now(),
                         ])->save();
                     } catch (IspConfigApiException $exception) {

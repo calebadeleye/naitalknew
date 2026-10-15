@@ -72,7 +72,7 @@ class MailboxDiscoveryService
                 'ispconfig_mailbox_id' => (string) ($remote['mailuser_id'] ?? ''),
                 'email_address' => $email,
                 'display_name' => $remote['name'] ?: null,
-                'quota_mb' => (int) ($remote['quota'] ?? 0),
+                'quota_mb' => MailboxQuota::toMb($remote['quota'] ?? 0),
                 'status' => ($remote['postfix'] ?? 'y') === 'y' ? 'active' : 'disabled',
                 'source' => 'ispconfig_import',
                 'imported_at' => now(),

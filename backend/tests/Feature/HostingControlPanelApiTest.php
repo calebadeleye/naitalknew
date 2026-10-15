@@ -159,6 +159,10 @@ class HostingControlPanelApiTest extends TestCase
 
         // No quota asked for: it defaults to the space left, not "unlimited".
         $this->assertSame(1000, (int) MailboxRecord::query()->where('email_address', "info@{$service->primary_domain}")->value('quota_mb'));
+
+        // ...and ISPConfig is given that in bytes, its unit — not 1000 bytes.
+        $remoteId = (int) MailboxRecord::query()->where('email_address', "info@{$service->primary_domain}")->value('ispconfig_mailbox_id');
+        $this->assertSame(1000 * 1048576, (int) $fake->mailUserGet($fake->login(), $remoteId)['quota']);
     }
 
     public function test_no_new_mailbox_when_the_package_storage_is_full(): void

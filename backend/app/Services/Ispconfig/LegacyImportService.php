@@ -447,7 +447,7 @@ class LegacyImportService
                     'hosting_service_id' => $targetService->id,
                     'ispconfig_mailbox_id' => $ispMailboxId,
                     'display_name' => $remoteMailUser['name'] ?? null,
-                    'quota_mb' => $this->quotaMb($remoteMailUser['quota'] ?? 0),
+                    'quota_mb' => MailboxQuota::toMb($remoteMailUser['quota'] ?? 0),
                     'status' => 'active',
                     'source' => 'ispconfig_import',
                     'imported_at' => $mailbox->imported_at ?? now(),
@@ -462,17 +462,6 @@ class LegacyImportService
         }
 
         return $count;
-    }
-
-    /**
-     * ISPConfig stores mail_user.quota in bytes (or 0/-1 for unlimited);
-     * our quota_mb column is, as the name says, megabytes.
-     */
-    private function quotaMb(mixed $rawQuota): int
-    {
-        $bytes = (int) $rawQuota;
-
-        return $bytes > 0 ? (int) round($bytes / 1_048_576) : 0;
     }
 
     /**

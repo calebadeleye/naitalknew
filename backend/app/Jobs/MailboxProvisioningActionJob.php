@@ -6,6 +6,7 @@ use App\Models\MailboxRecord;
 use App\Models\ProvisioningLog;
 use App\Services\Ispconfig\Exceptions\IspConfigApiException;
 use App\Services\Ispconfig\IspConfigClient;
+use App\Services\Ispconfig\MailboxQuota;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -72,7 +73,7 @@ class MailboxProvisioningActionJob implements ShouldQueue
             'email' => $mailbox->email_address,
             'login' => $mailbox->email_address,
             'password' => $this->payload['password'] ?? null,
-            'quota' => $mailbox->quota_mb,
+            'quota' => MailboxQuota::toBytes($mailbox->quota_mb),
             'name' => $mailbox->display_name,
             // ISPConfig defaults new mailboxes to disabled — these must be
             // explicit or the account exists but never actually receives mail.
@@ -108,7 +109,7 @@ class MailboxProvisioningActionJob implements ShouldQueue
     {
         $client->mailUserUpdate($sessionId, $ispConfigClientId, (int) $mailbox->ispconfig_mailbox_id, array_filter([
             'name' => $this->payload['display_name'] ?? null,
-            'quota' => $this->payload['quota_mb'] ?? null,
+            'quota' => isset($this->payload['quota_mb']) ? MailboxQuota::toBytes((int) $this->payload['quota_mb']) : null,
             'password' => $this->payload['password'] ?? null,
         ], fn ($value) => $value !== null));
 

@@ -51,7 +51,7 @@ class MailboxDiscoveryTest extends TestCase
         $fake->mailUserAdd($sid, $ispConfigClientId, [
             'email' => 'info@'.$service->primary_domain,
             'login' => 'info@'.$service->primary_domain,
-            'quota' => 500,
+            'quota' => 500 * 1048576, // ISPConfig stores mailbox quotas in bytes
             'name' => 'Info',
             'postfix' => 'y',
             'access' => 'y',

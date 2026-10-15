@@ -89,6 +89,29 @@ class SyncJobsTest extends TestCase
         $this->assertDatabaseHas('provisioning_logs', ['action' => 'detect_orphaned_ispconfig_clients', 'status' => 'review_required']);
     }
 
+    public function test_mailbox_sync_reads_ispconfig_quotas_in_bytes_as_megabytes(): void
+    {
+        $fake = $this->fakeIspConfig();
+        $service = $this->createProvisionableHostingService();
+        ProvisionHostingServiceJob::dispatch($service->id);
+        $ispConfigClientId = (int) $service->fresh()->ispConfigServiceMappings()->first()->clientMapping->ispconfig_client_id;
+
+        // A 5,000 MB mailbox: ISPConfig reports 5,242,880,000 (bytes), which
+        // used to be written to quota_mb as-is and overflowed the column.
+        $sid = $fake->login();
+        $big = $fake->mailUserAdd($sid, $ispConfigClientId, ['email' => 'big@example.test', 'quota' => 5000 * 1048576, 'postfix' => 'y']);
+        $unlimited = $fake->mailUserAdd($sid, $ispConfigClientId, ['email' => 'any@example.test', 'quota' => 0, 'postfix' => 'y']);
+
+        foreach ([$big => 'big@example.test', $unlimited => 'any@example.test'] as $remoteId => $email) {
+            MailboxRecord::query()->create(['hosting_service_id' => $service->id, 'ispconfig_mailbox_id' => (string) $remoteId, 'email_address' => $email, 'quota_mb' => 1, 'status' => 'active']);
+        }
+
+        SyncMailboxesJob::dispatch();
+
+        $this->assertSame(5000, (int) MailboxRecord::where('email_address', 'big@example.test')->value('quota_mb'));
+        $this->assertSame(0, (int) MailboxRecord::where('email_address', 'any@example.test')->value('quota_mb'));
+    }
+
     public function test_mailbox_database_ftp_and_shell_account_sync_mark_missing_remote_records(): void
     {
         $fake = $this->fakeIspConfig();
