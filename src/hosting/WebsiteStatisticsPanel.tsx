@@ -12,11 +12,10 @@ type Statistics = {
   has_data: boolean;
 };
 
-// Brand green one step down the ramp — passes the palette validator's
-// lightness band and contrast on the dark portal surface; hover uses the
-// full brand primary.
-const BAR = "#4fa30c";
-const BAR_HOVER = "#9bea16";
+// Bar colours come from --chart-bar / --chart-bar-hover (index.css): brand
+// green steps that pass the palette validator on each theme's surface.
+const BAR = "var(--chart-bar, #4fa30c)";
+const BAR_HOVER = "var(--chart-bar-hover, #9bea16)";
 
 const compact = (value: number) => new Intl.NumberFormat("en", { notation: value >= 10000 ? "compact" : "standard", maximumFractionDigits: 1 }).format(value);
 

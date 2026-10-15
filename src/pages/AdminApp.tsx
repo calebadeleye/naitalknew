@@ -118,6 +118,7 @@ import { ServerCapacityPanel } from "../admin/ServerCapacityPanel";
 import { AdminSupportInbox } from "../admin/AdminSupportInbox";
 import { PaymentMethodsPanel } from "../admin/PaymentMethodsPanel";
 import { GlobalBlockedIpsPanel } from "../admin/GlobalBlockedIpsPanel";
+import { AreaThemeToggle, useAreaTheme } from "../shared/areaTheme";
 
 export const adminMetrics = [
   { label: "Total Revenue", value: "₦5,420,000", delta: "15.2%", icon: Wallet, tone: "lime" },
@@ -5015,6 +5016,7 @@ export const adminRecordFilterDefs: Partial<Record<AdminRecordsSectionId, AdminR
 };
 
 export function AdminApp() {
+  const [areaTheme, toggleAreaTheme] = useAreaTheme();
   const { section: activeSection, clientId: routeClientId, serviceId: routeServiceId, isServicesActiveRoute, navigate: navigateAdminRoute, navigateToSection } = useAdminRoute();
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -6045,7 +6047,7 @@ export function AdminApp() {
   };
 
   return (
-    <div className="admin-shell">
+    <div className="admin-shell" data-theme={areaTheme}>
       {isSidebarOpen && <div className="admin-sidebar-backdrop" onClick={() => setIsSidebarOpen(false)} />}
 
       <aside className={isSidebarOpen ? "admin-sidebar open" : "admin-sidebar"}>
@@ -6095,6 +6097,7 @@ export function AdminApp() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <AreaThemeToggle theme={areaTheme} onToggle={toggleAreaTheme} className="admin-topbar-icon-button" />
             <div className="relative" ref={notificationPanelRef}>
               <button
                 type="button"

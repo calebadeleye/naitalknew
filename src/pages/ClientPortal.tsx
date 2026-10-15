@@ -119,6 +119,7 @@ import { ClientHelpAssistant, OPEN_HELP_ASSISTANT_EVENT } from "../components/Cl
 import { TermsAgreement } from "../components/TermsAgreement";
 import { ClientSupportPage } from "../support/ClientSupportPage";
 import { WebsiteStatisticsPanel } from "../hosting/WebsiteStatisticsPanel";
+import { AreaThemeToggle, useAreaTheme } from "../shared/areaTheme";
 import { isGateway, usePaymentOptions, type PaymentGatewayId } from "../shared/paymentOptions";
 import { PublicPage, PublicBreadcrumbs, usePublicImage, MarketingHero, MarketingCtaBand, FaqAccordionItem, FaqAccordionGroup } from "../shared/marketingWidgets";
 import { goToDomainCheckout, DomainPromoBadge, TldPriceCard, DomainFeatureItem, DomainSearchBar, DomainSearchSection, DomainGlobeIllustration } from "../shared/domainWidgets";
@@ -180,9 +181,10 @@ export function ClientPortalShell({
   children: React.ReactNode;
 }) {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [theme, toggleTheme] = useAreaTheme();
 
   return (
-    <div className="portal-shell">
+    <div className="portal-shell" data-theme={theme}>
       <aside className="portal-sidebar">
         <div className="portal-sidebar-header">
           <Logo />
@@ -217,6 +219,7 @@ export function ClientPortalShell({
               {item.label}
             </button>
           ))}
+          <AreaThemeToggle theme={theme} onToggle={toggleTheme} className="portal-nav" withLabel />
         </nav>
       </aside>
 

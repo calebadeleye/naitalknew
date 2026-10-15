@@ -1866,3 +1866,71 @@
     padding: 0.6rem 0.75rem;
   }
 }
+
+/*
+ * Light theme for the client area and admin dashboard (toggle: sidebar /
+ * top bar, see src/shared/areaTheme.tsx). Unlayered, so it wins over the
+ * component and utility layers above.
+ *
+ * Most of the dark UI is built from Tailwind colour variables — text-white/48,
+ * border-white/10, bg-white/[0.04], text-primary, bg-primary/15 … — so
+ * re-pointing those variables inside the shell does most of the work:
+ * "white" becomes the ink colour, and the brand/accent colours take the
+ * deeper shades that stay readable on a light background. The rest are the
+ * few surfaces with a hard-coded dark colour.
+ */
+:is(.portal-shell, .admin-shell)[data-theme="light"] {
+  --color-white: #0b1620;
+  --color-primary: #3f7d12;
+  --color-on-primary: #ffffff;
+  --color-accent-cyan: #0e7490;
+  --color-accent-gold: #a16207;
+  --color-accent-violet: #7e22ce;
+  --color-red-100: #991b1b;
+  --color-red-200: #b91c1c;
+  --color-red-300: #b91c1c;
+  --color-yellow-100: #854d0e;
+  --color-yellow-200: #a16207;
+  --chart-bar: #3f7d12;
+  --chart-bar-hover: #2c5a0c;
+  color-scheme: light;
+  background: #f2f5f7;
+  color: #0b1620;
+}
+
+/* Surfaces that were a fixed near-black. */
+[data-theme="light"] :is(.portal-sidebar, .admin-sidebar, .admin-topbar, .admin-notification-panel, .hosting-header) {
+  background: #ffffff;
+}
+
+[data-theme="light"] .admin-topbar {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+[data-theme="light"] :is(.metric-card, .dashboard-card, .portal-card, .admin-panel, .admin-card, .catalog-card, .hosting-stat-card) {
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(11, 22, 32, 0.06), 0 8px 24px -16px rgba(11, 22, 32, 0.18);
+}
+
+/* bg-black/20-style inset boxes (in markup or applied in a rule above): a
+   soft grey instead of a dark wash. */
+[data-theme="light"] :is([class*="bg-black/"], .client-service-row, .system-row, .revenue-chart, .admin-check) {
+  background-color: #f4f6f8;
+}
+
+[data-theme="light"] :is(.btn-outline, .admin-icon-button, .admin-upload-button) {
+  background-color: transparent;
+}
+
+/* Inputs, tooltips and the help assistant used a fixed dark fill. */
+[data-theme="light"] .admin-field :is(input, select, textarea),
+[data-theme="light"] [class*="bg-[#0"] {
+  background-color: #ffffff;
+}
+
+/* The wordmark is drawn for dark backgrounds — give it a dark plate. */
+[data-theme="light"] :is(.portal-sidebar-header, .admin-sidebar) a[aria-label="NAITALK home"] {
+  border-radius: 10px;
+  background: #0b1620;
+  padding: 4px 10px;
+}
