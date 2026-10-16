@@ -25,7 +25,9 @@ class SettingsController extends Controller
         $name = Str::random(32).'.'.$request->file('image')->extension();
         $request->file('image')->storeAs('greenmail-signatures/'.hash('sha256', $owner), $name, 'local');
 
-        return response()->json(['url' => url('/api/v1/greenmail/signature-images/'.hash('sha256', $owner).'/'.$name)], 201);
+        // The public site address, not url(): API requests reach Laravel through
+        // the Node server, so the request's own host isn't one recipients can load.
+        return response()->json(['url' => rtrim((string) config('app.url'), '/').'/api/v1/greenmail/signature-images/'.hash('sha256', $owner).'/'.$name], 201);
     }
 
     /** Public (no sign-in): recipients' mail apps load these. Names are unguessable. */
