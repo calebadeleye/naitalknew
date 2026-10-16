@@ -114,7 +114,9 @@ class WebklexMailGateway implements MailGateway
         $messages = $query->limit($perPage, max(1, $page))->get();
 
         return [
-            'messages' => $messages->map(fn (Message $message) => $this->summary($message))->values()->all(),
+            // webklex picks the newest page, but returns it in the server's
+            // ascending FETCH order — newest first within the page too.
+            'messages' => $messages->map(fn (Message $message) => $this->summary($message))->sortByDesc('uid')->values()->all(),
             'total' => $total,
         ];
     }
