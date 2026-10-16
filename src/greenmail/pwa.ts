@@ -70,7 +70,9 @@ export function useGreenmailAppShell(domain: string): void {
     // composer's Send button isn't left hidden behind it.
     const viewport = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
     const originalViewport = viewport?.content ?? null;
-    if (viewport && !/interactive-widget/.test(viewport.content)) viewport.content = `${viewport.content}, interactive-widget=resizes-content, viewport-fit=cover`;
+    // maximum-scale=1 stops iPhone Safari zooming in when a text box is tapped
+    // (pinch-to-zoom still works), which otherwise pushes Send off screen.
+    if (viewport && !/interactive-widget/.test(viewport.content)) viewport.content = `${viewport.content}, maximum-scale=1, interactive-widget=resizes-content, viewport-fit=cover`;
 
     const siteManifests = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="manifest"]'));
     siteManifests.forEach((link) => link.remove());

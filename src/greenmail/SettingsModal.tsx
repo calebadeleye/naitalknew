@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Bold, ImagePlus, Italic, Link2, Loader2, X } from "lucide-react";
+import { Bold, ImagePlus, Italic, Link2, Loader2, Monitor, Moon, Sun, X } from "lucide-react";
 import { gm, type Me } from "./api";
+import { useGreenmailTheme, type ThemeChoice } from "./theme";
 import { escapeHtml } from "./ui";
 
 /** Name shown on sent mail, and the signature (text, links and images) added to new messages and replies. */
@@ -11,6 +12,7 @@ export function SettingsModal({ token, me, onSaved, onClose }: { token: string; 
   const [error, setError] = useState<string | null>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const theme = useGreenmailTheme();
 
   useEffect(() => {
     const saved = me.signature_html?.trim() ?? "";
@@ -74,6 +76,27 @@ export function SettingsModal({ token, me, onSaved, onClose }: { token: string; 
             <X className="h-5 w-5" />
           </button>
         </div>
+        {/* Appearance applies straight away and is remembered on this device. */}
+        <p className="mt-4 text-sm font-semibold text-slate-700">Appearance</p>
+        <div role="radiogroup" aria-label="Appearance" className="mt-1.5 grid grid-cols-3 gap-2">
+          {([
+            ["light", "Light", Sun],
+            ["dark", "Dark", Moon],
+            ["system", "Match device", Monitor],
+          ] as Array<[ThemeChoice, string, typeof Sun]>).map(([value, label, Icon]) => (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={theme.choice === value}
+              onClick={() => theme.setChoice(value)}
+              className={`flex flex-col items-center gap-1.5 rounded-xl border px-2 py-3 text-xs font-semibold transition ${theme.choice === value ? "border-[#1f9d4c] bg-[#eef8f1] text-[#14632f]" : "border-slate-200 text-slate-600 hover:border-slate-300"}`}
+            >
+              <Icon className="h-5 w-5" /> {label}
+            </button>
+          ))}
+        </div>
+
         <label className="mt-4 block text-sm font-semibold text-slate-700">
           Your name (shown to people you email)
           <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} maxLength={120} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-[#1f9d4c]" />

@@ -37,6 +37,7 @@ import { clearToken, gm, readAccounts, readToken, rememberAccountEmail, SessionE
 import { CampaignsView } from "./CampaignsView";
 import { Composer, type ComposeDraft } from "./Composer";
 import { FeedbackProvider, useFeedback } from "./feedback";
+import { GreenmailThemeProvider, useVisibleViewport } from "./theme";
 import { InstallHelp } from "./InstallHelp";
 import { LoginScreen } from "./LoginScreen";
 import { currentDomain, useGreenmailAppShell, useInstall } from "./pwa";
@@ -102,10 +103,12 @@ export function GreenmailApp() {
   }, []);
 
   return (
+    <GreenmailThemeProvider>
     <FeedbackProvider>
       <AccountsShell domain={domain} onInstall={installer.canInstall ? install : null} />
       {installHelp}
     </FeedbackProvider>
+    </GreenmailThemeProvider>
   );
 }
 
@@ -122,7 +125,10 @@ function AccountsShell({ domain, onInstall }: { domain: string; onInstall: (() =
   const [adding, setAdding] = useState(false);
   const { toast } = useFeedback();
 
-  const refresh = useCallback(() => setAccounts(readAccounts()), []);
+  const refresh = useCallback(() => {
+    const next = readAccounts();
+    setAccounts((current) => (JSON.stringify(current) === JSON.stringify(next) ? current : next));
+  }, []);
 
   const switchTo = useCallback(
     (next: string, message?: string) => {
@@ -251,13 +257,18 @@ function Mailbox({
   const [mobileNav, setMobileNav] = useState(false);
   const [view, setView] = useState<View>("mail");
   const { toast, confirm } = useFeedback();
+  const visible = useVisibleViewport();
 
-  const handleError = useCallback(
-    (error: unknown) => {
-      if (error instanceof SessionExpired) onSignedOut(error.message);
-    },
-    [onSignedOut],
-  );
+  // The shell's callbacks change on every render of the shell; reading them
+  // through a ref keeps handleError (and every loader that depends on it)
+  // stable — otherwise each refresh of the account list would reload the
+  // mailbox, which reloads the account list, and so on.
+  const callbacks = useRef({ onSignedOut, onIdentified });
+  callbacks.current = { onSignedOut, onIdentified };
+
+  const handleError = useCallback((error: unknown) => {
+    if (error instanceof SessionExpired) callbacks.current.onSignedOut(error.message);
+  }, []);
 
   const flash = useCallback((text: string, tone: "success" | "error" = "success") => toast(text, tone), [toast]);
 
@@ -292,7 +303,7 @@ function Mailbox({
     gm<Me>("/session", token)
       .then((who) => {
         setMe(who);
-        onIdentified(who.email);
+        callbacks.current.onIdentified(who.email);
       })
       .catch(handleError);
     void loadFolders();
@@ -679,7 +690,7 @@ function Mailbox({
       <Icon className="h-[18px] w-[18px] shrink-0" />
       {!collapsed && <span className="min-w-0 flex-1 truncate text-left">{label}</span>}
       {!collapsed && count ? (
-        <span className={`rounded-md px-1.5 text-xs font-bold ${highlight ? "bg-white text-[#0f1a2b]" : "bg-white/10 text-white/80"}`}>{count}</span>
+        <span className={`rounded-md px-1.5 text-xs font-bold ${highlight ? "gm-keep-white bg-white text-[#0f1a2b]" : "bg-white/10 text-white/80"}`}>{count}</span>
       ) : null}
     </button>
   );
@@ -886,7 +897,10 @@ function Mailbox({
   );
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden bg-[#f3f5f7] font-body text-slate-900">
+    <div
+      className="fixed inset-x-0 top-0 flex h-[100dvh] overflow-hidden bg-[#f3f5f7] font-body text-slate-900"
+      style={visible ? { height: visible.height, transform: visible.top ? `translateY(${visible.top}px)` : undefined } : undefined}
+    >
       <div className="hidden lg:flex">{sidebar}</div>
       {mobileNav && (
         <div className="fixed inset-0 z-40 flex lg:hidden">

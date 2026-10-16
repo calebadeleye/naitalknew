@@ -1987,3 +1987,82 @@
     flex-wrap: wrap;
   }
 }
+
+/*
+ * Green Mail dark mode (Settings > Appearance). Components keep their light
+ * classes; under .gm-dark the slate scale is flipped (Tailwind v4 colours are
+ * CSS variables) and the few fixed light colours are swapped for dark ones.
+ * Emails themselves stay on a white card — most are designed for one.
+ */
+.gm-dark {
+  color-scheme: dark;
+  --color-slate-50: #121a23;
+  --color-slate-100: #1a2430;
+  --color-slate-200: #263241;
+  --color-slate-300: #354357;
+  --color-slate-400: #7b8899;
+  --color-slate-500: #98a5b6;
+  --color-slate-600: #b3bfcd;
+  --color-slate-700: #cad3de;
+  --color-slate-800: #dde4ec;
+  --color-slate-900: #eef2f6;
+  --color-red-50: #3a1518;
+  --color-red-200: #6b2a2f;
+  --color-red-600: #f87171;
+  --color-red-700: #fca5a5;
+  --color-amber-50: #33270f;
+  --color-amber-800: #fcd34d;
+}
+
+.gm-dark .bg-white:not(.gm-keep-white),
+.gm-dark .hover\:bg-white:hover {
+  background-color: #111922;
+}
+
+.gm-dark :is(.bg-\[\#f3f5f7\], .bg-\[\#f3f6f4\], .bg-\[\#f6f8f7\]) {
+  background-color: #0b1117;
+}
+
+.gm-dark :is(.bg-\[\#f7fbf8\], .bg-\[\#f3fbf6\]) {
+  background-color: #12201a;
+}
+
+.gm-dark :is(.bg-\[\#e9f6ee\], .bg-\[\#eef8f1\], .bg-\[\#e3f4e9\], .hover\:bg-\[\#eef8f1\]:hover) {
+  background-color: #173322;
+}
+
+.gm-dark :is(.text-\[\#15803d\], .text-\[\#1a7f3f\], .text-\[\#14632f\], .text-\[\#1f9d4c\], .hover\:text-\[\#1a7f3f\]:hover) {
+  color: #4ade80;
+}
+
+.gm-dark .bg-slate-900\/40 {
+  background-color: rgb(0 0 0 / 0.6);
+}
+
+/* Note colours: deep tints instead of pastels. */
+.gm-dark .bg-\[\#fff8db\] { background-color: #2f2810; border-color: #4d4218; }
+.gm-dark .bg-\[\#e9f7ee\] { background-color: #12291b; border-color: #1f4a2f; }
+.gm-dark .bg-\[\#e8f1ff\] { background-color: #142238; border-color: #23395e; }
+.gm-dark .bg-\[\#fdecf4\] { background-color: #2f1524; border-color: #52233d; }
+.gm-dark .bg-\[\#dbeafe\] { background-color: #172a4a; }
+.gm-dark .text-\[\#1e40af\] { color: #93c5fd; }
+
+.gm-dark :is(input, textarea, select) {
+  background-color: transparent;
+  color: inherit;
+}
+
+.gm-dark select option {
+  background-color: #111922;
+}
+
+.gm-dark .greenmail-editor blockquote {
+  border-left-color: #354357;
+}
+
+.gm-dark iframe[title="Email message"] {
+  width: calc(100% - 32px);
+  margin: 0 16px;
+  border-radius: 12px;
+  background: #fff;
+}

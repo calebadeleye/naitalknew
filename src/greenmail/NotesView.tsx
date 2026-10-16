@@ -24,7 +24,7 @@ export function NotesView({ token, onSessionError }: { token: string; onSessionE
 
   const load = useCallback(() => {
     gm<{ notes: Note[] }>(`/notes${query ? `?q=${encodeURIComponent(query)}` : ""}`, token)
-      .then((response) => setNotes(response.notes))
+      .then((response) => setNotes(response.notes ?? []))
       .catch((error) => {
         onSessionError(error);
         setNotes([]);

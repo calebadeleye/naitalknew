@@ -145,7 +145,7 @@ function EmailBody({ html, allowRemoteImages }: { html: string; allowRemoteImage
   const srcDoc = `<!doctype html><html><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src ${imageSources}; font-src data:">
 <base target="_blank">
-<style>body{margin:0;padding:0 24px 16px;font:14px/1.6 Manrope,system-ui,sans-serif;color:#1e293b;word-wrap:break-word}img{max-width:100%;height:auto}${allowRemoteImages ? "" : "img[src^='http']{display:none}"}blockquote{margin:0 0 0 8px;padding-left:12px;border-left:3px solid #e2e8f0;color:#475569}table{max-width:100%}a{color:#1a7f3f}</style>
+<style>html{background:#fff}body{margin:0;padding:12px 24px 16px;background:#fff;font:14px/1.6 Manrope,system-ui,sans-serif;color:#1e293b;word-wrap:break-word}img{max-width:100%;height:auto}${allowRemoteImages ? "" : "img[src^='http']{display:none}"}blockquote{margin:0 0 0 8px;padding-left:12px;border-left:3px solid #e2e8f0;color:#475569}table{max-width:100%}a{color:#1a7f3f}</style>
 </head><body>${html}</body></html>`;
 
   // Same-origin (but no scripts) only so the frame can be sized to its content.

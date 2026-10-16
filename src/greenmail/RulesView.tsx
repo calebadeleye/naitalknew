@@ -236,7 +236,7 @@ function RulesSection({ kind, token, folders, onSessionError }: { kind: RuleKind
 function Switch({ on, label, onChange }: { on: boolean; label: string; onChange: () => void }) {
   return (
     <button type="button" role="switch" aria-checked={on} aria-label={label} onClick={onChange} className={`relative h-6 w-11 shrink-0 rounded-full transition ${on ? "bg-[#1f9d4c]" : "bg-slate-300"}`}>
-      <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${on ? "left-[22px]" : "left-0.5"}`} />
+      <span className={`gm-keep-white absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${on ? "left-[22px]" : "left-0.5"}`} />
     </button>
   );
 }

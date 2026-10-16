@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Download, Loader2, LockKeyhole } from "lucide-react";
+import { Download, Eye, EyeOff, Loader2, LockKeyhole } from "lucide-react";
 import { gm, storeToken } from "./api";
 import { rememberedEmail, rememberSignIn } from "./pwa";
 import { Brand } from "./ui";
@@ -27,6 +27,7 @@ export function LoginScreen({
   const adding = Boolean(onCancel);
   const [email, setEmail] = useState(adding ? (domain ? `@${domain}` : "") : params.get("email") || rememberedEmail(domain) || (domain ? `@${domain}` : ""));
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,8 +54,8 @@ export function LoginScreen({
       rememberSignIn(email);
       onSignedIn(response.token);
     } catch (err) {
+      // The password is kept so it can be shown (eye button) and corrected.
       setError(err instanceof Error ? err.message : "Could not sign in.");
-      setPassword("");
     } finally {
       setBusy(false);
     }
@@ -88,15 +89,31 @@ export function LoginScreen({
           </label>
           <label className="mt-4 block text-sm font-semibold text-slate-700">
             Password
-            <input
-              type="password"
-              required
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 outline-none focus:border-[#1f9d4c] focus:ring-2 focus:ring-[#1f9d4c]/20"
-              autoFocus={Boolean(email) && !needsName}
-            />
+            <span className="relative mt-1.5 block">
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                autoComplete="current-password"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className="w-full rounded-lg border border-slate-300 py-2.5 pl-3 pr-11 text-slate-900 outline-none focus:border-[#1f9d4c] focus:ring-2 focus:ring-[#1f9d4c]/20"
+                autoFocus={Boolean(email) && !needsName}
+              />
+              {/* Lets people check what they typed before trying again. */}
+              <button
+                type="button"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-pressed={showPassword}
+                title={showPassword ? "Hide password" : "Show password"}
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-slate-500 hover:text-slate-800"
+              >
+                {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
+            </span>
           </label>
           <label className="mt-4 flex items-center gap-2 text-sm text-slate-600">
             <input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} className="h-4 w-4 accent-[#1f9d4c]" />
