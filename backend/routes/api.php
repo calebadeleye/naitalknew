@@ -50,6 +50,7 @@ use App\Http\Controllers\Api\Client\SupportTicketController as ClientSupportTick
 use App\Http\Controllers\Api\Admin\ServiceStatusController;
 use App\Http\Controllers\Api\Admin\WebsiteQuoteController as AdminWebsiteQuoteController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\Client\CartController;
 use App\Http\Controllers\Api\Client\CheckoutController;
 use App\Http\Controllers\Api\Client\HelpAssistantController;
 use App\Http\Controllers\Api\Client\ClientProfileController;
@@ -205,6 +206,7 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/support-tickets/{ticket}/close', [ClientSupportTicketController::class, 'close']);
             Route::get('/support-tickets/{ticket}/messages/{message}/attachments/{index}', [ClientSupportTicketController::class, 'attachment'])->whereNumber('index');
             Route::get('/services/catalog', ServiceCatalogController::class);
+            Route::post('/cart/quote', [CartController::class, 'quote']);
             Route::get('/orders', [OrderController::class, 'index']);
             Route::get('/orders/{order:order_number}/invoice', [InvoiceController::class, 'show']);
             Route::get('/orders/{order:order_number}/invoice/download', [InvoiceController::class, 'downloadPdf']);
@@ -236,6 +238,7 @@ Route::prefix('v1')->group(function (): void {
             Route::middleware('verified')->group(function (): void {
                 Route::post('/orders/hosting', [CheckoutController::class, 'store']);
                 Route::post('/orders/service', [ServiceOrderController::class, 'store']);
+                Route::post('/orders/cart', [CartController::class, 'checkout']);
                 Route::post('/invoices/{invoice:invoice_number}/pay/paystack', [InvoicePaymentController::class, 'paystack']);
                 Route::post('/invoices/{invoice:invoice_number}/pay/flutterwave', [InvoicePaymentController::class, 'flutterwave']);
                 Route::post('/invoices/{invoice:invoice_number}/pay/stripe', [InvoicePaymentController::class, 'stripe']);

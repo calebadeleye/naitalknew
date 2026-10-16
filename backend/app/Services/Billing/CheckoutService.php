@@ -140,7 +140,7 @@ class CheckoutService
         return $result;
     }
 
-    private function recordExternalDomainIfNeeded(Client $client, ?string $domainName, HostingService $service): void
+    public function recordExternalDomainIfNeeded(Client $client, ?string $domainName, HostingService $service): void
     {
         if (! $domainName) {
             return;

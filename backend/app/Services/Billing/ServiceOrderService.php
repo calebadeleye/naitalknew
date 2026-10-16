@@ -92,44 +92,67 @@ class ServiceOrderService
     }
 
     /**
-     * Called once an invoice is fully paid: for service-offering orders, open
-     * the setup ticket (once) so the team is told and the client can follow it.
+     * Called once an invoice is fully paid: for each stand-alone service on
+     * the order (a single service order, or service lines in a cart), open a
+     * setup ticket (once each) so the team is told and the client can follow it.
      */
     public function handlePaid(Invoice $invoice): void
     {
         $order = $invoice->order;
 
-        if ($invoice->status !== 'paid' || ! $order || ($order->metadata['kind'] ?? null) !== 'service_offering' || ! empty($order->metadata['setup_ticket'])) {
+        if ($invoice->status !== 'paid' || ! $order) {
             return;
+        }
+
+        $metadata = $order->metadata ?? [];
+        $lines = $metadata['service_lines'] ?? [];
+
+        if (($metadata['kind'] ?? null) === 'service_offering') {
+            $lines = [['offering' => $metadata['offering'] ?? '', 'domain' => $metadata['domain'] ?? null, 'notes' => $metadata['notes'] ?? null]];
         }
 
         $client = $invoice->client;
         $user = $client?->user;
 
-        if (! $user) {
+        if (! $lines || ! $user) {
             return;
         }
 
-        $offering = ServiceOffering::query()->where('slug', $order->metadata['offering'] ?? '')->first();
-        $name = $offering?->name ?? 'Service';
-        $domain = $order->metadata['domain'] ?? null;
-        $notes = $order->metadata['notes'] ?? null;
+        $tickets = $metadata['setup_tickets'] ?? [];
 
-        try {
-            $ticket = app(SupportTicketService::class)->open($client, $user, [
-                'subject' => "{$name} setup".($domain ? " — {$domain}" : ''),
-                'category' => 'technical',
-                'priority' => 'high',
-                'message' => "{$name}".($domain ? " for {$domain}" : '')." — paid (invoice {$invoice->invoice_number})."
-                    .($notes ? "\n\nNotes from the order: {$notes}" : '')
-                    ."\n\nThis ticket was opened automatically. The NAI TALK team will reach out here and by email to set it up with you.",
-            ]);
-
-            $order->forceFill(['metadata' => array_merge($order->metadata ?? [], ['setup_ticket' => $ticket->ticket_number])])->save();
-        } catch (Throwable $exception) {
-            // The payment stands; the team can still see the paid order.
-            report($exception);
+        // Orders made before several lines were possible recorded one ticket here.
+        if (! empty($metadata['setup_ticket'])) {
+            $tickets[0] ??= $metadata['setup_ticket'];
         }
+
+        foreach ($lines as $index => $line) {
+            if (isset($tickets[$index])) {
+                continue;
+            }
+
+            $offering = ServiceOffering::query()->where('slug', $line['offering'] ?? '')->first();
+            $name = $offering?->name ?? 'Service';
+            $domain = $line['domain'] ?? null;
+            $notes = $line['notes'] ?? null;
+
+            try {
+                $ticket = app(SupportTicketService::class)->open($client, $user, [
+                    'subject' => "{$name} setup".($domain ? " — {$domain}" : ''),
+                    'category' => 'technical',
+                    'priority' => 'high',
+                    'message' => "{$name}".($domain ? " for {$domain}" : '')." — paid (invoice {$invoice->invoice_number})."
+                        .($notes ? "\n\nNotes from the order: {$notes}" : '')
+                        ."\n\nThis ticket was opened automatically. The NAI TALK team will reach out here and by email to set it up with you.",
+                ]);
+
+                $tickets[$index] = $ticket->ticket_number;
+            } catch (Throwable $exception) {
+                // The payment stands; the team can still see the paid order.
+                report($exception);
+            }
+        }
+
+        $order->forceFill(['metadata' => array_merge($order->metadata ?? [], ['setup_tickets' => $tickets])])->save();
     }
 
     private function number(string $prefix): string

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { CheckCircle2, Loader2, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Loader2, ShieldCheck, ShoppingCart } from "lucide-react";
 import { LARAVEL_API_BASE_URL, laravelApi } from "../shared/api";
 import { TermsAgreement } from "../components/TermsAgreement";
 import type { useToast } from "../toast/ToastProvider";
+import { addToCart } from "./cart";
 
 /** A service that can be ordered on its own (e.g. the SSL certificate). */
 export type PublicServiceOffering = {
@@ -82,6 +83,21 @@ export function ServiceOrderPage({
 
   const vat = offering.total_kobo - offering.price_kobo;
 
+  /** Keep shopping: put it in the cart (with anything else) and check out once. */
+  const addThisToCart = () => {
+    if (offering.requires_domain && !domain.trim()) {
+      setError("Enter the website to secure first.");
+      return;
+    }
+    const result = addToCart({ type: "service", offering: offering.slug, domain: domain.trim() || undefined, notes: notes.trim() || undefined });
+    if (result.full) {
+      setError("Your cart is full. Check out first, then start another.");
+      return;
+    }
+    toast.push({ type: "success", message: result.replaced ? "Cart updated." : `${offering.name} added to your cart.` });
+    navigate("/client/cart");
+  };
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setBusy(true);
@@ -101,7 +117,7 @@ export function ServiceOrderPage({
   };
 
   return (
-    <section className="grid gap-5 lg:grid-cols-[1fr_320px]">
+    <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
       <form className="portal-card" onSubmit={submit}>
         <div className="flex items-center gap-3">
           <span className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
@@ -146,9 +162,14 @@ export function ServiceOrderPage({
 
         <TermsAgreement checked={terms} onChange={setTerms} className="mt-5" />
         {error && <p className="mt-4 rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</p>}
-        <button type="submit" className="btn-primary mt-5 w-full justify-center sm:w-auto" disabled={busy || !terms}>
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Continue to payment
-        </button>
+        <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+          <button type="submit" className="btn-primary w-full justify-center sm:w-auto" disabled={busy || !terms}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Continue to payment
+          </button>
+          <button type="button" className="btn-outline w-full justify-center sm:w-auto" onClick={addThisToCart}>
+            <ShoppingCart className="h-4 w-4" /> Add to cart
+          </button>
+        </div>
       </form>
 
       <aside className="portal-card h-fit">

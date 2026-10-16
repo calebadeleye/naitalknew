@@ -69,7 +69,7 @@ class ServiceOrderTest extends TestCase
         $ticket = SupportTicket::query()->firstOrFail();
         $this->assertSame('SSL Certificate setup — shop.example.com', $ticket->subject);
         $this->assertSame($client->id, $ticket->client_id);
-        $this->assertSame($ticket->ticket_number, Order::firstOrFail()->metadata['setup_ticket']);
+        $this->assertSame($ticket->ticket_number, Order::latest('id')->firstOrFail()->metadata['setup_tickets'][0]);
 
         // Running the paid hook again doesn't open a second ticket.
         app(\App\Services\Billing\ServiceOrderService::class)->handlePaid($invoice->fresh());

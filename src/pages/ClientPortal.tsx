@@ -64,6 +64,7 @@ import {
   Rocket,
   Save,
   Search,
+  ShoppingCart,
   Send,
   Server,
   Settings,
@@ -119,6 +120,8 @@ import { ClientHelpAssistant, OPEN_HELP_ASSISTANT_EVENT } from "../components/Cl
 import { TermsAgreement } from "../components/TermsAgreement";
 import { ClientSupportPage } from "../support/ClientSupportPage";
 import { ServiceOrderPage } from "../client/ServiceOrderPage";
+import { CartPage, type CartCheckout } from "../client/CartPage";
+import { addToCart, clearCart, setCartOwner, useCart } from "../client/cart";
 import { WebsiteStatisticsPanel } from "../hosting/WebsiteStatisticsPanel";
 import { AreaThemeToggle, useAreaTheme } from "../shared/areaTheme";
 import { isGateway, usePaymentOptions, type PaymentGatewayId } from "../shared/paymentOptions";
@@ -149,6 +152,7 @@ export const INITIAL_ORDER_DRAFT = {
 export const portalNavLinks = [
   { icon: Home, label: "Dashboard", route: "dashboard" as ClientRouteName, path: "/client/dashboard" },
   { icon: PackageCheck, label: "Services Catalog", route: "services-catalog" as ClientRouteName, path: "/client/services/catalog" },
+  { icon: ShoppingCart, label: "My Cart", route: "cart" as ClientRouteName, path: "/client/cart" },
   { icon: FileText, label: "Orders & Invoices", route: "orders" as ClientRouteName, path: "/client/orders" },
   { icon: Globe2, label: "My Domains", route: "domains" as ClientRouteName, path: "/client/domains" },
   { icon: Search, label: "Search Domains", route: "domain-search" as ClientRouteName, path: "/client/domains/search" },
@@ -183,6 +187,12 @@ export function ClientPortalShell({
 }) {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [theme, toggleTheme] = useAreaTheme();
+  const cart = useCart();
+
+  // The cart belongs to this account (so two people on one device never share one).
+  useEffect(() => {
+    setCartOwner(dashboard?.client?.email ?? "");
+  }, [dashboard?.client?.email]);
 
   return (
     <div className="portal-shell" data-theme={theme}>
@@ -218,6 +228,11 @@ export function ClientPortalShell({
             >
               {React.createElement(item.icon, { className: "h-4 w-4" })}
               {item.label}
+              {item.route === "cart" && cart.count > 0 && (
+                <span className="ml-auto rounded-full bg-primary px-2 text-[11px] font-black leading-5 text-[#031006]" aria-label={`${cart.count} item${cart.count === 1 ? "" : "s"} in your cart`}>
+                  {cart.count}
+                </span>
+              )}
             </button>
           ))}
           <AreaThemeToggle theme={theme} onToggle={toggleTheme} className="portal-nav" withLabel />
@@ -2918,6 +2933,16 @@ export function DomainSearchPage({
                     Buy Domain + Hosting
                   </button>
                 </div>
+                <button
+                  type="button"
+                  className="btn-outline mt-2 w-full justify-center !text-[11px]"
+                  onClick={() => {
+                    const added = addToCart({ type: "domain", domain_name: result.domain });
+                    toast.push(added.full ? { type: "error", message: "Your cart is full. Check out first, then start another." } : { type: "success", message: `${result.domain} added to your cart.` });
+                  }}
+                >
+                  <ShoppingCart className="h-4 w-4" /> Add domain to cart
+                </button>
               </>
             )}
 
@@ -4450,6 +4475,7 @@ export function ClientPortal() {
     order: { order_number: string };
     invoice: { invoice_number: string; total_kobo: number; total?: string };
   } | null>(null);
+  const cart = useCart();
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [isInitiatingPayment, setIsInitiatingPayment] = useState(false);
   const [bankTransferInfo, setBankTransferInfo] = useState<BankTransferDetails | null>(null);
@@ -4812,6 +4838,8 @@ export function ClientPortal() {
       await laravelApi<{ message: string }>("/api/v1/auth/logout", clientToken, { method: "POST" }).catch(() => undefined);
     }
     sessionStorage.removeItem("naitalk_laravel_client_token");
+    // The cart stays with the account (it's there when they sign back in); the next person to sign in on this device gets their own.
+    setCartOwner("");
     setClientToken("");
     setDashboard(null);
     setIsVerified(null);
@@ -4871,6 +4899,46 @@ export function ClientPortal() {
     } finally {
       setIsSubmittingOrder(false);
     }
+  };
+
+  /** Add the hosting order being filled in to the cart, ready for another. */
+  const handleAddHostingToCart = () => {
+    if (!orderDraft.plan_slug || !orderDraft.primary_domain.trim()) {
+      toast.push({ type: "error", message: "Choose a plan and enter the website's domain first." });
+      return;
+    }
+    const result = cart.add({
+      type: "hosting",
+      plan_slug: orderDraft.plan_slug,
+      primary_domain: orderDraft.primary_domain.trim().toLowerCase(),
+      add_ons: orderDraft.add_ons,
+      register_domain: orderDraft.register_domain,
+    });
+    if (result.full) {
+      toast.push({ type: "error", message: "Your cart is full. Check out first, then start another." });
+      return;
+    }
+    toast.push({ type: "success", message: result.replaced ? "Cart updated." : "Added to your cart." });
+    setOrderDraft(INITIAL_ORDER_DRAFT);
+    navigate("/client/cart");
+  };
+
+  /** The cart's order is placed: hand it to the same payment step as any other order. */
+  const handleCartPlaced = (result: CartCheckout) => {
+    setCheckoutResult(result);
+    setBankTransferInfo(null);
+    savePendingPayment({
+      invoice_number: result.invoice.invoice_number,
+      order_number: result.order.order_number,
+      value: result.invoice.total_kobo / 100,
+      currency: "NGN",
+      plan_id: "cart",
+      plan_name: "Cart order",
+      billing_cycle: "annual",
+    });
+    trackSiteEvent("domain_hosting", "checkout_begin", { plan_id: "cart", billing_cycle: "annual" }, result.invoice.total_kobo);
+    clearCart();
+    navigate("/client/checkout");
   };
 
   const handlePayWithGateway = async (invoiceNumber: string, gateway: PaymentGatewayId) => {
@@ -5298,6 +5366,13 @@ export function ClientPortal() {
     );
   }
 
+  if (route === "checkout" && !checkoutResult && !orderDraft.plan_slug) {
+    // Nothing is being checked out here (e.g. the page was reloaded after an order was placed): the cart is the place to start.
+    navigate("/client/cart");
+
+    return null;
+  }
+
   if (route === "order-hosting" || route === "order-review" || route === "checkout") {
     if (isVerified === false) {
       return (
@@ -5475,6 +5550,16 @@ export function ClientPortal() {
                 Review order
                 <ArrowRight className="h-4 w-4" />
               </button>
+              <button
+                type="button"
+                className="btn-outline mt-2 w-full justify-center"
+                disabled={!orderDraft.plan_slug || !orderDraft.primary_domain.trim()}
+                onClick={handleAddHostingToCart}
+              >
+                <ShoppingCart className="h-4 w-4" />
+                Add to cart{cart.count > 0 ? ` (${cart.count} in cart)` : ""}
+              </button>
+              <p className="mt-2 text-center text-xs text-white/45">Want more than one thing? Add each to your cart, then check out once.</p>
             </aside>
           </section>
         </ClientPortalShell>
@@ -5636,6 +5721,31 @@ export function ClientPortal() {
         hideWelcomeHeader
       >
         <HostingManagePanel serviceId={hostingServiceId} token={clientToken} navigate={navigate} toast={toast} initialTab={search.get("tab") === "website" ? "website" : undefined} />
+      </ClientPortalShell>
+    );
+  }
+
+  if (route === "cart") {
+    return (
+      <ClientPortalShell
+        dashboard={dashboard}
+        route={route}
+        isVerified={isVerified}
+        navigate={navigate}
+        onLogout={() => void handleClientLogout()}
+        onProfileClick={() => navigate("/client/profile")}
+      >
+        {isVerified === false ? (
+          <section className="portal-card mx-auto max-w-lg text-center">
+            <h2 className="text-xl font-black text-white">Verify your email to continue</h2>
+            <p className="mt-3 text-sm text-white/60">You need a verified NAI TALK account before placing an order. Your cart will be waiting.</p>
+            <button type="button" className="btn-primary mt-5 justify-center" onClick={() => navigate("/client/verify-email")}>
+              Go to verification
+            </button>
+          </section>
+        ) : (
+          <CartPage token={clientToken} navigate={navigate} toast={toast} onPlaced={handleCartPlaced} />
+        )}
       </ClientPortalShell>
     );
   }
