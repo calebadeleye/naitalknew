@@ -18,6 +18,8 @@ class ServiceOffering extends Model
         'price_kobo',
         'billing_type',
         'is_quote_only',
+        'is_orderable',
+        'requires_domain',
         'is_active',
         'sort_order',
     ];
@@ -27,6 +29,8 @@ class ServiceOffering extends Model
         return [
             'benefits' => 'array',
             'is_quote_only' => 'boolean',
+            'is_orderable' => 'boolean',
+            'requires_domain' => 'boolean',
             'is_active' => 'boolean',
         ];
     }

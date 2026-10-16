@@ -183,6 +183,9 @@ class ReconcileInvoicePaymentService
 
         $this->domainOrders->dispatchForPaidInvoice($invoice, $outcome['services'] ?? collect());
 
+        // A paid stand-alone service (e.g. SSL): open the setup ticket so the team reaches out.
+        app(\App\Services\Billing\ServiceOrderService::class)->handlePaid($invoice);
+
         // A paid hosting renewal invoice moves the service's renewal date on
         // (and restores it if it had lapsed) — whichever way it was paid.
         $this->renewals->applyPaidRenewal($invoice);

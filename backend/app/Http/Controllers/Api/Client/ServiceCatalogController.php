@@ -61,7 +61,9 @@ class ServiceCatalogController extends Controller
                 'starting_price' => $offering->price_kobo ? Money::naira($offering->price_kobo) : null,
                 'billing_type' => $offering->billing_type,
                 'is_quote_only' => $offering->is_quote_only,
-                'order_route' => $offering->is_quote_only ? '/client/support/tickets/new?topic='.$offering->slug : null,
+                'order_route' => $offering->is_quote_only
+                    ? '/client/support/tickets/new?topic='.$offering->slug
+                    : ($offering->is_orderable ? '/client/order/service?offering='.$offering->slug : null),
             ]);
 
         return response()->json([

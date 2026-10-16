@@ -72,6 +72,7 @@ use App\Http\Controllers\Api\Client\OrderController;
 use App\Http\Controllers\Api\Client\SavedCardPaymentController;
 use App\Http\Controllers\Api\Client\SavedPaymentMethodController;
 use App\Http\Controllers\Api\Client\ServiceCatalogController;
+use App\Http\Controllers\Api\Client\ServiceOrderController;
 use App\Http\Controllers\Api\Client\ServicesController;
 use App\Http\Controllers\Api\Client\WalletController;
 use App\Http\Controllers\Api\Client\WalletFundingController;
@@ -158,6 +159,7 @@ Route::prefix('v1')->group(function (): void {
     Route::post('/auth/reset-password', [AuthController::class, 'resetPassword']);
 
     Route::get('/public/hosting-plans', [CatalogController::class, 'hostingPlans']);
+    Route::get('/public/service-offerings/{slug}', [CatalogController::class, 'serviceOffering']);
     Route::get('/public/greenmail/stats', GreenmailStatsController::class);
     Route::get('/public/hosting-add-ons', [CatalogController::class, 'addOns']);
     Route::get('/public/billing-config', [CatalogController::class, 'billingConfig']);
@@ -233,6 +235,7 @@ Route::prefix('v1')->group(function (): void {
 
             Route::middleware('verified')->group(function (): void {
                 Route::post('/orders/hosting', [CheckoutController::class, 'store']);
+                Route::post('/orders/service', [ServiceOrderController::class, 'store']);
                 Route::post('/invoices/{invoice:invoice_number}/pay/paystack', [InvoicePaymentController::class, 'paystack']);
                 Route::post('/invoices/{invoice:invoice_number}/pay/flutterwave', [InvoicePaymentController::class, 'flutterwave']);
                 Route::post('/invoices/{invoice:invoice_number}/pay/stripe', [InvoicePaymentController::class, 'stripe']);

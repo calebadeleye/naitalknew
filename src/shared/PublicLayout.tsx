@@ -122,6 +122,7 @@ export const staticNavGroups = [
       { label: "Website Care Plans", href: "/website-care-plans" },
       { label: "Business Email Hosting", href: "/business-email-hosting" },
       { label: "Green Mail (free webmail)", href: "/green-mail" },
+      { label: "SSL Certificate", href: "/ssl-certificate" },
     ],
   },
   {
@@ -418,6 +419,7 @@ export const footerColumns: Array<{ title: string; links: Array<{ label: string;
       { label: "Web Hosting", href: "/web-hosting" },
       { label: "Business Email Hosting", href: "/business-email-hosting" },
       { label: "Green Mail Webmail", href: "/green-mail" },
+      { label: "SSL Certificate", href: "/ssl-certificate" },
       { label: "SEO Services", href: "/seo-services" },
     ],
   },

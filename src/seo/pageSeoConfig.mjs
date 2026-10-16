@@ -49,6 +49,10 @@ export const pageSeoConfig = {
     title: "Professional Business Email Hosting | NAI TALK",
     description: "A professional info@yourbusiness.com address builds trust that free Gmail or Yahoo addresses can't. Included in every Website Care Plan.",
   },
+  "/ssl-certificate": {
+    title: "SSL Certificate for Your Website — ₦15,000 | NAI TALK",
+    description: "Secure your website with SSL (HTTPS) for ₦15,000 a year. Order it on its own — our team reaches out after you order and sets it up for you.",
+  },
   "/green-mail": {
     title: "Green Mail — Free Business Webmail with Your Hosting | NAI TALK",
     description: "Green Mail is the webmail included free with NAI TALK hosting: your own domain, an AI assistant, calendar, tasks, notes, templates, campaigns, filters and an installable app.",

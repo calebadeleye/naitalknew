@@ -40,6 +40,8 @@ export function clearPendingPayment() {
 export type PendingOrder = {
   plan: string;
   billing_cycle: "monthly" | "annual";
+  /** A stand-alone service (e.g. "ssl-certificate") instead of a hosting plan. */
+  service?: string;
 };
 
 export function hasClientToken(): boolean {
@@ -58,6 +60,9 @@ export function consumePendingOrder(): PendingOrder | null {
 
   try {
     const parsed = JSON.parse(raw);
+    if (typeof parsed?.service === "string") {
+      return { plan: "", billing_cycle: "annual", service: parsed.service };
+    }
     if (typeof parsed?.plan === "string") {
       return { plan: parsed.plan, billing_cycle: "annual" };
     }
@@ -78,5 +83,16 @@ export function startHostingOrder(slug: string) {
   }
 
   savePendingOrder({ plan: slug, billing_cycle: "annual" });
+  window.location.href = "/client/register";
+}
+
+/** Order a stand-alone service from the public site (sign up / in first if needed). */
+export function startServiceOrder(slug: string) {
+  if (hasClientToken()) {
+    window.location.href = `/client/order/service?offering=${encodeURIComponent(slug)}`;
+    return;
+  }
+
+  savePendingOrder({ plan: "", billing_cycle: "annual", service: slug });
   window.location.href = "/client/register";
 }

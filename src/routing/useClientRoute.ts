@@ -10,6 +10,7 @@ export type ClientRouteName =
   | "dashboard"
   | "services-catalog"
   | "order-hosting"
+  | "order-service"
   | "order-review"
   | "checkout"
   | "orders"
@@ -38,6 +39,7 @@ const ROUTE_SEGMENTS: Record<string, ClientRouteName> = {
   dashboard: "dashboard",
   "services/catalog": "services-catalog",
   "order/hosting": "order-hosting",
+  "order/service": "order-service",
   "order/review": "order-review",
   checkout: "checkout",
   orders: "orders",

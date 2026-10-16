@@ -118,6 +118,7 @@ import { Logo, Navbar, Footer, FloatingWhatsApp, SectionHeader, socialLinks, pay
 import { ClientHelpAssistant, OPEN_HELP_ASSISTANT_EVENT } from "../components/ClientHelpAssistant";
 import { TermsAgreement } from "../components/TermsAgreement";
 import { ClientSupportPage } from "../support/ClientSupportPage";
+import { ServiceOrderPage } from "../client/ServiceOrderPage";
 import { WebsiteStatisticsPanel } from "../hosting/WebsiteStatisticsPanel";
 import { AreaThemeToggle, useAreaTheme } from "../shared/areaTheme";
 import { isGateway, usePaymentOptions, type PaymentGatewayId } from "../shared/paymentOptions";
@@ -4647,7 +4648,9 @@ export function ClientPortal() {
       trackEvent("login", { method: "email" });
 
       const pending = consumePendingOrder();
-      if (pending) {
+      if (pending?.service) {
+        navigate(`/client/order/service?offering=${encodeURIComponent(pending.service)}`);
+      } else if (pending) {
         setOrderDraft((current) => ({ ...current, plan_slug: pending.plan, billing_cycle: pending.billing_cycle }));
         navigate("/client/order/review");
       } else {
@@ -4788,7 +4791,9 @@ export function ClientPortal() {
       setIsVerified(true);
 
       const pending = consumePendingOrder();
-      if (pending) {
+      if (pending?.service) {
+        navigate(`/client/order/service?offering=${encodeURIComponent(pending.service)}`);
+      } else if (pending) {
         setOrderDraft((current) => ({ ...current, plan_slug: pending.plan, billing_cycle: pending.billing_cycle }));
         navigate("/client/order/review");
       } else {
@@ -5631,6 +5636,31 @@ export function ClientPortal() {
         hideWelcomeHeader
       >
         <HostingManagePanel serviceId={hostingServiceId} token={clientToken} navigate={navigate} toast={toast} initialTab={search.get("tab") === "website" ? "website" : undefined} />
+      </ClientPortalShell>
+    );
+  }
+
+  if (route === "order-service") {
+    return (
+      <ClientPortalShell
+        dashboard={dashboard}
+        route={route}
+        isVerified={isVerified}
+        navigate={navigate}
+        onLogout={() => void handleClientLogout()}
+        onProfileClick={() => navigate("/client/profile")}
+      >
+        {isVerified === false ? (
+          <section className="portal-card mx-auto max-w-lg text-center">
+            <h2 className="text-xl font-black text-white">Verify your email to continue</h2>
+            <p className="mt-3 text-sm text-white/60">You need a verified NAI TALK account before placing an order.</p>
+            <button type="button" className="btn-primary mt-5 justify-center" onClick={() => navigate("/client/verify-email")}>
+              Go to verification
+            </button>
+          </section>
+        ) : (
+          <ServiceOrderPage token={clientToken} slug={search.get("offering")} navigate={navigate} toast={toast} />
+        )}
       </ClientPortalShell>
     );
   }

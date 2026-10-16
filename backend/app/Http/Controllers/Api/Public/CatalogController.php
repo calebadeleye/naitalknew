@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Public;
 use App\Http\Controllers\Controller;
 use App\Models\HostingAddOn;
 use App\Models\HostingPlan;
+use App\Models\ServiceOffering;
 use App\Services\Billing\VatCalculator;
 use App\Services\Billing\Money;
 
@@ -80,6 +81,26 @@ class CatalogController extends Controller
             'vat_rate' => VatCalculator::currentRate(),
             'vat_enabled' => VatCalculator::isEnabled(),
             'configured_vat_rate' => (float) config('billing.vat_rate'),
+        ]);
+    }
+
+    /** A service that can be ordered online on its own (e.g. the SSL certificate), for its public page. */
+    public function serviceOffering(string $slug, VatCalculator $vat)
+    {
+        $offering = ServiceOffering::query()->where('slug', $slug)->where('is_active', true)->where('is_orderable', true)->firstOrFail();
+        $withVat = $vat->calculate((int) $offering->price_kobo, 0);
+
+        return response()->json([
+            'name' => $offering->name,
+            'slug' => $offering->slug,
+            'short_description' => $offering->short_description,
+            'benefits' => $offering->benefits ?? [],
+            'price_kobo' => (int) $offering->price_kobo,
+            'price' => Money::naira((int) $offering->price_kobo),
+            'vat_rate' => $withVat['vat_rate'],
+            'total_kobo' => $withVat['total_kobo'],
+            'billing_type' => $offering->billing_type,
+            'requires_domain' => $offering->requires_domain,
         ]);
     }
 }

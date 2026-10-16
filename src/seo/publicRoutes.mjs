@@ -22,6 +22,7 @@ export const KNOWN_PREFIXES = [
   "/website-design",
   "/business-email-hosting",
   "/green-mail",
+  "/ssl-certificate",
   "/seo-services",
   "/blog",
   "/knowledge-base",

@@ -53,13 +53,15 @@ class ServiceOfferingController extends Controller
         return $request->validate([
             'name' => ['required', 'string', 'max:160'],
             'slug' => ['nullable', 'string', 'max:180', Rule::unique('service_offerings', 'slug')->ignore($serviceOffering)],
-            'category' => ['required', 'in:hosting,web_development,maintenance,ai,email_addon,backup_addon,other'],
+            'category' => ['required', 'in:hosting,web_development,maintenance,ai,email_addon,backup_addon,security,other'],
             'short_description' => ['required', 'string', 'max:255'],
             'benefits' => ['nullable', 'array'],
             'benefits.*' => ['string', 'max:200'],
             'price_kobo' => ['nullable', 'integer', 'min:0'],
             'billing_type' => ['required', 'in:one_time,monthly,yearly,custom_quote'],
             'is_quote_only' => ['boolean'],
+            'is_orderable' => ['boolean'],
+            'requires_domain' => ['boolean'],
             'is_active' => ['boolean'],
             'sort_order' => ['required', 'integer', 'min:0'],
         ]);
@@ -78,6 +80,8 @@ class ServiceOfferingController extends Controller
             'price' => $offering->price_kobo ? Money::naira($offering->price_kobo) : null,
             'billing_type' => $offering->billing_type,
             'is_quote_only' => $offering->is_quote_only,
+            'is_orderable' => $offering->is_orderable,
+            'requires_domain' => $offering->requires_domain,
             'is_active' => $offering->is_active,
             'sort_order' => $offering->sort_order,
         ];
