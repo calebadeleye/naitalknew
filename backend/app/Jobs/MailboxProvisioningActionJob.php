@@ -79,18 +79,17 @@ class MailboxProvisioningActionJob implements ShouldQueue
             // explicit or the account exists but never actually receives mail.
             'postfix' => 'y',
             'access' => 'y',
-            // ISPConfig's own mail_user_edit.php computes this field itself
-            // before saving — but that logic lives entirely in that page's
-            // PHP, not in the mail_user table's form definition or in the
-            // server-side plugin that later creates the Maildir on disk. The
-            // remote API's mail_user_add() saves straight through a generic
-            // tform insert that never runs it, so a mailbox created this way
-            // gets no mail_location at all: Dovecot logs "mail_location not
-            // set and autodetection failed" and the account can authenticate
-            // but never open an inbox. We have to compute and send the same
-            // path ISPConfig's own panel would have, matching its
-            // `[domain]`/`[localpart]` convention (confirmed against this
-            // server's real Maildir layout: /var/vmail/<domain>/<localpart>/Maildir).
+            // ISPConfig's own mail_user_edit.php fills these in before saving,
+            // but the remote API's mail_user_add() saves straight through and
+            // never does — so they must be sent, matching every working mailbox
+            // on this server (checked 2026-10-16 across all 50):
+            //  - server_id: Postfix and Dovecot only look up mailboxes on this
+            //    server; without it mail is refused ("User unknown") and
+            //    ISPConfig never sets the mailbox up;
+            //  - maildir /var/vmail/<domain>/<localpart> (Dovecot appends
+            //    "/Maildir" itself — sending it doubled the path) and homedir.
+            'server_id' => (int) ($mailbox->hostingService?->ispconfig_server_id ?: config('ispconfig.server_id')),
+            'homedir' => config('ispconfig.vmail_base_path', '/var/vmail'),
             'maildir' => $this->buildMaildirPath($mailbox->email_address),
         ]);
 
@@ -150,7 +149,7 @@ class MailboxProvisioningActionJob implements ShouldQueue
     {
         [$localPart, $domain] = array_map('strtolower', explode('@', $emailAddress, 2));
 
-        return config('ispconfig.vmail_base_path', '/var/vmail')."/{$domain}/{$localPart}/Maildir";
+        return config('ispconfig.vmail_base_path', '/var/vmail')."/{$domain}/{$localPart}";
     }
 
     private function fail(MailboxRecord $mailbox, string $message, array $context = []): void

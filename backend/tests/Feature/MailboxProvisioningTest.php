@@ -59,11 +59,14 @@ class MailboxProvisioningTest extends TestCase
         $this->assertSame('active', $mailbox->status);
         $this->assertNotNull($mailbox->ispconfig_mailbox_id);
 
-        $expectedMaildir = '/var/vmail/'.strtolower($service->primary_domain).'/info/Maildir';
+        $expectedMaildir = '/var/vmail/'.strtolower($service->primary_domain).'/info';
 
         $addCall = collect($fake->calls)->firstWhere('method', 'mailUserAdd');
         $this->assertNotNull($addCall, 'mailUserAdd should have been called');
         $this->assertSame($expectedMaildir, $addCall['params']['maildir'] ?? null);
+        // Without the server, Postfix refuses mail for it ("User unknown").
+        $this->assertSame(1, $addCall['params']['server_id'] ?? null);
+        $this->assertSame('/var/vmail', $addCall['params']['homedir'] ?? null);
 
         // The value ISPConfig actually stored can be read back the same way
         // Dovecot's own userdb query would see it.
@@ -84,7 +87,7 @@ class MailboxProvisioningTest extends TestCase
 
         $addCall = collect($fake->calls)->firstWhere('method', 'mailUserAdd');
         $this->assertSame(
-            '/var/vmail/'.strtolower($service->primary_domain).'/sales/Maildir',
+            '/var/vmail/'.strtolower($service->primary_domain).'/sales',
             $addCall['params']['maildir'] ?? null,
         );
     }
