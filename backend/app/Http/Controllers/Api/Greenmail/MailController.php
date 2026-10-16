@@ -19,13 +19,20 @@ use Throwable;
 /** Folders, message list, reading, flags, moving and sending for the signed-in mailbox. */
 class MailController extends Controller
 {
-    public function __construct(private readonly MailGateway $mail)
+    /**
+     * The mailbox opened for THIS request by the greenmail middleware. Looked
+     * up each time rather than held in the constructor: Laravel keeps route
+     * controllers alive between requests in long-running workers, and a held
+     * instance would be a closed connection from an earlier request.
+     */
+    private function mail(): MailGateway
     {
+        return app(MailGateway::class);
     }
 
     public function folders()
     {
-        $folders = collect($this->mail->folders())
+        $folders = collect($this->mail()->folders())
             ->sortBy(fn (array $folder) => [array_search($folder['role'], FolderRoles::ORDER, true) === false ? 99 : array_search($folder['role'], FolderRoles::ORDER, true), strtolower($folder['name'])])
             ->values();
 
@@ -43,7 +50,7 @@ class MailController extends Controller
         $perPage = (int) config('greenmail.per_page');
         $page = (int) ($data['page'] ?? 1);
 
-        $result = $this->inFolder(fn () => $this->mail->messages($data['folder'], $page, $perPage, $data['filter'] ?? 'all', $data['q'] ?? null));
+        $result = $this->inFolder(fn () => $this->mail()->messages($data['folder'], $page, $perPage, $data['filter'] ?? 'all', $data['q'] ?? null));
 
         return response()->json($result + ['page' => $page, 'per_page' => $perPage, 'last_page' => max(1, (int) ceil($result['total'] / $perPage))]);
     }
@@ -51,14 +58,14 @@ class MailController extends Controller
     public function show(Request $request, int $uid, HtmlSanitizer $sanitizer)
     {
         $folder = $this->folderParam($request);
-        $message = $this->inFolder(fn () => $this->mail->message($folder, $uid));
+        $message = $this->inFolder(fn () => $this->mail()->message($folder, $uid));
         abort_unless($message, 404, 'That message no longer exists.');
 
         // Inline (cid:) images become data: URIs; capped so a huge one can't bloat the page.
         $inline = [];
         foreach ($message['attachments'] as $attachment) {
             if ($attachment['content_id'] && str_starts_with($attachment['mime'], 'image/') && $attachment['size'] <= 2 * 1048576) {
-                $file = $this->mail->attachment($folder, $uid, $attachment['index']);
+                $file = $this->mail()->attachment($folder, $uid, $attachment['index']);
                 if ($file) {
                     $inline[$attachment['content_id']] = 'data:'.$attachment['mime'].';base64,'.base64_encode($file['content']);
                 }
@@ -80,7 +87,7 @@ class MailController extends Controller
     public function attachment(Request $request, int $uid, int $index)
     {
         $folder = $this->folderParam($request);
-        $file = $this->inFolder(fn () => $this->mail->attachment($folder, $uid, $index));
+        $file = $this->inFolder(fn () => $this->mail()->attachment($folder, $uid, $index));
         abort_unless($file, 404, 'That attachment no longer exists.');
 
         return response($file['content'], 200, [
@@ -98,7 +105,7 @@ class MailController extends Controller
             'flagged' => ['nullable', 'boolean'],
         ]);
 
-        $this->inFolder(fn () => $this->mail->setFlags($data['folder'], $uid, $data['seen'] ?? null, $data['flagged'] ?? null));
+        $this->inFolder(fn () => $this->mail()->setFlags($data['folder'], $uid, $data['seen'] ?? null, $data['flagged'] ?? null));
 
         return response()->json(['message' => 'Updated.']);
     }
@@ -113,7 +120,7 @@ class MailController extends Controller
         ]);
 
         $target = $data['to'] ?? $this->folderForRole($data['to_role'] ?? 'archive');
-        $this->inFolder(fn () => $this->mail->move($data['folder'], $uid, $target));
+        $this->inFolder(fn () => $this->mail()->move($data['folder'], $uid, $target));
 
         return response()->json(['message' => 'Moved.', 'to' => $target]);
     }
@@ -124,7 +131,7 @@ class MailController extends Controller
         $folder = $this->folderParam($request);
         $trash = $this->folderForRole('trash');
 
-        $this->inFolder(fn () => $folder === $trash ? $this->mail->delete($folder, $uid) : $this->mail->move($folder, $uid, $trash));
+        $this->inFolder(fn () => $folder === $trash ? $this->mail()->delete($folder, $uid) : $this->mail()->move($folder, $uid, $trash));
 
         return response()->json(['message' => $folder === $trash ? 'Deleted for good.' : 'Moved to Trash.']);
     }
@@ -144,14 +151,14 @@ class MailController extends Controller
         }
 
         // Keep a copy in Sent, mark what was answered, drop the draft it came from.
-        rescue(fn () => $this->mail->append($this->folderForRole('sent'), $raw, ['\\Seen']), report: true);
+        rescue(fn () => $this->mail()->append($this->folderForRole('sent'), $raw, ['\\Seen']), report: true);
 
         if (! empty($data['reply_uid']) && ! empty($data['reply_folder'])) {
-            rescue(fn () => $this->mail->setFlags($data['reply_folder'], (int) $data['reply_uid'], seen: true), report: false);
+            rescue(fn () => $this->mail()->setFlags($data['reply_folder'], (int) $data['reply_uid'], seen: true), report: false);
         }
 
         if (! empty($data['draft_uid'])) {
-            rescue(fn () => $this->mail->delete($this->folderForRole('drafts'), (int) $data['draft_uid']), report: false);
+            rescue(fn () => $this->mail()->delete($this->folderForRole('drafts'), (int) $data['draft_uid']), report: false);
         }
 
         $this->rememberRecipients($session->email, array_merge($data['to'], $data['cc'] ?? [], $data['bcc'] ?? []));
@@ -166,10 +173,10 @@ class MailController extends Controller
         $settings = GreenmailSetting::query()->where('owner_email', $session->email)->first();
         $drafts = $this->folderForRole('drafts');
 
-        $this->mail->append($drafts, $sender->compose($session->email, $settings?->display_name, $data, $request->file('attachments', [])), ['\\Seen', '\\Draft']);
+        $this->mail()->append($drafts, $sender->compose($session->email, $settings?->display_name, $data, $request->file('attachments', [])), ['\\Seen', '\\Draft']);
 
         if (! empty($data['draft_uid'])) {
-            rescue(fn () => $this->mail->delete($drafts, (int) $data['draft_uid']), report: false);
+            rescue(fn () => $this->mail()->delete($drafts, (int) $data['draft_uid']), report: false);
         }
 
         return response()->json(['message' => 'Draft saved.']);
@@ -215,7 +222,7 @@ class MailController extends Controller
 
     private function folderForRole(string $role): string
     {
-        $path = FolderRoles::pathFor($this->mail->folders(), $role);
+        $path = FolderRoles::pathFor($this->mail()->folders(), $role);
 
         if ($path) {
             return $path;
@@ -229,7 +236,7 @@ class MailController extends Controller
             'trash' => 'Trash',
             default => 'Archive',
         };
-        $this->mail->ensureFolder($path);
+        $this->mail()->ensureFolder($path);
 
         return $path;
     }
