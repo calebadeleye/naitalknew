@@ -44,6 +44,9 @@ Schedule::job(new RepairWebsiteProxiesJob)->everyTenMinutes();
 // Visitor statistics for the client Statistics tab, copied from each site's
 // AWStats report after ISPConfig rebuilds it overnight.
 Schedule::job(new SyncSiteStatisticsJob)->dailyAt('06:20');
+
+// Greenmail: forget expired/idle webmail sessions (and the passwords they hold).
+Schedule::call(fn () => app(\App\Services\Greenmail\GreenmailSessions::class)->pruneExpired())->hourly()->name('greenmail-prune-sessions');
 Schedule::job(new SyncMailboxesJob)->everySixHours();
 Schedule::job(new SyncDatabasesJob)->everySixHours();
 Schedule::job(new SyncFtpAccountsJob)->everySixHours();

@@ -10,6 +10,9 @@ use App\Policies\DatabaseRecordPolicy;
 use App\Policies\FtpAccountRecordPolicy;
 use App\Policies\HostingServicePolicy;
 use App\Policies\MailboxRecordPolicy;
+use App\Services\Greenmail\FakeMailGateway;
+use App\Services\Greenmail\MailGateway;
+use App\Services\Greenmail\WebklexMailGateway;
 use App\Services\Ispconfig\FakeIspConfigClient;
 use App\Services\Ispconfig\IspConfigClient;
 use App\Services\Ispconfig\SoapIspConfigClient;
@@ -31,6 +34,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // One IMAP connection per request, shared by the middleware that opens
+        // it and the controller that uses it.
+        $this->app->scoped(MailGateway::class, fn ($app) => $app->environment('testing') ? new FakeMailGateway : new WebklexMailGateway);
+
         $this->app->bind(IspConfigClient::class, function ($app) {
             if ($app->environment('testing')) {
                 return $app->make(FakeIspConfigClient::class);
@@ -81,6 +88,14 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('hosting-password-reset', fn ($request) => Limit::perMinute(5)->by($request->user()?->id ?: $request->ip()));
 
         RateLimiter::for('hosting-manual-sync', fn ($request) => Limit::perMinute(3)->by($request->user()?->id ?: $request->ip()));
+
+        // Mailbox passwords: few attempts per address, and per IP across addresses.
+        RateLimiter::for('greenmail-login', fn ($request) => [
+            Limit::perMinute(5)->by('gm-login|'.strtolower((string) $request->input('email')).'|'.$request->ip()),
+            Limit::perMinute(20)->by('gm-login-ip|'.$request->ip()),
+        ]);
+        RateLimiter::for('greenmail-send', fn ($request) => Limit::perMinute(20)->by('gm-send|'.$request->header('X-Greenmail-Token')));
+        RateLimiter::for('greenmail-assistant', fn ($request) => Limit::perMinute(15)->by('gm-ai|'.$request->header('X-Greenmail-Token')));
 
         RateLimiter::for('support-ticket', fn ($request) => Limit::perMinute(10)->by($request->user()?->id ?: $request->ip()));
 

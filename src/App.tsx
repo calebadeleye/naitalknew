@@ -1199,6 +1199,7 @@ const LazyWebsiteDesignPage = React.lazy(() => import("./pages/MarketingPages").
 const LazyBusinessEmailHostingPage = React.lazy(() => import("./pages/MarketingPages").then((m) => ({ default: m.BusinessEmailHostingPage })));
 const LazySeoServicesPage = React.lazy(() => import("./pages/MarketingPages").then((m) => ({ default: m.SeoServicesPage })));
 const LazyAccountSuspendedPage = React.lazy(() => import("./pages/AccountSuspendedPage").then((m) => ({ default: m.AccountSuspendedPage })));
+const LazyGreenmailApp = React.lazy(() => import("./greenmail/GreenmailApp").then((m) => ({ default: m.GreenmailApp })));
 const LazyFaqsPage = React.lazy(() => import("./pages/MarketingPages").then((m) => ({ default: m.FaqsPage })));
 const LazyHowToPayPage = React.lazy(() => import("./pages/MarketingPages").then((m) => ({ default: m.HowToPayPage })));
 const LazyServiceStatusPage = React.lazy(() => import("./pages/MarketingPages").then((m) => ({ default: m.ServiceStatusPage })));
@@ -1245,6 +1246,8 @@ export default function App() {
     // A suspended client website's visitors land on /account-suspended —
     // they aren't NAI TALK's visitors, so they're never counted anywhere.
     if (path.startsWith("/account-suspended")) return undefined;
+    // Webmail is private: people's mail is never page-tracked.
+    if (path.startsWith("/greenmail")) return undefined;
     trackPageView();
     // First-party visit tracking (admin analytics dashboard) — public
     // marketing/blog pages only, never the owner's own /admin or /client use.
@@ -1256,6 +1259,7 @@ export default function App() {
 
   if (path.startsWith("/account-suspended")) return <RoutedPage><LazyAccountSuspendedPage /></RoutedPage>;
 
+  if (path.startsWith("/greenmail")) return <RoutedPage><LazyGreenmailApp /></RoutedPage>;
   if (path.startsWith("/admin")) return <RoutedPage><LazyAdminApp /></RoutedPage>;
   if (path.startsWith("/client")) return <RoutedPage><LazyClientPortal /></RoutedPage>;
   if (path.startsWith("/domains")) return <RoutedPage><LazyDomainsLandingPage /></RoutedPage>;

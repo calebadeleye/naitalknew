@@ -2,6 +2,7 @@ User-agent: *
 Allow: /
 Disallow: /client
 Disallow: /admin
+Disallow: /greenmail
 Disallow: /api
 Disallow: /account-suspended
 

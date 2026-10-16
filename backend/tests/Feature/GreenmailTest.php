@@ -1,0 +1,233 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Greenmail\GreenmailContact;
+use App\Models\Greenmail\GreenmailSession;
+use App\Services\Greenmail\FakeMailGateway;
+use App\Services\Greenmail\MailGateway;
+use App\Services\Greenmail\MailSender;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
+use Symfony\Component\Mime\Email;
+use Tests\TestCase;
+
+class GreenmailTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private FakeMailGateway $mail;
+
+    /** @var array<int, array{message: Email, username: string, password: string}> */
+    private array $sent = [];
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->mail = new FakeMailGateway;
+        $this->mail->addAccount('caleb@calebadeleye.com', 'mailbox-pass');
+        $this->mail->addAccount('other@example.com', 'other-pass');
+        $this->app->instance(MailGateway::class, $this->mail);
+
+        $sent = &$this->sent;
+        $this->app->instance(MailSender::class, new class($sent) extends MailSender
+        {
+            public function __construct(private array &$log) {}
+
+            protected function deliver(Email $message, string $username, string $password): void
+            {
+                $this->log[] = ['message' => $message, 'username' => $username, 'password' => $password];
+            }
+        });
+    }
+
+    private function signIn(string $email = 'caleb@calebadeleye.com', string $password = 'mailbox-pass'): string
+    {
+        return $this->postJson('/api/v1/greenmail/session', ['email' => $email, 'password' => $password])->assertCreated()->json('token');
+    }
+
+    private function gm(string $token): static
+    {
+        return $this->withHeader('X-Greenmail-Token', $token);
+    }
+
+    public function test_sign_in_checks_the_mailbox_password_and_stores_it_only_encrypted(): void
+    {
+        $this->postJson('/api/v1/greenmail/session', ['email' => 'caleb@calebadeleye.com', 'password' => 'wrong'])
+            ->assertStatus(422)->assertJsonValidationErrors('email');
+
+        $token = $this->signIn('Caleb@CalebAdeleye.com');
+
+        $this->assertStringStartsWith('gm_', $token);
+        $session = GreenmailSession::firstOrFail();
+        $this->assertSame('caleb@calebadeleye.com', $session->email);
+        $this->assertStringNotContainsString('mailbox-pass', $session->password_encrypted);
+        $this->assertNotSame($token, $session->token_hash);
+        $this->assertSame('mailbox-pass', $session->password());
+    }
+
+    public function test_repeated_wrong_passwords_are_throttled(): void
+    {
+        foreach (range(1, 5) as $attempt) {
+            $this->postJson('/api/v1/greenmail/session', ['email' => 'caleb@calebadeleye.com', 'password' => "guess-{$attempt}"])->assertStatus(422);
+        }
+
+        $this->postJson('/api/v1/greenmail/session', ['email' => 'caleb@calebadeleye.com', 'password' => 'mailbox-pass'])->assertStatus(429);
+    }
+
+    public function test_the_api_needs_a_valid_token_and_signing_out_ends_it(): void
+    {
+        $this->getJson('/api/v1/greenmail/folders')->assertUnauthorized();
+        $this->withHeader('X-Greenmail-Token', 'gm_made-up')->getJson('/api/v1/greenmail/folders')->assertUnauthorized();
+
+        $token = $this->signIn();
+        $this->gm($token)->getJson('/api/v1/greenmail/session')->assertOk()->assertJsonPath('email', 'caleb@calebadeleye.com');
+        $this->gm($token)->deleteJson('/api/v1/greenmail/session')->assertOk();
+        $this->gm($token)->getJson('/api/v1/greenmail/folders')->assertUnauthorized();
+    }
+
+    public function test_an_idle_session_expires_and_a_changed_password_signs_the_browser_out(): void
+    {
+        $token = $this->signIn();
+        GreenmailSession::query()->update(['last_used_at' => now()->subMinutes(config('greenmail.session_idle_minutes') + 1)]);
+        $this->gm($token)->getJson('/api/v1/greenmail/folders')->assertUnauthorized();
+        $this->assertSame(0, GreenmailSession::count());
+
+        $token = $this->signIn();
+        $this->mail->accounts['caleb@calebadeleye.com'] = 'changed-elsewhere';
+        $this->gm($token)->getJson('/api/v1/greenmail/folders')->assertUnauthorized()->assertJsonPath('message', 'Your mailbox password has changed. Please sign in again.');
+        $this->assertSame(0, GreenmailSession::count());
+    }
+
+    public function test_folders_come_in_a_familiar_order_and_the_list_can_be_filtered_and_searched(): void
+    {
+        $this->mail->deliver('caleb@calebadeleye.com', ['subject' => 'Website Update', 'text' => 'The new design looks great']);
+        $this->mail->deliver('caleb@calebadeleye.com', ['subject' => 'Domain renewal', 'seen' => true, 'flagged' => true]);
+        $token = $this->signIn();
+
+        $roles = collect($this->gm($token)->getJson('/api/v1/greenmail/folders')->assertOk()->json('folders'))->pluck('role')->all();
+        $this->assertSame(['inbox', 'sent', 'drafts', 'junk', 'trash'], $roles);
+
+        $this->gm($token)->getJson('/api/v1/greenmail/messages?folder=INBOX')->assertOk()->assertJsonPath('total', 2)->assertJsonPath('messages.0.subject', 'Domain renewal');
+        $this->gm($token)->getJson('/api/v1/greenmail/messages?folder=INBOX&filter=unread')->assertJsonPath('total', 1)->assertJsonPath('messages.0.subject', 'Website Update');
+        $this->gm($token)->getJson('/api/v1/greenmail/messages?folder=INBOX&filter=flagged')->assertJsonPath('messages.0.subject', 'Domain renewal');
+        $this->gm($token)->getJson('/api/v1/greenmail/messages?folder=INBOX&q=design')->assertJsonPath('total', 1);
+    }
+
+    public function test_reading_cleans_the_html_inlines_cid_images_and_marks_it_read(): void
+    {
+        $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
+        $uid = $this->mail->deliver('caleb@calebadeleye.com', [
+            'subject' => 'Hello',
+            'html' => '<p onclick="steal()">Hi <b>Caleb</b></p><script>alert(1)</script><img src="cid:logo123"><img src="https://tracker.example/pixel.gif"><a href="https://example.com">site</a>',
+            'attachments' => [
+                ['name' => 'logo.png', 'mime' => 'image/png', 'content' => $png, 'content_id' => 'logo123', 'inline' => true],
+                ['name' => 'brief.pdf', 'mime' => 'application/pdf', 'content' => '%PDF-1.4'],
+            ],
+        ]);
+        $token = $this->signIn();
+
+        $message = $this->gm($token)->getJson("/api/v1/greenmail/messages/{$uid}?folder=INBOX")->assertOk()->json();
+
+        $this->assertStringNotContainsString('<script', $message['html']);
+        $this->assertStringNotContainsString('onclick', $message['html']);
+        $this->assertStringContainsString('data:image/png;base64,'.base64_encode($png), $message['html']);
+        $this->assertStringContainsString('target="_blank"', $message['html']);
+        $this->assertTrue($message['has_remote_images']);
+        $this->assertSame(['brief.pdf'], array_column($message['attachments'], 'name'), 'inline images are not listed as attachments');
+        $this->assertTrue($this->mail->mailboxes['caleb@calebadeleye.com']['INBOX'][$uid]['seen']);
+
+        $this->gm($token)->get("/api/v1/greenmail/messages/{$uid}/attachments/1?folder=INBOX")->assertOk()->assertSee('%PDF-1.4', false)->assertHeader('Content-Type', 'application/pdf');
+    }
+
+    public function test_flag_archive_spam_and_delete_move_mail_to_the_right_folders(): void
+    {
+        $a = $this->mail->deliver('caleb@calebadeleye.com', ['subject' => 'A']);
+        $b = $this->mail->deliver('caleb@calebadeleye.com', ['subject' => 'B']);
+        $c = $this->mail->deliver('caleb@calebadeleye.com', ['subject' => 'C']);
+        $token = $this->signIn();
+        $box = fn () => $this->mail->mailboxes['caleb@calebadeleye.com'];
+
+        $this->gm($token)->patchJson("/api/v1/greenmail/messages/{$a}", ['folder' => 'INBOX', 'flagged' => true])->assertOk();
+        $this->assertTrue($box()['INBOX'][$a]['flagged']);
+
+        $this->gm($token)->postJson("/api/v1/greenmail/messages/{$a}/move", ['folder' => 'INBOX', 'to_role' => 'archive'])->assertOk()->assertJsonPath('to', 'Archive');
+        $this->gm($token)->postJson("/api/v1/greenmail/messages/{$b}/move", ['folder' => 'INBOX', 'to_role' => 'junk'])->assertOk()->assertJsonPath('to', 'Junk');
+        $this->gm($token)->deleteJson("/api/v1/greenmail/messages/{$c}?folder=INBOX")->assertOk()->assertJsonPath('message', 'Moved to Trash.');
+
+        $this->assertArrayHasKey($a, $box()['Archive']);
+        $this->assertArrayHasKey($b, $box()['Junk']);
+        $this->assertArrayHasKey($c, $box()['Trash']);
+
+        $this->gm($token)->deleteJson("/api/v1/greenmail/messages/{$c}?folder=Trash")->assertOk()->assertJsonPath('message', 'Deleted for good.');
+        $this->assertArrayNotHasKey($c, $box()['Trash']);
+    }
+
+    public function test_sending_uses_the_mailbox_login_keeps_a_sent_copy_and_remembers_recipients(): void
+    {
+        $original = $this->mail->deliver('caleb@calebadeleye.com', ['subject' => 'Website Update', 'message_id' => '<abc@elinth.test>']);
+        $token = $this->signIn();
+        $this->gm($token)->putJson('/api/v1/greenmail/settings', ['display_name' => 'Caleb Adeleye', 'signature_html' => '<p>Caleb<script>x()</script></p>'])
+            ->assertOk()->assertJsonPath('signature_html', '<p>Caleb</p>');
+
+        $this->gm($token)->post('/api/v1/greenmail/send', [
+            'to' => 'chidi@elinthgroup.com, team@elinthgroup.com',
+            'subject' => 'Re: Website Update',
+            'html' => '<p>Thanks — preview by Friday.</p>',
+            'in_reply_to' => '<abc@elinth.test>',
+            'reply_uid' => $original,
+            'reply_folder' => 'INBOX',
+            'attachments' => [UploadedFile::fake()->createWithContent('plan.txt', 'the plan')],
+        ], ['Accept' => 'application/json'])->assertCreated();
+
+        $this->assertCount(1, $this->sent);
+        ['message' => $message, 'username' => $username, 'password' => $password] = $this->sent[0];
+        $this->assertSame(['caleb@calebadeleye.com', 'mailbox-pass'], [$username, $password]);
+        $this->assertSame('Caleb Adeleye', $message->getFrom()[0]->getName());
+        $this->assertSame(['chidi@elinthgroup.com', 'team@elinthgroup.com'], array_map(fn ($a) => $a->getAddress(), $message->getTo()));
+        $this->assertSame('<abc@elinth.test>', $message->getHeaders()->get('In-Reply-To')->getBodyAsString());
+        $this->assertSame('plan.txt', $message->getAttachments()[0]->getFilename());
+
+        $this->assertSame('Sent', $this->mail->appended[0]['folder']);
+        $this->assertSame(['\\Seen'], $this->mail->appended[0]['flags']);
+        $this->assertEqualsCanonicalizing(['chidi@elinthgroup.com', 'team@elinthgroup.com'], GreenmailContact::pluck('email')->all());
+    }
+
+    public function test_sending_needs_a_valid_recipient(): void
+    {
+        $token = $this->signIn();
+
+        $this->gm($token)->postJson('/api/v1/greenmail/send', ['to' => '', 'subject' => 'x', 'html' => 'y'])->assertStatus(422)->assertJsonValidationErrors('to');
+        $this->gm($token)->postJson('/api/v1/greenmail/send', ['to' => 'not-an-address', 'subject' => 'x', 'html' => 'y'])->assertStatus(422);
+        $this->assertCount(0, $this->sent);
+    }
+
+    public function test_contacts_belong_to_one_mailbox(): void
+    {
+        $mine = $this->signIn();
+        $contact = $this->gm($mine)->postJson('/api/v1/greenmail/contacts', ['name' => 'Chidi Okafor', 'email' => 'Chidi@ElinthGroup.com'])->assertCreated()->json('contact');
+        $this->assertSame('chidi@elinthgroup.com', $contact['email']);
+        $this->gm($mine)->postJson('/api/v1/greenmail/contacts', ['email' => 'chidi@elinthgroup.com'])->assertStatus(422);
+        $this->gm($mine)->getJson('/api/v1/greenmail/contacts?q=chidi')->assertJsonCount(1, 'contacts');
+
+        $theirs = $this->signIn('other@example.com', 'other-pass');
+        $this->gm($theirs)->getJson('/api/v1/greenmail/contacts')->assertJsonCount(0, 'contacts');
+        $this->gm($theirs)->deleteJson("/api/v1/greenmail/contacts/{$contact['id']}")->assertNotFound();
+    }
+
+    public function test_the_assistant_summarises_the_open_email(): void
+    {
+        config(['services.gemini.key' => 'test-key', 'services.gemini.model' => 'gemini-test']);
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response(['candidates' => [['content' => ['parts' => [['text' => "- Chidi likes the design\n- Wants the rest next week"]]]]]])]);
+        $uid = $this->mail->deliver('caleb@calebadeleye.com', ['subject' => 'Website Update', 'text' => 'The new design looks great. Please send the remaining pages next week.']);
+        $token = $this->signIn();
+
+        $this->gm($token)->postJson('/api/v1/greenmail/assistant', ['action' => 'summarise', 'folder' => 'INBOX', 'uid' => $uid])
+            ->assertOk()->assertJsonPath('reply', "- Chidi likes the design\n- Wants the rest next week");
+
+        Http::assertSent(fn ($request) => str_contains(json_encode($request->data()), 'remaining pages next week'));
+        $this->assertFalse($this->mail->mailboxes['caleb@calebadeleye.com']['INBOX'][$uid]['seen'], 'asking the assistant does not mark mail read');
+    }
+}

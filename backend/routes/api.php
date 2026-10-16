@@ -32,6 +32,11 @@ use App\Http\Controllers\Api\Admin\ServiceOfferingController as AdminServiceOffe
 use App\Http\Controllers\Api\Admin\ServicesDashboardController;
 use App\Http\Controllers\Api\Admin\SupportTicketController as AdminSupportTicketController;
 use App\Http\Controllers\Api\Client\PaymentOptionsController;
+use App\Http\Controllers\Api\Greenmail\AssistantController as GreenmailAssistantController;
+use App\Http\Controllers\Api\Greenmail\ContactController as GreenmailContactController;
+use App\Http\Controllers\Api\Greenmail\MailController as GreenmailMailController;
+use App\Http\Controllers\Api\Greenmail\SessionController as GreenmailSessionController;
+use App\Http\Controllers\Api\Greenmail\SettingsController as GreenmailSettingsController;
 use App\Http\Controllers\Api\Client\SupportTicketController as ClientSupportTicketController;
 use App\Http\Controllers\Api\Admin\ServiceStatusController;
 use App\Http\Controllers\Api\Admin\WebsiteQuoteController as AdminWebsiteQuoteController;
@@ -74,6 +79,32 @@ Route::prefix('v1')->group(function (): void {
     Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:register');
     Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
     Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword']);
+
+    // Greenmail (webmail for hosted mailboxes). Signed in with the mailbox's own
+    // email + password; requests then carry X-Greenmail-Token.
+    Route::prefix('greenmail')->group(function (): void {
+        Route::post('/session', [GreenmailSessionController::class, 'store'])->middleware('throttle:greenmail-login');
+
+        Route::middleware('greenmail')->group(function (): void {
+            Route::get('/session', [GreenmailSessionController::class, 'show']);
+            Route::delete('/session', [GreenmailSessionController::class, 'destroy']);
+            Route::put('/settings', [GreenmailSettingsController::class, 'update']);
+            Route::get('/folders', [GreenmailMailController::class, 'folders']);
+            Route::get('/messages', [GreenmailMailController::class, 'index']);
+            Route::get('/messages/{uid}', [GreenmailMailController::class, 'show'])->whereNumber('uid');
+            Route::get('/messages/{uid}/attachments/{index}', [GreenmailMailController::class, 'attachment'])->whereNumber(['uid', 'index']);
+            Route::patch('/messages/{uid}', [GreenmailMailController::class, 'update'])->whereNumber('uid');
+            Route::post('/messages/{uid}/move', [GreenmailMailController::class, 'move'])->whereNumber('uid');
+            Route::delete('/messages/{uid}', [GreenmailMailController::class, 'destroy'])->whereNumber('uid');
+            Route::post('/send', [GreenmailMailController::class, 'send'])->middleware('throttle:greenmail-send');
+            Route::post('/drafts', [GreenmailMailController::class, 'saveDraft']);
+            Route::get('/contacts', [GreenmailContactController::class, 'index']);
+            Route::post('/contacts', [GreenmailContactController::class, 'store']);
+            Route::put('/contacts/{contact}', [GreenmailContactController::class, 'update']);
+            Route::delete('/contacts/{contact}', [GreenmailContactController::class, 'destroy']);
+            Route::post('/assistant', GreenmailAssistantController::class)->middleware('throttle:greenmail-assistant');
+        });
+    });
     Route::post('/auth/reset-password', [AuthController::class, 'resetPassword']);
 
     Route::get('/public/hosting-plans', [CatalogController::class, 'hostingPlans']);

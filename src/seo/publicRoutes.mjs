@@ -41,7 +41,7 @@ export const KNOWN_EXACT_PATHS = ["/", "/get-a-website", "/get-a-website/thank-y
 // Auth-gated SPA zones: always 200 (validity is client-side/auth-dependent,
 // not something the server can or should judge), never prerendered, never
 // indexed.
-export const PRIVATE_PREFIXES = ["/admin", "/client"];
+export const PRIVATE_PREFIXES = ["/admin", "/client", "/greenmail"];
 
 // Prefixes whose valid slugs are dynamic (blog posts, KB articles) --
 // existence can only be checked by asking the Laravel API, not this table.

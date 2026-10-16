@@ -1158,10 +1158,18 @@ export function HostingManagePanel({
                   <p className="mt-1 text-sm text-white/48">Manage your email accounts and settings.</p>
                 </div>
                 {capabilities.email_accounts_enabled && (
-                  <button type="button" className="btn-primary" onClick={() => setModal({ type: "create-mailbox" })}>
-                    <Plus className="h-4 w-4" />
-                    Create Email Account
-                  </button>
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    {/* The old Roundcube webmail stays available while Greenmail beds in. */}
+                    {overview.primary_domain && (
+                      <a className="btn-outline" href={`https://${overview.primary_domain}/webmail`} target="_blank" rel="noopener">
+                        Classic webmail
+                      </a>
+                    )}
+                    <button type="button" className="btn-primary" onClick={() => setModal({ type: "create-mailbox" })}>
+                      <Plus className="h-4 w-4" />
+                      Create Email Account
+                    </button>
+                  </div>
                 )}
               </div>
               {!capabilities.email_accounts_enabled ? (
@@ -1189,6 +1197,15 @@ export function HostingManagePanel({
                           <td className="text-white/40">{mailbox.last_synced_at ? formatDateTime(mailbox.last_synced_at) : "Pending"}</td>
                           <td>
                             <div className="flex items-center justify-end gap-2">
+                              <a
+                                className="btn-primary !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                                href={`/greenmail?email=${encodeURIComponent(mailbox.email_address)}`}
+                                target="_blank"
+                                rel="noopener"
+                              >
+                                <Mail className="h-3.5 w-3.5" />
+                                Open mail
+                              </a>
                               <button
                                 type="button"
                                 className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"

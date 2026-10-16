@@ -396,6 +396,9 @@ class WebsiteSettingsService
             'ProxyPass /.well-known/acme-challenge/ !',
             // The site's visitor statistics (AWStats, password-protected).
             'ProxyPass /stats !',
+            // Webmail (Roundcube at /webmail, and /greenmail forwarding to Greenmail).
+            'ProxyPass /webmail !',
+            'ProxyPass /greenmail !',
             "ProxyPass / http://127.0.0.1:{$port}/",
             "ProxyPassReverse / http://127.0.0.1:{$port}/",
             self::PROXY_BLOCK_END,
