@@ -21,6 +21,10 @@ echo "🚀 Starting deployment..."
 NAITALK2NAITALK_HOME="/var/www/clients/client4/web9/home/naitalk2naitalk"
 export GIT_SSH_COMMAND="ssh -i ${NAITALK2NAITALK_HOME}/.ssh/deploykey -o IdentitiesOnly=yes -o UserKnownHostsFile=${NAITALK2NAITALK_HOME}/.ssh/known_hosts -o StrictHostKeyChecking=accept-new"
 
+# `npm install` below rewrites package-lock.json on this server every deploy;
+# drop that local copy first, or a pull that changes the lock file aborts.
+git checkout -- package-lock.json
+
 # Pull latest changes from git
 git pull origin main
 
