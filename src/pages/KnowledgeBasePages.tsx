@@ -122,6 +122,7 @@ export const KB_GROUP_ICONS: Record<string, LucideIcon> = {
   ShieldCheck,
   MessageCircle,
   Server,
+  Mail,
 };
 
 export const KB_POPULAR_SLUGS = [
@@ -437,7 +438,8 @@ export function KnowledgeBaseArticlePage({ slug }: { slug: string }) {
     );
   }
 
-  const headings = article.content.split(/\n{2,}/).map((paragraph) => paragraph.split("\n")[0]).slice(0, 6);
+  const blocks = articleBlocks(article.content);
+  const headings = blocks.filter((block) => block.heading).map((block) => ({ id: block.id, text: block.heading as string }));
 
   return (
     <PublicPage>
@@ -452,8 +454,19 @@ export function KnowledgeBaseArticlePage({ slug }: { slug: string }) {
             </p>
 
             <div className="mt-8 grid gap-5 text-base leading-8 text-[#334138]">
-              {article.content.split(/\n{2,}/).map((paragraph, index) => (
-                <p key={index}>{paragraph}</p>
+              {blocks.map((block, index) => (
+                <section key={index} id={block.id} className="scroll-mt-28">
+                  {block.heading && <h2 className="mb-2 text-xl font-black text-[#07111f]">{block.heading}</h2>}
+                  {block.lines.map((line, lineIndex) =>
+                    Array.isArray(line) ? (
+                      <ul key={lineIndex} className="grid list-disc gap-1.5 pl-6 marker:text-primary">
+                        {line.map((item) => <li key={item}>{item}</li>)}
+                      </ul>
+                    ) : (
+                      <p key={lineIndex}>{line}</p>
+                    ),
+                  )}
+                </section>
               ))}
             </div>
 
@@ -472,8 +485,10 @@ export function KnowledgeBaseArticlePage({ slug }: { slug: string }) {
               <div className="pub-card">
                 <h3 className="text-sm font-black uppercase text-[#596273]">On this page</h3>
                 <ul className="mt-3 grid gap-2 text-sm text-[#334138]">
-                  {headings.map((heading, index) => (
-                    <li key={index} className="truncate">{heading}</li>
+                  {headings.map((heading) => (
+                    <li key={heading.id} className="truncate">
+                      <a href={`#${heading.id}`} className="transition hover:text-primary">{heading.text}</a>
+                    </li>
                   ))}
                 </ul>
               </div>
@@ -495,6 +510,33 @@ export function KnowledgeBaseArticlePage({ slug }: { slug: string }) {
       </section>
     </PublicPage>
   );
+}
+
+/**
+ * Article text is plain: blank lines separate sections. A section whose first
+ * line is "## Heading" gets a heading; consecutive lines starting "- " become
+ * a bullet list. Older articles (plain paragraphs) render as before.
+ */
+type ArticleBlock = { id: string; heading: string | null; lines: Array<string | string[]> };
+
+export function articleBlocks(content: string): ArticleBlock[] {
+  return content.split(/\n{2,}/).map((section, index) => {
+    const rows = section.split("\n");
+    const heading = rows[0].startsWith("## ") ? rows.shift()!.slice(3).trim() : null;
+    const lines: Array<string | string[]> = [];
+    for (const row of rows) {
+      const bullet = row.match(/^\s*[-•]\s+(.*)$/);
+      const last = lines[lines.length - 1];
+      if (bullet) {
+        if (Array.isArray(last)) last.push(bullet[1]);
+        else lines.push([bullet[1]]);
+      } else if (row.trim()) {
+        lines.push(row.trim());
+      }
+    }
+    const id = heading ? heading.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") : `section-${index + 1}`;
+    return { id, heading, lines };
+  });
 }
 
 export function KnowledgeBaseRouter() {

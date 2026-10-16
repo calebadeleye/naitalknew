@@ -49,6 +49,10 @@ export const pageSeoConfig = {
     title: "Professional Business Email Hosting | NAI TALK",
     description: "A professional info@yourbusiness.com address builds trust that free Gmail or Yahoo addresses can't. Included in every Website Care Plan.",
   },
+  "/green-mail": {
+    title: "Green Mail — Free Business Webmail with Your Hosting | NAI TALK",
+    description: "Green Mail is the webmail included free with NAI TALK hosting: your own domain, an AI assistant, calendar, tasks, notes, templates, campaigns, filters and an installable app.",
+  },
   "/seo-services": {
     title: "SEO Services in Nigeria | NAI TALK",
     description: "SEO services for Nigerian businesses: technical, on-page, local and content SEO, with honest reporting on clicks, rankings and enquiries. Request a quote.",

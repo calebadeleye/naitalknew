@@ -168,6 +168,22 @@ export function WebHostingPage() {
       </section>
 
       <section className="pub-section-dark">
+        <div className="mx-auto max-w-7xl px-4 pt-16 sm:px-6 lg:px-8">
+          <a href="/green-mail" className="group flex flex-col items-start gap-5 overflow-hidden rounded-3xl border border-[#22a04f]/40 p-6 transition hover:border-[#22a04f]/80 sm:flex-row sm:items-center sm:p-8" style={{ background: "radial-gradient(circle at 90% 0%, rgba(34,160,79,0.3), transparent 50%), rgba(255,255,255,0.03)" }}>
+            <img src="/greenmail-app/badge-128.webp" alt="" width={64} height={64} className="shrink-0 rounded-2xl shadow-lg" />
+            <span className="flex-1">
+              <span className="text-[11px] font-black uppercase tracking-wide text-[#86efac]">Included free with every plan</span>
+              <span className="mt-1 block text-2xl font-black text-white">Meet Green Mail, your smarter business inbox</span>
+              <span className="mt-1 block text-sm leading-6 text-white/62">Webmail on your own domain with an AI assistant, calendar, tasks, templates, campaigns, filters and an app for your phone.</span>
+            </span>
+            <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-[#22a04f] px-5 py-3 text-sm font-black text-white transition group-hover:translate-x-1">
+              Explore Green Mail <ArrowRight className="h-4 w-4" />
+            </span>
+          </a>
+        </div>
+      </section>
+
+      <section className="pub-section-dark">
         <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6 lg:px-8">
           <div className="text-center">
             <span className="eyebrow">FAQ</span>
@@ -414,6 +430,15 @@ export function BusinessEmailHostingPage() {
               <p className="mt-2 text-sm leading-6 text-white/62">Business email is tied to your domain name — register or transfer yours to get started.</p>
             </div>
           </div>
+
+          <a href="/green-mail" className="mt-6 flex items-center gap-4 rounded-2xl border border-[#22a04f]/40 bg-[#22a04f]/[0.07] p-5 transition hover:border-[#22a04f]/80">
+            <img src="/greenmail-app/badge-128.webp" alt="" width={48} height={48} className="shrink-0 rounded-xl" />
+            <span className="flex-1 text-sm leading-6 text-white/70">
+              <strong className="block text-base text-white">Read and send it all in Green Mail</strong>
+              Our free webmail, with an AI assistant, calendar, templates and a phone app.
+            </span>
+            <ArrowRight className="h-5 w-5 shrink-0 text-[#4ade80]" />
+          </a>
         </div>
       </section>
 

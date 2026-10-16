@@ -1196,6 +1196,7 @@ const LazyDomainPricingPage = React.lazy(() => import("./pages/DomainPages").the
 const LazyWebHostingPage = React.lazy(() => import("./pages/MarketingPages").then((m) => ({ default: m.WebHostingPage })));
 const LazyWebsiteCarePlansPage = React.lazy(() => import("./pages/MarketingPages").then((m) => ({ default: m.WebsiteCarePlansPage })));
 const LazyWebsiteDesignPage = React.lazy(() => import("./pages/MarketingPages").then((m) => ({ default: m.WebsiteDesignPage })));
+const LazyGreenMailPage = React.lazy(() => import("./pages/GreenMailPage").then((m) => ({ default: m.GreenMailPage })));
 const LazyBusinessEmailHostingPage = React.lazy(() => import("./pages/MarketingPages").then((m) => ({ default: m.BusinessEmailHostingPage })));
 const LazySeoServicesPage = React.lazy(() => import("./pages/MarketingPages").then((m) => ({ default: m.SeoServicesPage })));
 const LazyAccountSuspendedPage = React.lazy(() => import("./pages/AccountSuspendedPage").then((m) => ({ default: m.AccountSuspendedPage })));
@@ -1270,6 +1271,7 @@ export default function App() {
   if (path.startsWith("/web-hosting")) return <RoutedPage><LazyWebHostingPage /></RoutedPage>;
   if (path.startsWith("/website-care-plans")) return <RoutedPage><LazyWebsiteCarePlansPage /></RoutedPage>;
   if (path.startsWith("/website-design")) return <RoutedPage><LazyWebsiteDesignPage /></RoutedPage>;
+  if (path.startsWith("/green-mail")) return <RoutedPage><LazyGreenMailPage /></RoutedPage>;
   if (path.startsWith("/business-email-hosting")) return <RoutedPage><LazyBusinessEmailHostingPage /></RoutedPage>;
   if (path.startsWith("/seo-services")) return <RoutedPage><LazySeoServicesPage /></RoutedPage>;
   if (path.startsWith("/blog")) return <RoutedPage><LazyBlogRouter /></RoutedPage>;
