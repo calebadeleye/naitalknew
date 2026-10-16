@@ -10,7 +10,6 @@ use Webklex\PHPIMAP\Address;
 use Webklex\PHPIMAP\Client;
 use Webklex\PHPIMAP\ClientManager;
 use Webklex\PHPIMAP\Exceptions\AuthFailedException;
-use Webklex\PHPIMAP\Exceptions\ConnectionFailedException;
 use Webklex\PHPIMAP\Folder;
 use Webklex\PHPIMAP\IMAP;
 use Webklex\PHPIMAP\Message;
@@ -47,16 +46,27 @@ class WebklexMailGateway implements MailGateway
             $this->client->connect();
         } catch (AuthFailedException $exception) {
             throw new MailAuthenticationFailed('Wrong email address or password.', 0, $exception);
-        } catch (ConnectionFailedException $exception) {
-            // webklex reports a refused LOGIN as a failed connection too.
-            if (Str::contains(strtolower($exception->getMessage().' '.$exception->getPrevious()?->getMessage()), ['auth', 'login', 'credential'])) {
+        } catch (Throwable $exception) {
+            // Dovecot refuses a bad login with "NO [AUTHENTICATIONFAILED] …", which
+            // webklex surfaces as a server error (or a failed connection) — so tell
+            // a wrong password apart from an unreachable server by its wording.
+            if ($this->isRefusedLogin($exception)) {
                 throw new MailAuthenticationFailed('Wrong email address or password.', 0, $exception);
             }
 
             throw new MailServerUnavailable('The mail server could not be reached.', 0, $exception);
-        } catch (Throwable $exception) {
-            throw new MailServerUnavailable('The mail server could not be reached.', 0, $exception);
         }
+    }
+
+    private function isRefusedLogin(Throwable $exception): bool
+    {
+        for ($current = $exception; $current; $current = $current->getPrevious()) {
+            if (Str::contains(strtolower($current->getMessage()), ['authenticationfailed', 'authentication failed', 'login failed', 'invalid credentials'])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function close(): void
