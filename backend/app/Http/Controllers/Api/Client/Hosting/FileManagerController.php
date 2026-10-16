@@ -76,6 +76,14 @@ class FileManagerController extends Controller
     {
         $this->authorize('manage', $service);
 
+        // The path may arrive base64-encoded: Cloudflare's WordPress firewall rule
+        // blocks any URL containing "wp-config.php", so the file manager sends
+        // the name encoded and the request reaches us.
+        if ($request->filled('path_b64')) {
+            $decoded = base64_decode(strtr((string) $request->query('path_b64'), '-_', '+/'), true);
+            $request->merge(['path' => $decoded === false ? '' : $decoded]);
+        }
+
         $payload = $request->validate(['path' => ['required', 'string', 'max:1000']]);
 
         try {

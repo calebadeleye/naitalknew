@@ -108,6 +108,24 @@ class FileManagerTest extends TestCase
         $this->assertSame($expected, array_values(array_intersect($names, $expected)));
     }
 
+    public function test_files_can_be_downloaded_by_an_encoded_path_so_wp_config_gets_past_cloudflare(): void
+    {
+        $ispConfigFake = $this->fakeIspConfig();
+        $fakeTransport = $this->fakeTransport();
+        $service = $this->provisionedService($ispConfigFake);
+        $token = $this->clientToken($service);
+        $this->withToken($token)->getJson("/api/v1/client/services/{$service->id}/files")->assertStatus(202);
+
+        file_put_contents($fakeTransport->rootDir().'/web/wp-config.php', "<?php define('DB_NAME', 'caleb_db');");
+        file_put_contents($fakeTransport->rootDir().'/web/résumé.txt', 'cv');
+        $encode = fn (string $path) => rtrim(strtr(base64_encode($path), '+/', '-_'), '=');
+
+        $response = $this->withToken($token)->get("/api/v1/client/services/{$service->id}/files/download?path_b64=".$encode('wp-config.php'))->assertOk();
+        $this->assertStringContainsString('caleb_db', $response->streamedContent());
+
+        $this->withToken($token)->get("/api/v1/client/services/{$service->id}/files/download?path_b64=".$encode('résumé.txt'))->assertOk();
+    }
+
     public function test_hidden_files_show_only_when_requested(): void
     {
         $ispConfigFake = $this->fakeIspConfig();

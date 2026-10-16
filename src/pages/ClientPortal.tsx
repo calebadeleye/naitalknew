@@ -788,7 +788,9 @@ export function HostingManagePanel({
   const handleDownloadEntry = async (name: string) => {
     try {
       const targetPath = fileManagerPath ? `${fileManagerPath}/${name}` : name;
-      const response = await fetch(`${LARAVEL_API_BASE_URL}${base}/files/download?path=${encodeURIComponent(targetPath)}`, {
+      // Encoded so names like wp-config.php don't trip Cloudflare's WordPress firewall rule.
+      const encodedPath = btoa(String.fromCharCode(...new TextEncoder().encode(targetPath))).replace(/\+/g, "-").replace(/\//g, "_");
+      const response = await fetch(`${LARAVEL_API_BASE_URL}${base}/files/download?path_b64=${encodedPath}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) throw new Error("Could not download that file.");
