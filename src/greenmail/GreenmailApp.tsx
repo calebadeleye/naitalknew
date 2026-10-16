@@ -15,7 +15,6 @@ import {
   Inbox,
   Loader2,
   ListTodo,
-  LogOut,
   Mail,
   MailOpen,
   Megaphone,
@@ -33,7 +32,8 @@ import {
   Workflow,
   X,
 } from "lucide-react";
-import { clearToken, gm, readToken, SessionExpired, type Folder, type FullMessage, type Me, type MessageSummary, type Template } from "./api";
+import { AccountMenu, useOtherAccounts } from "./Accounts";
+import { clearToken, gm, readAccounts, readToken, rememberAccountEmail, SessionExpired, setActiveToken, type StoredAccount, type Folder, type FullMessage, type Me, type MessageSummary, type Template } from "./api";
 import { CampaignsView } from "./CampaignsView";
 import { Composer, type ComposeDraft } from "./Composer";
 import { FeedbackProvider, useFeedback } from "./feedback";
@@ -101,40 +101,134 @@ export function GreenmailApp() {
     return () => robots.remove();
   }, []);
 
-  if (!token) {
-    return (
-      <>
-        <LoginScreen
-          notice={notice}
-          domain={domain}
-          onInstall={installer.canInstall ? install : null}
-          onSignedIn={(newToken) => {
-            setNotice(null);
-            setToken(newToken);
-          }}
-        />
-        {installHelp}
-      </>
-    );
-  }
-
   return (
     <FeedbackProvider>
-      <Mailbox
-        token={token}
-        onInstall={installer.canInstall ? install : null}
-        onSignedOut={(message) => {
-          clearToken();
-          setNotice(message);
-          setToken("");
-        }}
-      />
+      <AccountsShell domain={domain} onInstall={installer.canInstall ? install : null} />
       {installHelp}
     </FeedbackProvider>
   );
 }
 
-function Mailbox({ token, onSignedOut, onInstall }: { token: string; onSignedOut: (message: string | null) => void; onInstall: (() => void) | null }) {
+/**
+ * Which mailbox is on screen. Several can be signed in on this device;
+ * switching swaps the token (the mailbox view reloads for that account),
+ * signing out of one moves to the next, and the sign-in screen only shows
+ * when none are left — or when adding another account.
+ */
+function AccountsShell({ domain, onInstall }: { domain: string; onInstall: (() => void) | null }) {
+  const [accounts, setAccounts] = useState<StoredAccount[]>(readAccounts);
+  const [token, setToken] = useState(readToken);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const { toast } = useFeedback();
+
+  const refresh = useCallback(() => setAccounts(readAccounts()), []);
+
+  const switchTo = useCallback(
+    (next: string, message?: string) => {
+      setActiveToken(next);
+      setToken(next);
+      setAdding(false);
+      refresh();
+      const account = readAccounts().find((a) => a.token === next);
+      toast(message ?? `Switched to ${account?.email || "your other account"}.`, "info");
+    },
+    [refresh, toast],
+  );
+
+  /** Forget one account here; move to the next if there is one. */
+  const leave = useCallback(
+    (gone: string, message: string | null) => {
+      const goneEmail = readAccounts().find((a) => a.token === gone)?.email;
+      clearToken(gone);
+      const rest = readAccounts();
+      refresh();
+      if (gone !== token) {
+        if (message) toast(message, "info");
+        return;
+      }
+      if (rest.length > 0) {
+        switchTo(rest[0].token, message ?? `Signed out of ${goneEmail || "that account"}. Now showing ${rest[0].email || "your other account"}.`);
+      } else {
+        setNotice(message);
+        setToken("");
+      }
+    },
+    [token, refresh, switchTo, toast],
+  );
+
+  const others = accounts.filter((a) => a.token !== token);
+  const otherUnread = useOtherAccounts(others, (next) => switchTo(next), (account) => leave(account.token, `${account.email || "An account"} was signed out (its session ended). Add it again from the account menu.`));
+
+  const signOutAll = async () => {
+    await Promise.all(readAccounts().map((a) => gm("/session", a.token, { method: "DELETE" }).catch(() => undefined)));
+    readAccounts().forEach((a) => clearToken(a.token));
+    refresh();
+    setNotice("You've signed out of all accounts.");
+    setToken("");
+  };
+
+  if (!token || adding) {
+    return (
+      <LoginScreen
+        notice={adding ? null : notice}
+        domain={domain}
+        onInstall={onInstall}
+        onCancel={adding && token ? () => setAdding(false) : undefined}
+        signedInEmails={accounts.map((a) => a.email)}
+        onSignedIn={(newToken) => {
+          setNotice(null);
+          setAdding(false);
+          refresh();
+          setToken(newToken);
+          if (token) toast(`Added ${readAccounts().find((a) => a.token === newToken)?.email || "the account"}. Switch accounts from the menu at the top right.`);
+        }}
+      />
+    );
+  }
+
+  // Keyed by token: switching accounts starts the mailbox view afresh.
+  return (
+    <React.Fragment key={token}>
+    <Mailbox
+      token={token}
+      onInstall={onInstall}
+      accounts={accounts}
+      otherUnread={otherUnread}
+      onIdentified={(email) => {
+        rememberAccountEmail(token, email);
+        refresh();
+      }}
+      onSwitch={(next) => switchTo(next)}
+      onAddAccount={() => setAdding(true)}
+      onSignOutAll={() => void signOutAll()}
+      onSignedOut={(message) => leave(token, message)}
+    />
+    </React.Fragment>
+  );
+}
+
+function Mailbox({
+  token,
+  onSignedOut,
+  onInstall,
+  accounts,
+  otherUnread,
+  onIdentified,
+  onSwitch,
+  onAddAccount,
+  onSignOutAll,
+}: {
+  token: string;
+  onSignedOut: (message: string | null) => void;
+  onInstall: (() => void) | null;
+  accounts: StoredAccount[];
+  otherUnread: Record<string, number>;
+  onIdentified: (email: string) => void;
+  onSwitch: (token: string) => void;
+  onAddAccount: () => void;
+  onSignOutAll: () => void;
+}) {
   const [me, setMe] = useState<Me | null>(null);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [folder, setFolder] = useState("INBOX");
@@ -195,7 +289,12 @@ function Mailbox({ token, onSignedOut, onInstall }: { token: string; onSignedOut
   );
 
   useEffect(() => {
-    gm<Me>("/session", token).then(setMe).catch(handleError);
+    gm<Me>("/session", token)
+      .then((who) => {
+        setMe(who);
+        onIdentified(who.email);
+      })
+      .catch(handleError);
     void loadFolders();
   }, [token, loadFolders, handleError]);
 
@@ -752,12 +851,6 @@ function Mailbox({ token, onSignedOut, onInstall }: { token: string; onSignedOut
       )}
       {isWindowCompose && compose ? (
         <div className="flex min-h-0 flex-1 flex-col">
-          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-            <h2 className="text-lg font-black text-slate-900">New message</h2>
-            <button type="button" aria-label="Close" className="rounded p-1 text-slate-500 hover:bg-slate-100" onClick={() => setCompose(null)}>
-              <X className="h-5 w-5" />
-            </button>
-          </div>
           <React.Fragment key={compose.key}>
             <Composer
               token={token}
@@ -842,16 +935,17 @@ function Mailbox({ token, onSignedOut, onInstall }: { token: string; onSignedOut
           <button type="button" aria-label="Settings" title="Settings" className="rounded-lg p-2 text-slate-600 hover:bg-slate-100" onClick={() => setShowSettings(true)}>
             <Settings className="h-5 w-5" />
           </button>
-          <div className="hidden items-center gap-2 border-l border-slate-200 pl-3 md:flex">
-            <Avatar address={{ name: me?.display_name ?? null, email: myEmail || "?" }} size={34} />
-            <div className="hidden text-right leading-tight xl:block">
-              <p className="text-sm font-bold text-slate-900">{me?.display_name || myEmail.split("@")[0]}</p>
-              <p className="text-xs text-slate-500">{myEmail}</p>
-            </div>
-          </div>
-          <button type="button" aria-label="Sign out" title="Sign out" className="rounded-lg p-2 text-slate-600 hover:bg-slate-100" onClick={() => void signOut()}>
-            <LogOut className="h-5 w-5" />
-          </button>
+          <AccountMenu
+            email={myEmail}
+            displayName={me?.display_name ?? null}
+            accounts={accounts}
+            activeToken={token}
+            otherUnread={otherUnread}
+            onSwitch={onSwitch}
+            onAdd={onAddAccount}
+            onSignOut={() => void signOut()}
+            onSignOutAll={onSignOutAll}
+          />
         </header>
 
         <div className="flex min-h-0 flex-1">

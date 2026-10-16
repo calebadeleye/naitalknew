@@ -10,15 +10,22 @@ export function LoginScreen({
   notice,
   domain,
   onInstall,
+  onCancel,
+  signedInEmails = [],
 }: {
   onSignedIn: (token: string) => void;
+  /** Adding another account while signed in: shows Cancel (back to the mailbox). */
+  onCancel?: () => void;
+  /** Addresses already signed in on this device. */
+  signedInEmails?: string[];
   notice: string | null;
   /** The website this Green Mail belongs to (remembered on the device). */
   domain: string;
   onInstall: (() => void) | null;
 }) {
   const params = new URLSearchParams(window.location.search);
-  const [email, setEmail] = useState(params.get("email") || rememberedEmail(domain) || (domain ? `@${domain}` : ""));
+  const adding = Boolean(onCancel);
+  const [email, setEmail] = useState(adding ? (domain ? `@${domain}` : "") : params.get("email") || rememberedEmail(domain) || (domain ? `@${domain}` : ""));
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -34,11 +41,15 @@ export function LoginScreen({
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (adding && signedInEmails.includes(email.trim().toLowerCase())) {
+      setError("That account is already signed in. Pick it from the account menu.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      const response = await gm<{ token: string }>("/session", "", { method: "POST", body: JSON.stringify({ email: email.trim(), password }) });
-      storeToken(response.token, remember);
+      const response = await gm<{ token: string; email: string }>("/session", "", { method: "POST", body: JSON.stringify({ email: email.trim(), password }) });
+      storeToken(response.token, remember, response.email);
       rememberSignIn(email);
       onSignedIn(response.token);
     } catch (err) {
@@ -58,8 +69,8 @@ export function LoginScreen({
           <Brand size="lg" />
         </div>
         <form onSubmit={submit} className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm">
-          <h1 className="text-xl font-black text-slate-900">Sign in to your email</h1>
-          <p className="mt-1 text-sm text-slate-500">Use your full email address and its password.</p>
+          <h1 className="text-xl font-black text-slate-900">{adding ? "Add another account" : "Sign in to your email"}</h1>
+          <p className="mt-1 text-sm text-slate-500">{adding ? "Sign in to another mailbox. You can switch between them any time without signing out." : "Use your full email address and its password."}</p>
           {notice && <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">{notice}</p>}
           <label className="mt-5 block text-sm font-semibold text-slate-700">
             Email address
@@ -93,8 +104,13 @@ export function LoginScreen({
           </label>
           {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">{error}</p>}
           <button type="submit" disabled={busy} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#1f9d4c] py-2.5 font-bold text-white hover:bg-[#188a42] disabled:opacity-60">
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <LockKeyhole className="h-4 w-4" />} Sign in
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <LockKeyhole className="h-4 w-4" />} {adding ? "Add account" : "Sign in"}
           </button>
+          {adding && (
+            <button type="button" onClick={onCancel} className="mt-2 w-full rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+              Cancel
+            </button>
+          )}
           <p className="mt-5 text-center text-xs text-slate-500">
             Forgot your password? The owner of your hosting account can reset it in the NAI TALK client area.
             {webmailHost && /\./.test(webmailHost) && (

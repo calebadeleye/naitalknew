@@ -38,6 +38,7 @@ export function Composer({
   onClose,
   onSessionError,
   onDraftSaved,
+  title = "New message",
 }: {
   token: string;
   draft: ComposeDraft;
@@ -46,6 +47,8 @@ export function Composer({
   onClose: () => void;
   onSessionError: (error: unknown) => void;
   onDraftSaved?: () => void;
+  /** The title bar text for a full-window message. */
+  title?: string;
 }) {
   const [to, setTo] = useState(draft.to);
   const [cc, setCc] = useState(draft.cc);
@@ -217,6 +220,25 @@ export function Composer({
     }
   };
 
+  /**
+   * Phones: the keyboard and browser bars can cover the bottom row, so Send
+   * is also at the top — in the title bar for a new message, in the
+   * "Replying to" line for a reply.
+   */
+  const topSend = (
+    <button
+      type="button"
+      aria-label="Send"
+      title="Send"
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[#1f9d4c] px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60 md:hidden"
+      disabled={busy !== null || !to.trim()}
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={() => void send()}
+    >
+      {busy === "send" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Send
+    </button>
+  );
+
   const toolbarButton = (label: string, icon: React.ReactNode, action: () => void) => (
     <button type="button" className="rounded p-1.5 text-slate-600 hover:bg-slate-100" aria-label={label} title={label} onMouseDown={(event) => event.preventDefault()} onClick={action}>
       {icon}
@@ -224,7 +246,16 @@ export function Composer({
   );
 
   return (
-    <div className={variant === "window" ? "flex h-full flex-col" : "flex flex-col"}>
+    <div className={variant === "window" ? "flex h-full min-h-0 flex-col" : "flex flex-col"}>
+      {variant === "window" && (
+        <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
+          <h2 className="mr-auto text-lg font-black text-slate-900">{title}</h2>
+          {topSend}
+          <button type="button" aria-label="Close" className="rounded p-1 text-slate-500 hover:bg-slate-100" onClick={onClose}>
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
       <div className="grid gap-0 border-b border-slate-200 text-sm">
         {!editRecipients ? (
           <div className="flex items-center gap-3 px-4 py-2.5">
@@ -235,6 +266,7 @@ export function Composer({
             <button type="button" className="shrink-0 text-xs font-semibold text-[#1a7f3f] hover:underline" onClick={() => setEditRecipients(true)}>
               Edit
             </button>
+            {topSend}
           </div>
         ) : (
           <>
@@ -275,6 +307,7 @@ export function Composer({
           <label className="flex items-center gap-3 px-4 py-2">
             <span className="w-12 shrink-0 text-slate-500">Subject</span>
             <input value={subject} onChange={(event) => setSubject(event.target.value)} className="min-w-0 flex-1 bg-transparent text-slate-900 outline-none" maxLength={300} />
+            {variant === "inline" && topSend}
           </label>
         )}
       </div>
@@ -355,7 +388,7 @@ export function Composer({
 
       {error && <p className="mx-4 mb-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
 
-      <div className="flex items-center gap-2 border-t border-slate-200 px-4 py-3">
+      <div className="sticky bottom-0 z-10 flex items-center gap-2 border-t border-slate-200 bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className="relative flex">
           <button type="button" className="inline-flex items-center gap-2 rounded-l-lg bg-[#1f9d4c] px-5 py-2 text-sm font-bold text-white hover:bg-[#188a42] disabled:opacity-60" disabled={busy !== null || !to.trim()} onClick={() => void send()}>
             {busy === "send" || busy === "later" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Send

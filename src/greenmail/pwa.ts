@@ -66,6 +66,12 @@ export function useGreenmailAppShell(domain: string): void {
 
     // Only Green Mail's manifest may be on the page, or "Install" would install
     // the main NAI TALK site instead (the server already swaps it in production).
+    // Phones: shrink the page when the keyboard opens (Android), so the
+    // composer's Send button isn't left hidden behind it.
+    const viewport = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+    const originalViewport = viewport?.content ?? null;
+    if (viewport && !/interactive-widget/.test(viewport.content)) viewport.content = `${viewport.content}, interactive-widget=resizes-content, viewport-fit=cover`;
+
     const siteManifests = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="manifest"]'));
     siteManifests.forEach((link) => link.remove());
     add("link", { rel: "manifest", href: `/greenmail/manifest.webmanifest${domain ? `?domain=${encodeURIComponent(domain)}` : ""}` });
@@ -88,6 +94,7 @@ export function useGreenmailAppShell(domain: string): void {
       added.forEach((element) => element.remove());
       siteManifests.forEach((link) => document.head.appendChild(link));
       icons.forEach((icon, index) => (icon.href = previous[index]));
+      if (viewport && originalViewport !== null) viewport.content = originalViewport;
     };
   }, [domain]);
 }

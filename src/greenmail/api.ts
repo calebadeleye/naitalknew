@@ -3,35 +3,95 @@ import { LARAVEL_API_BASE_URL } from "../shared/api";
 /*
  * Greenmail talks to /api/v1/greenmail with its own token (not the client
  * area's): the person signs in with their mailbox address and password.
- * "Keep me signed in" keeps the token in localStorage; otherwise it lives only
- * for this tab (sessionStorage).
+ *
+ * Several mailboxes can be signed in on one device and switched between.
+ * Each has its own token; "Keep me signed in" keeps that account in
+ * localStorage, otherwise it lives only for this tab (sessionStorage).
  */
-const TOKEN_KEY = "greenmail_token";
+export type StoredAccount = { email: string; token: string; remember: boolean };
 
+const ACCOUNTS_KEY = "greenmail_accounts";
+const ACTIVE_KEY = "greenmail_active";
+const LEGACY_TOKEN_KEY = "greenmail_token";
+export const MAX_ACCOUNTS = 6;
+
+function readList(storage: Storage): StoredAccount[] {
+  try {
+    const parsed = JSON.parse(storage.getItem(ACCOUNTS_KEY) || "[]");
+    return Array.isArray(parsed) ? parsed.filter((a) => a && typeof a.token === "string" && a.token.startsWith("gm_")) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLists(accounts: StoredAccount[]): void {
+  try {
+    window.localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts.filter((a) => a.remember)));
+    window.sessionStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts.filter((a) => !a.remember)));
+  } catch {
+    // Storage blocked — accounts then last only while the page is open.
+  }
+}
+
+/** Every mailbox signed in on this device (remembered ones first). */
+export function readAccounts(): StoredAccount[] {
+  try {
+    const accounts = [...readList(window.localStorage), ...readList(window.sessionStorage)];
+    // A sign-in from before multiple accounts existed: keep it (its address is filled in once it loads).
+    for (const storage of [window.localStorage, window.sessionStorage]) {
+      const legacy = storage.getItem(LEGACY_TOKEN_KEY);
+      if (legacy && !accounts.some((a) => a.token === legacy)) accounts.push({ email: "", token: legacy, remember: storage === window.localStorage });
+      storage.removeItem(LEGACY_TOKEN_KEY);
+    }
+    writeLists(accounts);
+    return accounts;
+  } catch {
+    return [];
+  }
+}
+
+/** The account in use: the last one chosen on this device, else the first. */
 export function readToken(): string {
+  const accounts = readAccounts();
+  let active = "";
   try {
-    return window.sessionStorage.getItem(TOKEN_KEY) || window.localStorage.getItem(TOKEN_KEY) || "";
-  } catch {
-    return "";
-  }
-}
-
-export function storeToken(token: string, remember: boolean): void {
-  try {
-    clearToken();
-    (remember ? window.localStorage : window.sessionStorage).setItem(TOKEN_KEY, token);
-  } catch {
-    // Storage blocked — the token then lasts only while the page is open (kept in memory by the app).
-  }
-}
-
-export function clearToken(): void {
-  try {
-    window.sessionStorage.removeItem(TOKEN_KEY);
-    window.localStorage.removeItem(TOKEN_KEY);
+    active = window.sessionStorage.getItem(ACTIVE_KEY) || window.localStorage.getItem(ACTIVE_KEY) || "";
   } catch {
     // ignore
   }
+  return accounts.find((a) => a.token === active)?.token ?? accounts[0]?.token ?? "";
+}
+
+export function setActiveToken(token: string): void {
+  try {
+    window.sessionStorage.setItem(ACTIVE_KEY, token);
+    window.localStorage.setItem(ACTIVE_KEY, token);
+  } catch {
+    // ignore
+  }
+}
+
+/** Add (or refresh) a signed-in mailbox and make it the active one. Signing in again to the same address replaces its old token. */
+export function storeToken(token: string, remember: boolean, email = ""): void {
+  const address = email.trim().toLowerCase();
+  const accounts = readAccounts().filter((a) => a.token !== token && (!address || a.email !== address));
+  writeLists([...accounts, { email: address, token, remember }]);
+  setActiveToken(token);
+}
+
+/** Fill in an account's address once it's known (sign-ins from before accounts were listed). */
+export function rememberAccountEmail(token: string, email: string): void {
+  const accounts = readAccounts();
+  const account = accounts.find((a) => a.token === token);
+  if (account && account.email !== email) {
+    account.email = email;
+    writeLists(accounts);
+  }
+}
+
+/** Forget one account on this device (default: the active one). */
+export function clearToken(token = readToken()): void {
+  writeLists(readAccounts().filter((a) => a.token !== token));
 }
 
 export class SessionExpired extends Error {}
