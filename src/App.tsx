@@ -124,6 +124,7 @@ import {
 } from "./shared/siteDefaults";
 import { Logo, Navbar, Footer, FloatingWhatsApp, SectionHeader, socialLinks } from "./shared/PublicLayout";
 import { SITE_URL, DEFAULT_OG_IMAGE } from "./seo/pageSeoConfig.mjs";
+import { GreenmailHomeSection } from "./shared/greenmailShowcase";
 import { useJsonLd } from "./seo/useJsonLd";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { isKnownPublicPath } from "./seo/publicRoutes.mjs";
@@ -1170,6 +1171,7 @@ export function PublicSite() {
         <Hero logo={siteContent.brand.logo} />
         <TrustStrip clientLogos={siteContent.clientLogos} />
         <HostingSection />
+        <GreenmailHomeSection clientLogos={siteContent.clientLogos} />
         <Services />
         <Testimonials reviews={siteContent.reviews} />
         <Portfolio projects={projects} />

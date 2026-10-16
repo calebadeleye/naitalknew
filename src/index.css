@@ -1966,3 +1966,24 @@
 .greenmail-editor .gm-signature {
   color: #475569;
 }
+
+/* Green Mail brand strip: a slow, endless scroll that pauses on hover. */
+@keyframes gm-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.gm-marquee-track {
+  animation: gm-marquee 38s linear infinite;
+}
+
+.gm-marquee:hover .gm-marquee-track {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gm-marquee-track {
+    animation: none;
+    flex-wrap: wrap;
+  }
+}

@@ -27,15 +27,14 @@ import {
   Smartphone,
   Sparkles,
   Star,
-  StickyNote,
   Trash2,
-  Users,
   Workflow,
 } from "lucide-react";
 import "@fontsource/pacifico/latin-400.css";
 import { PublicPage, PublicBreadcrumbs, FaqAccordionGroup } from "../shared/marketingWidgets";
 import { useJsonLd } from "../seo/useJsonLd";
 import { trackCtaClick } from "../lib/analytics";
+import { CountUp, GreenmailBrandStrip, useGreenmailStats } from "../shared/greenmailShowcase";
 
 /*
  * Public product page for Green Mail — the webmail included free with every
@@ -45,6 +44,8 @@ import { trackCtaClick } from "../lib/analytics";
  */
 
 const GM = { green: "#22a04f", deep: "#15803d", navy: "#0f1a2b", mint: "#e3f4e9" };
+/** The NAI TALK lime (--color-primary) — used for the page itself; the drawn app keeps Green Mail's own green. */
+const LIME = { base: "#9bea16", deep: "#6ed414", ink: "#031006", glow: "155,234,22" };
 
 const HOSTING_HREF = "/web-hosting";
 const OPEN_HREF = "/greenmail";
@@ -52,7 +53,7 @@ const OPEN_HREF = "/greenmail";
 function Wordmark({ size = 34 }: { size?: number }) {
   return (
     <span className="inline-flex items-center gap-3">
-      <img src="/greenmail-app/badge-128.webp" alt="" width={size + 14} height={size + 14} className="rounded-2xl shadow-[0_10px_30px_rgba(34,160,79,0.35)]" />
+      <img src="/greenmail-app/badge-128.webp" alt="" width={size + 14} height={size + 14} className="rounded-2xl shadow-[0_10px_30px_rgba(155,234,22,0.3)]" />
       <span className="whitespace-nowrap leading-none text-white" style={{ fontFamily: "Pacifico, cursive", fontSize: size }}>
         Green Mail
       </span>
@@ -68,9 +69,9 @@ function Cta({ href, label, section, secondary = false, icon: Icon = ArrowRight 
       className={
         secondary
           ? "inline-flex min-h-12 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-white/20 px-6 py-3 text-sm font-black text-white transition hover:border-white/50 hover:bg-white/5"
-          : "inline-flex min-h-12 items-center justify-center gap-2 whitespace-nowrap rounded-full px-6 py-3 text-sm font-black text-white shadow-[0_12px_32px_rgba(34,160,79,0.35)] transition hover:-translate-y-0.5"
+          : "inline-flex min-h-12 items-center justify-center gap-2 whitespace-nowrap rounded-full px-6 py-3 text-sm font-black text-[#031006] shadow-[0_12px_32px_rgba(155,234,22,0.3)] transition hover:-translate-y-0.5"
       }
-      style={secondary ? undefined : { background: `linear-gradient(135deg, ${GM.green}, ${GM.deep})` }}
+      style={secondary ? undefined : { background: `linear-gradient(135deg, ${LIME.base}, ${LIME.deep})` }}
     >
       {label} <Icon className="h-4 w-4" />
     </a>
@@ -80,7 +81,7 @@ function Cta({ href, label, section, secondary = false, icon: Icon = ArrowRight 
 /* ---------- Product previews (drawn, not screenshots) ---------- */
 
 const SAMPLE_MAIL = [
-  { from: "Chidi Okafor", subject: "Website update", snippet: "The new design looks great — can we…", time: "9:16 AM", colour: "#f08c28", unread: true, star: true },
+  { from: "Bolarinwa Oladimeji", subject: "Website update", snippet: "The new design looks great — can we…", time: "9:16 AM", colour: "#f08c28", unread: true, star: true },
   { from: "Paystack", subject: "Payment received ₦250,000", snippet: "You've received a payment from…", time: "8:02 AM", colour: "#3f8cff", unread: true },
   { from: "Amaka Bello", subject: "Quote for the new branch", snippet: "Please find the quote attached…", time: "Yesterday", colour: "#d6409f", clip: true },
   { from: "Tunde Ade", subject: "Meeting on Friday?", snippet: "Are you free at 2pm to go over…", time: "Yesterday", colour: "#7c6cf2" },
@@ -160,12 +161,12 @@ function InboxPreview() {
         <div className="hidden min-w-0 flex-1 flex-col p-3 md:flex">
           <p className="text-[13px] font-black text-slate-900">Website update</p>
           <span className="mt-2 flex items-center gap-2">
-            <Avatar name="Chidi Okafor" colour="#f08c28" size={24} />
-            <span className="text-[10px] text-slate-500"><b className="text-slate-800">Chidi Okafor</b><br />to you</span>
+            <Avatar name="Bolarinwa Oladimeji" colour="#f08c28" size={24} />
+            <span className="text-[10px] text-slate-500"><b className="text-slate-800">Bolarinwa Oladimeji</b><br />to you</span>
           </span>
           <p className="mt-3 text-[11px] leading-5 text-slate-600">Hi, the new design looks great. I especially like the layout and the colours. Can we add the gallery page before launch?</p>
           <div className="mt-auto rounded-lg border border-slate-200 p-2">
-            <p className="text-[10px] text-slate-400">Replying to <b className="text-slate-700">Chidi Okafor</b></p>
+            <p className="text-[10px] text-slate-400">Replying to <b className="text-slate-700">Bolarinwa Oladimeji</b></p>
             <p className="mt-1 border-l-2 pl-1.5 text-[10px] text-slate-400" style={{ borderColor: GM.green }}>Type your reply here…</p>
           </div>
         </div>
@@ -241,7 +242,7 @@ const TOUR: Tour[] = [
           ))}
         </div>
         <div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-700">
-          <b className="text-slate-900">Summary:</b> Chidi likes the new design and wants a gallery page added before launch. He needs an answer this week.
+          <b className="text-slate-900">Summary:</b> Bolarinwa likes the new design and wants a gallery page added before launch, and needs an answer this week.
         </div>
         <p className="mt-2 text-[11px] font-bold" style={{ color: GM.deep }}>Use this reply →</p>
       </MiniCard>
@@ -385,20 +386,20 @@ function FeatureTour() {
               if (event.key === "ArrowDown" || event.key === "ArrowRight") pick((index + 1) % TOUR.length);
               if (event.key === "ArrowUp" || event.key === "ArrowLeft") pick((index - 1 + TOUR.length) % TOUR.length);
             }}
-            className={`relative flex shrink-0 items-center gap-3 overflow-hidden rounded-2xl border px-4 py-3 text-left transition ${index === active ? "border-[#22a04f]/60 bg-[#22a04f]/12 text-white" : "border-white/10 bg-white/[0.03] text-white/70 hover:border-white/25 hover:text-white"}`}
+            className={`relative flex shrink-0 items-center gap-3 overflow-hidden rounded-2xl border px-4 py-3 text-left transition ${index === active ? "border-primary/60 bg-primary/10 text-white" : "border-white/10 bg-white/[0.03] text-white/70 hover:border-white/25 hover:text-white"}`}
           >
-            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${index === active ? "text-white" : "bg-white/5 text-white/70"}`} style={index === active ? { background: GM.green } : undefined}>
+            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${index === active ? "bg-primary text-[#031006]" : "bg-white/5 text-white/70"}`}>
               <item.icon className="h-[18px] w-[18px]" />
             </span>
             <span className="whitespace-nowrap text-sm font-black">{item.label}</span>
             {index === active && !paused && (
-              <motion.span key={`bar-${active}`} className="absolute bottom-0 left-0 h-0.5" style={{ background: GM.green }} initial={{ width: "0%" }} animate={{ width: "100%" }} transition={{ duration: 6.5, ease: "linear" }} />
+              <motion.span key={`bar-${active}`} className="absolute bottom-0 left-0 h-0.5 bg-primary" initial={{ width: "0%" }} animate={{ width: "100%" }} transition={{ duration: 6.5, ease: "linear" }} />
             )}
           </button>
         ))}
       </div>
 
-      <div id="gm-tour-panel" role="tabpanel" aria-labelledby={`gm-tab-${tour.id}`} className="relative overflow-hidden rounded-3xl border border-white/10 p-6 sm:p-8" style={{ background: "radial-gradient(circle at 85% 10%, rgba(34,160,79,0.28), transparent 45%), linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015))" }}>
+      <div id="gm-tour-panel" role="tabpanel" aria-labelledby={`gm-tab-${tour.id}`} className="relative overflow-hidden rounded-3xl border border-white/10 p-6 sm:p-8" style={{ background: "radial-gradient(circle at 85% 10%, rgba(155,234,22,0.18), transparent 45%), linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015))" }}>
         <AnimatePresence mode="wait">
           <motion.div key={tour.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3 }} className="grid gap-8 md:grid-cols-[1fr_minmax(0,300px)] md:items-center">
             <div>
@@ -407,7 +408,7 @@ function FeatureTour() {
               <ul className="mt-5 grid gap-3">
                 {tour.points.map((point) => (
                   <li key={point} className="flex gap-3 text-sm leading-6 text-white/80">
-                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" style={{ color: "#4ade80" }} /> {point}
+                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" /> {point}
                   </li>
                 ))}
               </ul>
@@ -422,20 +423,73 @@ function FeatureTour() {
 
 /* ---------- Page content ---------- */
 
-const EVERYTHING: Array<[LucideIcon, string, string]> = [
-  [Globe2, "Your own domain", "Send and receive as you@yourbusiness.com — the address customers trust."],
-  [Bot, "AI assistant", "Summaries, reply drafts, action items and Yoruba translation."],
-  [Users, "Contacts", "People you write to are saved automatically, with suggestions as you type."],
-  [CalendarDays, "Calendar", "Plan meetings without leaving your inbox."],
-  [ListTodo, "Tasks", "A simple to-do list with due dates."],
-  [StickyNote, "Notes", "Pinned, colourful notes you can search."],
-  [FileText, "Templates", "Reuse your best emails in one click."],
-  [Megaphone, "Campaigns", "Personal copies for everyone on your list."],
-  [Filter, "Filters", "Sort, star or delete mail as it arrives."],
-  [Palmtree, "Vacation reply", "Let people know you're away, with dates."],
-  [Clock, "Send later", "Schedule emails for the perfect moment."],
-  [Download, "Installable app", "Home-screen app on phone and desktop."],
+/** Every feature, grouped — the "all the cool features" section. */
+const FEATURE_GROUPS: Array<{ icon: LucideIcon; title: string; features: string[] }> = [
+  {
+    icon: Inbox,
+    title: "Inbox & reading",
+    features: [
+      "Unread counts on Inbox and Starred",
+      "Search, plus All / Unread / Flagged / Attachments views",
+      "Select many emails: delete, archive, spam, read or unread",
+      "Empty Spam and Trash in one click",
+      "Download attachments; inline pictures shown in place",
+      "Internet images blocked until you allow them",
+      "\u201cNew email\u201d alerts with an Open button",
+      "Unread count in the browser tab and on the app icon",
+    ],
+  },
+  {
+    icon: Send,
+    title: "Writing & sending",
+    features: [
+      "Rich text: bold, lists, quotes and links",
+      "Cc and Bcc, with contact suggestions as you type",
+      "Up to 10 attachments per email",
+      "Forward with the original attachments",
+      "Replies open with the cursor ready to type",
+      "Signatures with your logo or photo",
+      "Drafts saved to finish later",
+      "Send later: tomorrow morning, Monday or any time",
+    ],
+  },
+  {
+    icon: Bot,
+    title: "AI assistant",
+    features: ["Summarise any email", "Draft a professional reply", "Pull out the action items", "Translate to Yoruba", "Ask anything about the email you're reading"],
+  },
+  {
+    icon: CalendarDays,
+    title: "Organise your day",
+    features: ["Calendar with today's agenda beside your mail", "Tasks with due dates", "Colourful, pinnable notes", "Contacts saved automatically", "Folders and Archive"],
+  },
+  {
+    icon: Workflow,
+    title: "Automate & reach out",
+    features: [
+      "Filters: move, star, mark read or delete",
+      "Vacation reply with start and end dates",
+      "Automatic replies to chosen emails",
+      "Forward a copy to a colleague",
+      "Templates with {{first_name}} placeholders",
+      "Campaigns with progress, test sends and unsubscribe links",
+    ],
+  },
+  {
+    icon: ShieldCheck,
+    title: "Access & peace of mind",
+    features: [
+      "Open it at yourbusiness.com/greenmail",
+      "Installs as an app on Android, iPhone, Windows and Mac",
+      "Works beautifully on phones",
+      "Same mailbox in Outlook and phone mail apps",
+      "Encrypted, private sign-in",
+      "Confirmation before anything is deleted",
+    ],
+  },
 ];
+
+const FEATURE_COUNT = FEATURE_GROUPS.reduce((sum, group) => sum + group.features.length, 0);
 
 const SECURITY: Array<[LucideIcon, string, string]> = [
   [EyeOff, "Tracking pixels blocked", "Images from the internet stay hidden until you choose to show them, so senders can't secretly see when you open their email."],
@@ -491,18 +545,19 @@ function TypedDomain() {
   }, [domains.length]);
   return (
     <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2 font-mono text-sm text-white sm:text-base">
-      <LockKeyhole className="h-4 w-4" style={{ color: "#4ade80" }} />
+      <LockKeyhole className="h-4 w-4 text-primary" />
       <AnimatePresence mode="popLayout" initial={false}>
         <motion.span key={domains[index]} className="inline-block min-w-[17ch] text-right" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.25 }}>
           {domains[index]}
         </motion.span>
       </AnimatePresence>
-      <span style={{ color: "#4ade80" }}>/greenmail</span>
+      <span className="text-primary">/greenmail</span>
     </span>
   );
 }
 
 export function GreenMailPage() {
+  const stats = useGreenmailStats();
   const faqJsonLd = useMemo(
     () => ({
       "@context": "https://schema.org",
@@ -533,10 +588,10 @@ export function GreenMailPage() {
       <PublicBreadcrumbs items={[{ label: "Web Hosting", href: "/web-hosting" }, { label: "Green Mail" }]} dark />
 
       {/* Hero */}
-      <section className="relative overflow-hidden" style={{ background: `radial-gradient(circle at 78% 20%, rgba(34,160,79,0.32), transparent 42%), radial-gradient(circle at 10% 90%, rgba(34,160,79,0.14), transparent 40%)` }}>
+      <section className="relative overflow-hidden" style={{ background: `radial-gradient(circle at 78% 20%, rgba(155,234,22,0.2), transparent 42%), radial-gradient(circle at 10% 90%, rgba(155,234,22,0.08), transparent 40%)` }}>
         <div className="mx-auto grid max-w-7xl gap-12 px-4 pb-20 pt-10 sm:px-6 lg:grid-cols-[1fr_1.05fr] lg:items-center lg:px-8 lg:pt-14">
           <div>
-            <motion.span initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="inline-flex items-center gap-2 rounded-full border border-[#22a04f]/50 bg-[#22a04f]/15 px-4 py-2 text-[11px] font-black uppercase tracking-wide text-[#86efac]">
+            <motion.span initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-4 py-2 text-[11px] font-black uppercase tracking-wide text-primary">
               <Sparkles className="h-3.5 w-3.5" /> Free with every NAI TALK hosting plan
             </motion.span>
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="mt-6">
@@ -554,7 +609,7 @@ export function GreenMailPage() {
             </motion.div>
             <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-white/65">
               {["No extra fee", "Phone & desktop", "Installs like an app", "Your own domain"].map((item) => (
-                <li key={item} className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" style={{ color: "#4ade80" }} /> {item}</li>
+                <li key={item} className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-primary" /> {item}</li>
               ))}
             </ul>
           </div>
@@ -563,7 +618,7 @@ export function GreenMailPage() {
             <InboxPreview />
             <FloatingCard className="-left-3 bottom-10 hidden w-[230px] sm:block" delay={0.6}>
               <p className="flex items-center gap-1.5 text-[11px] font-black text-slate-900"><Bot className="h-4 w-4" style={{ color: GM.green }} /> AI summary</p>
-              <p className="mt-1 text-[11px] leading-4 text-slate-600">Chidi approves the design and wants a gallery page before launch.</p>
+              <p className="mt-1 text-[11px] leading-4 text-slate-600">Bolarinwa approves the design and wants a gallery page before launch.</p>
             </FloatingCard>
             <FloatingCard className="-right-2 -top-5 hidden items-center gap-2 !py-2.5 sm:flex" delay={1}>
               <BellRing className="h-4 w-4" style={{ color: GM.green }} />
@@ -577,20 +632,24 @@ export function GreenMailPage() {
         </div>
       </section>
 
-      {/* Value strip */}
+      {/* Live counters */}
       <section className="border-y border-white/8 bg-white/[0.02]">
-        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-6 px-4 py-8 sm:px-6 md:grid-cols-4 lg:px-8">
-          {[
+        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-6 px-4 py-10 sm:px-6 md:grid-cols-4 lg:px-8">
+          {([
+            [<CountUp value={stats?.businesses ?? null} suffix="+" />, "businesses use Green Mail"],
+            [<CountUp value={stats?.mailboxes ?? null} suffix="+" />, "mailboxes on Green Mail"],
+            [<CountUp value={FEATURE_COUNT} suffix="+" />, "features built in"],
             ["₦0", "extra on any hosting plan"],
-            ["12+", "productivity tools built in"],
-            ["24/7", "filters & auto-replies on our server"],
-            ["1 tap", "install on phone or desktop"],
-          ].map(([value, label]) => (
+          ] as Array<[React.ReactNode, string]>).map(([value, label]) => (
             <Reveal key={label} className="text-center">
-              <p className="text-3xl font-black text-white sm:text-4xl">{value}</p>
-              <p className="mt-1 text-xs font-bold uppercase tracking-wide text-white/50">{label}</p>
+              <p className="text-4xl font-black text-primary sm:text-5xl">{value}</p>
+              <p className="mt-1.5 text-xs font-bold uppercase tracking-wide text-white/55">{label}</p>
             </Reveal>
           ))}
+        </div>
+        <div className="mx-auto max-w-7xl px-4 pb-10 sm:px-6 lg:px-8">
+          <p className="mb-4 text-center text-xs font-bold uppercase tracking-wide text-white/45">Trusted by growing brands</p>
+          <GreenmailBrandStrip />
         </div>
       </section>
 
@@ -621,7 +680,7 @@ export function GreenMailPage() {
             {STEPS.map(([title, description], index) => (
               <Reveal key={title} delay={index * 0.08}>
                 <li className="pub-card-dark h-full list-none">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full text-base font-black text-white" style={{ background: GM.green }}>{index + 1}</span>
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-base font-black text-[#031006]">{index + 1}</span>
                   <h3 className="mt-4 text-lg font-black text-white">{title}</h3>
                   <p className="mt-2 text-sm leading-6 text-white/62">{description}</p>
                 </li>
@@ -631,22 +690,32 @@ export function GreenMailPage() {
         </div>
       </section>
 
-      {/* Everything included */}
+      {/* Every feature */}
       <section className="pub-section-dark">
         <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
           <Reveal className="mx-auto max-w-2xl text-center">
-            <span className="eyebrow">Everything included</span>
-            <h2 className="mt-4 text-3xl font-black text-white sm:text-4xl">One app. All of this. No extra cost.</h2>
+            <span className="eyebrow">Every feature</span>
+            <h2 className="mt-4 text-3xl font-black text-white sm:text-4xl">{FEATURE_COUNT} features. One app. No extra cost.</h2>
+            <p className="mt-3 text-base leading-7 text-white/62">Everything Green Mail does, at a glance.</p>
           </Reveal>
-          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {EVERYTHING.map(([Icon, title, description], index) => (
-              <Reveal key={title} delay={(index % 4) * 0.05}>
-                <div className="group h-full rounded-2xl border border-white/10 bg-white/[0.03] p-5 transition hover:-translate-y-1 hover:border-[#22a04f]/50 hover:bg-[#22a04f]/[0.06]">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#22a04f]/40 bg-[#22a04f]/12 text-[#4ade80] transition group-hover:scale-105">
-                    <Icon className="h-5 w-5" />
-                  </span>
-                  <h3 className="mt-4 text-base font-black text-white">{title}</h3>
-                  <p className="mt-1.5 text-sm leading-6 text-white/60">{description}</p>
+          <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {FEATURE_GROUPS.map((group, index) => (
+              <Reveal key={group.title} delay={(index % 3) * 0.06}>
+                <div className="group h-full rounded-3xl border border-white/10 bg-white/[0.03] p-6 transition hover:-translate-y-1 hover:border-primary/40 hover:bg-primary/[0.04]">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-primary/35 bg-primary/10 text-primary transition group-hover:scale-105">
+                      <group.icon className="h-5 w-5" />
+                    </span>
+                    <h3 className="text-lg font-black text-white">{group.title}</h3>
+                    <span className="ml-auto rounded-full bg-white/5 px-2.5 py-0.5 text-xs font-bold text-white/55">{group.features.length}</span>
+                  </div>
+                  <ul className="mt-5 grid gap-2.5">
+                    {group.features.map((feature) => (
+                      <li key={feature} className="flex gap-2.5 text-sm leading-6 text-white/72">
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" /> {feature}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </Reveal>
             ))}
@@ -664,7 +733,7 @@ export function GreenMailPage() {
               Business email is a target. Green Mail is built to quietly protect you from trackers, harmful messages and stolen sessions, without you changing a setting.
             </p>
             <div className="mt-8 inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <MonitorSmartphone className="h-8 w-8 shrink-0" style={{ color: "#4ade80" }} />
+              <MonitorSmartphone className="h-8 w-8 shrink-0 text-primary" />
               <p className="text-sm leading-6 text-white/70">Works with Outlook, Apple Mail and phone mail apps too, using the same mailbox, the same folders and the same rules.</p>
             </div>
           </Reveal>
@@ -672,7 +741,7 @@ export function GreenMailPage() {
             {SECURITY.map(([Icon, title, description], index) => (
               <Reveal key={title} delay={index * 0.06}>
                 <div className="h-full rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-                  <Icon className="h-6 w-6" style={{ color: "#4ade80" }} />
+                  <Icon className="h-6 w-6 text-primary" />
                   <h3 className="mt-3 text-base font-black text-white">{title}</h3>
                   <p className="mt-1.5 text-sm leading-6 text-white/60">{description}</p>
                 </div>
@@ -694,18 +763,18 @@ export function GreenMailPage() {
           </div>
           <aside className="lg:pt-16">
             <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-6">
-              <h3 className="flex items-center gap-2 text-lg font-black text-white"><FileText className="h-5 w-5" style={{ color: "#4ade80" }} /> Step-by-step guides</h3>
+              <h3 className="flex items-center gap-2 text-lg font-black text-white"><FileText className="h-5 w-5 text-primary" /> Step-by-step guides</h3>
               <p className="mt-1 text-sm text-white/55">From our knowledge base</p>
               <ul className="mt-5 grid gap-1">
                 {GUIDES.map(([title, slug]) => (
                   <li key={slug}>
                     <a href={`/knowledge-base/${slug}`} className="group flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-white/80 transition hover:bg-white/5 hover:text-white">
-                      {title} <ArrowRight className="h-4 w-4 shrink-0 text-white/30 transition group-hover:translate-x-0.5 group-hover:text-[#4ade80]" />
+                      {title} <ArrowRight className="h-4 w-4 shrink-0 text-white/30 transition group-hover:translate-x-0.5 group-hover:text-primary" />
                     </a>
                   </li>
                 ))}
               </ul>
-              <a href="/knowledge-base" className="mt-4 inline-block px-3 text-xs font-bold text-[#4ade80] hover:underline">Browse the knowledge base →</a>
+              <a href="/knowledge-base" className="mt-4 inline-block px-3 text-xs font-bold text-primary hover:underline">Browse the knowledge base →</a>
             </div>
           </aside>
         </div>
@@ -714,7 +783,7 @@ export function GreenMailPage() {
       {/* Final CTA */}
       <section className="px-4 pb-20 sm:px-6 lg:px-8">
         <Reveal className="relative isolate mx-auto max-w-6xl overflow-hidden rounded-[2rem] p-8 text-center sm:p-14">
-          <div className="absolute inset-0 -z-10" style={{ background: `radial-gradient(circle at 20% 0%, rgba(74,222,128,0.35), transparent 50%), linear-gradient(135deg, ${GM.deep}, ${GM.navy})` }} />
+          <div className="absolute inset-0 -z-10" style={{ background: `radial-gradient(circle at 20% 0%, rgba(${LIME.glow},0.35), transparent 50%), radial-gradient(circle at 90% 100%, rgba(${LIME.glow},0.18), transparent 45%), linear-gradient(135deg, #142406, #050b03)` }} />
           <img src="/greenmail-app/badge-128.webp" alt="" width={64} height={64} className="mx-auto rounded-2xl shadow-xl" />
           <h2 className="mt-6 text-3xl font-black text-white sm:text-4xl">Give your business the email it deserves</h2>
           <p className="mx-auto mt-3 max-w-2xl text-base leading-7 text-white/75">Host your website with NAI TALK and Green Mail comes with it: your domain, your brand, and a smarter inbox, at no extra cost.</p>

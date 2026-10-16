@@ -78,6 +78,7 @@ use App\Http\Controllers\Api\Client\WalletFundingController;
 use App\Http\Controllers\Api\Client\WalletPaymentController;
 use App\Http\Controllers\Api\Public\CatalogController;
 use App\Http\Controllers\Api\Public\ContentController;
+use App\Http\Controllers\Api\Public\GreenmailStatsController;
 use App\Http\Controllers\Api\Public\TrackingController;
 use App\Http\Controllers\Api\Public\DomainSearchController;
 use App\Http\Controllers\Api\Public\PaymentGatewayController;
@@ -157,6 +158,7 @@ Route::prefix('v1')->group(function (): void {
     Route::post('/auth/reset-password', [AuthController::class, 'resetPassword']);
 
     Route::get('/public/hosting-plans', [CatalogController::class, 'hostingPlans']);
+    Route::get('/public/greenmail/stats', GreenmailStatsController::class);
     Route::get('/public/hosting-add-ons', [CatalogController::class, 'addOns']);
     Route::get('/public/billing-config', [CatalogController::class, 'billingConfig']);
     Route::get('/public/domains/search', [DomainSearchController::class, 'search'])->middleware('throttle:60,1');
