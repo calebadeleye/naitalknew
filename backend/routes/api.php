@@ -84,11 +84,15 @@ Route::prefix('v1')->group(function (): void {
     // email + password; requests then carry X-Greenmail-Token.
     Route::prefix('greenmail')->group(function (): void {
         Route::post('/session', [GreenmailSessionController::class, 'store'])->middleware('throttle:greenmail-login');
+        Route::get('/signature-images/{owner}/{name}', [GreenmailSettingsController::class, 'signatureImage']);
 
         Route::middleware('greenmail')->group(function (): void {
             Route::get('/session', [GreenmailSessionController::class, 'show']);
             Route::delete('/session', [GreenmailSessionController::class, 'destroy']);
             Route::put('/settings', [GreenmailSettingsController::class, 'update']);
+            Route::post('/settings/signature-image', [GreenmailSettingsController::class, 'uploadSignatureImage'])->middleware('throttle:hosting-resource-create');
+            Route::post('/folders/empty', [GreenmailMailController::class, 'emptyFolder']);
+            Route::post('/messages/bulk', [GreenmailMailController::class, 'bulk']);
             Route::get('/folders', [GreenmailMailController::class, 'folders']);
             Route::get('/messages', [GreenmailMailController::class, 'index']);
             Route::get('/messages/{uid}', [GreenmailMailController::class, 'show'])->whereNumber('uid');

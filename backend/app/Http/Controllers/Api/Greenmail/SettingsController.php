@@ -6,10 +6,38 @@ use App\Http\Controllers\Controller;
 use App\Models\Greenmail\GreenmailSetting;
 use App\Services\Greenmail\HtmlSanitizer;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 /** Display name and signature for the signed-in mailbox. */
 class SettingsController extends Controller
 {
+    /**
+     * An image for the signature. Stored on the server and served from a
+     * public address, because a signature image must load in the recipient's
+     * mail app (many block data: images).
+     */
+    public function uploadSignatureImage(Request $request)
+    {
+        $request->validate(['image' => ['required', 'image', 'mimes:jpg,jpeg,png,gif,webp', 'max:1024']]);
+
+        $owner = $request->attributes->get('greenmail_session')->email;
+        $name = Str::random(32).'.'.$request->file('image')->extension();
+        $request->file('image')->storeAs('greenmail-signatures/'.hash('sha256', $owner), $name, 'local');
+
+        return response()->json(['url' => url('/api/v1/greenmail/signature-images/'.hash('sha256', $owner).'/'.$name)], 201);
+    }
+
+    /** Public (no sign-in): recipients' mail apps load these. Names are unguessable. */
+    public function signatureImage(string $owner, string $name)
+    {
+        abort_unless(preg_match('/^[a-f0-9]{64}$/', $owner) && preg_match('/^[A-Za-z0-9]{32}\.(jpg|jpeg|png|gif|webp)$/', $name), 404);
+        $path = "greenmail-signatures/{$owner}/{$name}";
+        abort_unless(Storage::disk('local')->exists($path), 404);
+
+        return response()->file(Storage::disk('local')->path($path), ['Cache-Control' => 'public, max-age=31536000, immutable']);
+    }
+
     public function update(Request $request, HtmlSanitizer $sanitizer)
     {
         $data = $request->validate([

@@ -36,7 +36,66 @@ class MailController extends Controller
             ->sortBy(fn (array $folder) => [array_search($folder['role'], FolderRoles::ORDER, true) === false ? 99 : array_search($folder['role'], FolderRoles::ORDER, true), strtolower($folder['name'])])
             ->values();
 
-        return response()->json(['folders' => $folders]);
+        $inbox = FolderRoles::pathFor($folders->all(), 'inbox') ?? 'INBOX';
+
+        return response()->json(['folders' => $folders, 'starred' => $this->mail()->countFlagged($inbox)]);
+    }
+
+    /** "Empty Spam" / "Empty Trash": deletes everything in it on the server. Other folders are refused. */
+    public function emptyFolder(Request $request)
+    {
+        $folder = $this->folderParam($request);
+        $role = collect($this->mail()->folders())->firstWhere('path', $folder)['role'] ?? null;
+
+        abort_unless(in_array($role, ['junk', 'trash'], true), 422, 'Only Spam and Trash can be emptied.');
+
+        $count = $this->inFolder(fn () => $this->mail()->emptyFolder($folder));
+
+        return response()->json(['message' => $count === 1 ? '1 message deleted.' : "{$count} messages deleted.", 'deleted' => $count]);
+    }
+
+    /** One action on several selected messages. */
+    public function bulk(Request $request)
+    {
+        $data = $request->validate([
+            'folder' => ['required', 'string', 'max:200'],
+            'uids' => ['required', 'array', 'min:1', 'max:200'],
+            'uids.*' => ['integer'],
+            'action' => ['required', Rule::in(['delete', 'archive', 'spam', 'not_spam', 'read', 'unread', 'star', 'unstar'])],
+        ]);
+        $folder = $data['folder'];
+        $action = $data['action'];
+
+        $target = match ($action) {
+            'delete' => $this->folderForRole('trash'),
+            'archive' => $this->folderForRole('archive'),
+            'spam' => $this->folderForRole('junk'),
+            'not_spam' => $this->folderForRole('inbox'),
+            default => null,
+        };
+
+        $this->inFolder(function () use ($data, $folder, $action, $target) {
+            foreach ($data['uids'] as $uid) {
+                match ($action) {
+                    'read', 'unread' => $this->mail()->setFlags($folder, (int) $uid, seen: $action === 'read'),
+                    'star', 'unstar' => $this->mail()->setFlags($folder, (int) $uid, flagged: $action === 'star'),
+                    // Deleting from Trash removes for good; anywhere else it moves to Trash.
+                    'delete' => $folder === $target ? $this->mail()->delete($folder, (int) $uid) : $this->mail()->move($folder, (int) $uid, $target),
+                    default => $this->mail()->move($folder, (int) $uid, $target),
+                };
+            }
+        });
+
+        $count = count($data['uids']);
+        $noun = $count === 1 ? 'message' : 'messages';
+
+        return response()->json(['message' => match ($action) {
+            'delete' => $folder === $target ? "{$count} {$noun} deleted for good." : "{$count} {$noun} moved to Trash.",
+            'archive' => "{$count} {$noun} archived.",
+            'spam' => "{$count} {$noun} moved to Spam.",
+            'not_spam' => "{$count} {$noun} moved to Inbox.",
+            default => 'Updated.',
+        }]);
     }
 
     public function index(Request $request)

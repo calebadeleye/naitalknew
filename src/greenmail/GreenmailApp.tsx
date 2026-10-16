@@ -3,6 +3,7 @@ import {
   Archive,
   ArrowLeft,
   Bot,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -12,9 +13,11 @@ import {
   Inbox,
   Loader2,
   LogOut,
+  Mail,
+  MailOpen,
+  Menu,
   OctagonAlert,
   Paperclip,
-  Pencil,
   Plus,
   RefreshCw,
   Search,
@@ -30,7 +33,7 @@ import { LoginScreen } from "./LoginScreen";
 import { MessageReader, type ReaderAction } from "./MessageReader";
 import { SettingsModal } from "./SettingsModal";
 import { SidePanel } from "./SidePanel";
-import { Avatar, displayName, escapeHtml, formatBytes, fullDate, listDate, withoutRemoteImages } from "./ui";
+import { Avatar, Brand, displayName, escapeHtml, formatBytes, fullDate, listDate, withoutRemoteImages } from "./ui";
 
 type Filter = "all" | "unread" | "flagged" | "attachments";
 type ListPage = { messages: MessageSummary[]; total: number; page: number; last_page: number };
@@ -53,7 +56,7 @@ export function GreenmailApp() {
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    document.title = "Naitalk Webmail";
+    document.title = "Green Mail";
     const robots = document.createElement("meta");
     robots.name = "robots";
     robots.content = "noindex, nofollow";
@@ -103,7 +106,9 @@ function Mailbox({ token, onSignedOut }: { token: string; onSignedOut: (message:
   const [showSidePanel, setShowSidePanel] = useState(() => window.matchMedia?.("(min-width: 1536px)").matches ?? false);
   const [collapsed, setCollapsed] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ text: string; tone: "success" | "error" } | null>(null);
+  const [starredCount, setStarredCount] = useState(0);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
   const [mobileNav, setMobileNav] = useState(false);
 
   const handleError = useCallback(
@@ -113,15 +118,19 @@ function Mailbox({ token, onSignedOut }: { token: string; onSignedOut: (message:
     [onSignedOut],
   );
 
-  const flash = (text: string) => {
-    setToast(text);
-    window.setTimeout(() => setToast((current) => (current === text ? null : current)), 3500);
+  const flash = (text: string, tone: "success" | "error" = "success") => {
+    const next = { text, tone };
+    setToast(next);
+    window.setTimeout(() => setToast((current) => (current === next ? null : current)), 5000);
   };
 
   const loadFolders = useCallback(
     () =>
-      gm<{ folders: Folder[] }>("/folders", token)
-        .then((response) => setFolders(response.folders))
+      gm<{ folders: Folder[]; starred: number }>("/folders", token)
+        .then((response) => {
+          setFolders(response.folders);
+          setStarredCount(response.starred ?? 0);
+        })
         .catch(handleError),
     [token, handleError],
   );
@@ -135,7 +144,7 @@ function Mailbox({ token, onSignedOut }: { token: string; onSignedOut: (message:
         .then(setList)
         .catch((error) => {
           handleError(error);
-          if (!quiet) flash(error instanceof Error ? error.message : "Could not load messages.");
+          if (!quiet) flash(error instanceof Error ? error.message : "Could not load messages.", "error");
         })
         .finally(() => setIsLoadingList(false));
     },
@@ -149,6 +158,7 @@ function Mailbox({ token, onSignedOut }: { token: string; onSignedOut: (message:
 
   useEffect(() => {
     void loadList();
+    setSelected(new Set());
   }, [loadList]);
 
   // New mail appears without reloading: re-check every minute and on return to the tab.
@@ -209,7 +219,7 @@ function Mailbox({ token, onSignedOut }: { token: string; onSignedOut: (message:
       }
     } catch (error) {
       handleError(error);
-      flash(error instanceof Error ? error.message : "Could not open that message.");
+      flash(error instanceof Error ? error.message : "Could not open that message.", "error");
       setSelectedUid(null);
     } finally {
       setIsLoadingMessage(false);
@@ -227,9 +237,9 @@ function Mailbox({ token, onSignedOut }: { token: string; onSignedOut: (message:
 
   const startReply = (mode: "reply" | "reply_all" | "forward", bodyText?: string) => {
     if (!message) return;
-    const quoteHeader = `On ${escapeHtml(fullDate(message.date))}, ${escapeHtml(displayName(message.from))} wrote:`;
     const subjectBase = message.subject === "(no subject)" ? "" : message.subject;
     const intro = bodyText ? bodyText.split(/\n{2,}/).map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br>")}</p>`).join("") : "<p><br></p>";
+    const original = withoutRemoteImages(message.html);
 
     if (mode === "forward") {
       setCompose({
@@ -240,24 +250,28 @@ function Mailbox({ token, onSignedOut }: { token: string; onSignedOut: (message:
           cc: "",
           bcc: "",
           subject: /^fwd?:/i.test(subjectBase) ? subjectBase : `Fwd: ${subjectBase}`,
-          bodyHtml: `${intro}${signature}<p><br></p><div>---------- Forwarded message ----------<br>From: ${escapeHtml(displayName(message.from))} &lt;${escapeHtml(message.from.email)}&gt;<br>Date: ${escapeHtml(fullDate(message.date))}<br>Subject: ${escapeHtml(message.subject)}</div><br>${withoutRemoteImages(message.html)}`,
+          bodyHtml: `${intro}${signature}`,
+          quoteHtml: `<div>---------- Forwarded message ----------<br>From: ${escapeHtml(displayName(message.from))} &lt;${escapeHtml(message.from.email)}&gt;<br>Date: ${escapeHtml(fullDate(message.date))}<br>Subject: ${escapeHtml(message.subject)}</div><br>${original}`,
         },
       });
       return;
     }
 
-    const replyTo = (message.reply_to[0] ?? message.from).email;
-    const everyone = mode === "reply_all" ? [...message.to, ...message.cc].map((a) => a.email).filter((e) => e !== myEmail && e !== replyTo) : [];
+    const replyTo = message.reply_to[0] ?? message.from;
+    const everyone = mode === "reply_all" ? [...message.to, ...message.cc].filter((a) => a.email !== myEmail && a.email !== replyTo.email) : [];
+    const uniqueOthers = [...new Map(everyone.map((a) => [a.email, a])).values()];
 
     setCompose({
       variant: "inline",
       key: Date.now(),
       draft: {
-        to: replyTo,
-        cc: [...new Set(everyone)].join(", "),
+        to: replyTo.email,
+        cc: uniqueOthers.map((a) => a.email).join(", "),
         bcc: "",
         subject: /^re:/i.test(subjectBase) ? subjectBase : `Re: ${subjectBase}`,
-        bodyHtml: `${intro}${signature}<p><br></p><div>${quoteHeader}</div><blockquote>${withoutRemoteImages(message.html)}</blockquote>`,
+        bodyHtml: `${intro}${signature}`,
+        quoteHtml: `<div>On ${escapeHtml(fullDate(message.date))}, ${escapeHtml(displayName(message.from))} wrote:</div><blockquote>${original}</blockquote>`,
+        replyingTo: displayName(replyTo) + (uniqueOthers.length ? ` +${uniqueOthers.length}` : ""),
         inReplyTo: message.message_id || undefined,
         references: message.references || undefined,
         replyUid: message.uid,
@@ -318,7 +332,7 @@ function Mailbox({ token, onSignedOut }: { token: string; onSignedOut: (message:
       }
     } catch (error) {
       handleError(error);
-      flash(error instanceof Error ? error.message : "That did not work.");
+      flash(error instanceof Error ? error.message : "That did not work.", "error");
     }
   };
 
@@ -327,6 +341,52 @@ function Mailbox({ token, onSignedOut }: { token: string; onSignedOut: (message:
     setList((current) => current && { ...current, messages: current.messages.map((m) => (m.uid === summary.uid ? { ...m, flagged } : m)) });
     if (message?.uid === summary.uid) setMessage({ ...message, flagged });
     await gm(`/messages/${summary.uid}`, token, { method: "PATCH", body: JSON.stringify({ folder, flagged }) }).catch(handleError);
+  };
+
+  const pageUids = list?.messages.map((m) => m.uid) ?? [];
+  const allSelected = pageUids.length > 0 && pageUids.every((uid) => selected.has(uid));
+
+  const toggleSelected = (uid: number) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(uid)) next.delete(uid);
+      else next.add(uid);
+      return next;
+    });
+
+  const bulk = async (action: "delete" | "archive" | "spam" | "not_spam" | "read" | "unread") => {
+    const uids = [...selected];
+    if (uids.length === 0) return;
+    try {
+      const result = await gm<{ message: string }>("/messages/bulk", token, { method: "POST", body: JSON.stringify({ folder, uids, action }) });
+      flash(result.message);
+      setSelected(new Set());
+      if (message && uids.includes(message.uid) && action !== "read" && action !== "unread") {
+        setSelectedUid(null);
+        setMessage(null);
+      }
+      void loadFolders();
+      void loadList(true);
+    } catch (error) {
+      handleError(error);
+      flash(error instanceof Error ? error.message : "That did not work.", "error");
+    }
+  };
+
+  const emptyFolder = async () => {
+    const label = roleOf(folder) === "junk" ? "Spam" : "Trash";
+    if (!window.confirm(`Delete everything in ${label} for good? This can't be undone.`)) return;
+    try {
+      const result = await gm<{ message: string }>("/folders/empty", token, { method: "POST", body: JSON.stringify({ folder }) });
+      flash(result.message);
+      setSelectedUid(null);
+      setMessage(null);
+      void loadFolders();
+      void loadList();
+    } catch (error) {
+      handleError(error);
+      flash(error instanceof Error ? error.message : `Could not empty ${label}.`, "error");
+    }
   };
 
   const signOut = async () => {
@@ -361,12 +421,7 @@ function Mailbox({ token, onSignedOut }: { token: string; onSignedOut: (message:
   const sidebar = (
     <aside className={`flex h-full shrink-0 flex-col bg-[#0f1a2b] text-white ${collapsed ? "w-[72px]" : "w-[240px]"}`}>
       <div className="flex items-center justify-between px-4 py-4">
-        {!collapsed && (
-          <div className="flex items-center gap-2">
-            <img src="/logo-96.png" alt="" width={64} height={24} className="h-7 w-auto" />
-            <span className="text-xs font-semibold text-white/60">Webmail</span>
-          </div>
-        )}
+        <Brand onDark compact={collapsed} />
         <button type="button" className="hidden rounded-md border border-white/15 p-1.5 text-white/70 hover:text-white lg:block" aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} onClick={() => setCollapsed(!collapsed)}>
           {collapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
         </button>
@@ -381,7 +436,7 @@ function Mailbox({ token, onSignedOut }: { token: string; onSignedOut: (message:
       </div>
       <nav className="mt-4 grid gap-0.5 overflow-y-auto px-3" aria-label="Mail folders">
         {systemFolders.slice(0, 1).map((f) => folderButton(f.path, "Inbox", Inbox, folder === f.path && filter !== "flagged", () => openFolder(f.path), f.unread, true))}
-        {folderButton("starred", "Starred", Star, isStarredView, () => openFolder(inboxPath, "flagged"))}
+        {folderButton("starred", "Starred", Star, isStarredView, () => openFolder(inboxPath, "flagged"), starredCount, true)}
         {systemFolders.slice(1).map((f) =>
           folderButton(f.path, ROLE_LABEL[f.role as string], ROLE_ICON[f.role as string] ?? FolderIcon, folder === f.path, () => openFolder(f.path), f.role === "drafts" ? f.total : f.role === "junk" ? f.unread : undefined),
         )}
@@ -409,21 +464,60 @@ function Mailbox({ token, onSignedOut }: { token: string; onSignedOut: (message:
 
   const listPane = (
     <section className={`flex min-h-0 flex-col border-r border-slate-200 bg-white ${selectedUid || compose ? "hidden md:flex" : "flex"} w-full md:w-[340px] xl:w-[380px] md:shrink-0`}>
-      <div className="flex items-center gap-1 border-b border-slate-200 px-3 pt-2">
-        {(["all", "unread", "flagged", "attachments"] as Filter[]).map((option) => (
-          <button
-            key={option}
-            type="button"
-            onClick={() => { setFilter(option); setPage(1); }}
-            className={`border-b-2 px-2.5 pb-2 pt-1 text-sm ${filter === option ? "border-[#22a04f] font-bold text-slate-900" : "border-transparent text-slate-600 hover:text-slate-900"}`}
-          >
-            {option === "all" ? "All" : option === "unread" ? "Unread" : option === "flagged" ? "Flagged" : "Attachments"}
+      {selected.size > 0 ? (
+        <div className="flex items-center gap-1 border-b border-slate-200 bg-[#eef8f1] px-3 py-2">
+          <input type="checkbox" aria-label="Select all on this page" className="h-4 w-4 accent-[#1f9d4c]" checked={allSelected} onChange={() => setSelected(allSelected ? new Set() : new Set(pageUids))} />
+          <span className="mx-2 text-sm font-bold text-slate-800">{selected.size} selected</span>
+          <div className="ml-auto flex items-center gap-0.5">
+            {([
+              ["delete", "Delete", Trash2],
+              ["archive", "Archive", Archive],
+              roleOf(folder) === "junk" ? ["not_spam", "Not spam", Inbox] : ["spam", "Spam", OctagonAlert],
+              ["read", "Mark read", MailOpen],
+              ["unread", "Mark unread", Mail],
+            ] as Array<["delete" | "archive" | "spam" | "not_spam" | "read" | "unread", string, React.ComponentType<{ className?: string }>]>).map(([action, label, Icon]) => (
+              <button key={action} type="button" title={label} aria-label={label} className="rounded-md p-2 text-slate-700 hover:bg-white" onClick={() => void bulk(action)}>
+                <Icon className="h-4 w-4" />
+              </button>
+            ))}
+            <button type="button" title="Clear selection" aria-label="Clear selection" className="rounded-md p-2 text-slate-500 hover:bg-white" onClick={() => setSelected(new Set())}>
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-1 border-b border-slate-200 px-3 pt-2">
+          <input
+            type="checkbox"
+            aria-label="Select all on this page"
+            className="mb-2 mr-1 h-4 w-4 accent-[#1f9d4c]"
+            checked={false}
+            disabled={pageUids.length === 0}
+            onChange={() => setSelected(new Set(pageUids))}
+          />
+          {(["all", "unread", "flagged", "attachments"] as Filter[]).map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => { setFilter(option); setPage(1); }}
+              className={`whitespace-nowrap border-b-2 px-2 pb-2 pt-1 text-sm ${filter === option ? "border-[#22a04f] font-bold text-slate-900" : "border-transparent text-slate-600 hover:text-slate-900"}`}
+            >
+              {option === "all" ? "All" : option === "unread" ? "Unread" : option === "flagged" ? "Flagged" : "Attachments"}
+            </button>
+          ))}
+          <button type="button" aria-label="Refresh" title="Refresh" className="mb-1 ml-auto rounded p-1.5 text-slate-500 hover:bg-slate-100" onClick={() => { void loadFolders(); void loadList(); }}>
+            <RefreshCw className={`h-4 w-4 ${isLoadingList ? "animate-spin" : ""}`} />
           </button>
-        ))}
-        <button type="button" aria-label="Refresh" title="Refresh" className="ml-auto rounded p-1.5 text-slate-500 hover:bg-slate-100" onClick={() => { void loadFolders(); void loadList(); }}>
-          <RefreshCw className={`h-4 w-4 ${isLoadingList ? "animate-spin" : ""}`} />
-        </button>
-      </div>
+        </div>
+      )}
+      {(roleOf(folder) === "junk" || roleOf(folder) === "trash") && (list?.total ?? 0) > 0 && (
+        <div className="flex items-center justify-between gap-2 border-b border-slate-100 bg-slate-50 px-4 py-2 text-xs text-slate-600">
+          <span>{roleOf(folder) === "junk" ? "Spam" : "Trash"}: {list?.total} message{list?.total === 1 ? "" : "s"}</span>
+          <button type="button" className="rounded-md border border-red-200 bg-white px-3 py-1 font-bold text-red-600 hover:bg-red-50" onClick={() => void emptyFolder()}>
+            Empty {roleOf(folder) === "junk" ? "Spam" : "Trash"}
+          </button>
+        </div>
+      )}
       <p className="px-4 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-slate-400">{currentName}{search ? ` · “${search}”` : ""}</p>
       <ul className="min-h-0 flex-1 overflow-y-auto">
         {isLoadingList && !list && (
@@ -434,8 +528,15 @@ function Mailbox({ token, onSignedOut }: { token: string; onSignedOut: (message:
           const person = roleOf(folder) === "sent" || roleOf(folder) === "drafts" ? summary.to[0] ?? summary.from : summary.from;
           const active = summary.uid === selectedUid;
           return (
-            <li key={summary.uid} className={`border-b border-slate-100 ${active ? "bg-[#e9f6ee]" : summary.seen ? "bg-white" : "bg-[#f7fbf8]"}`}>
-              <div className="flex gap-3 px-4 py-3">
+            <li key={summary.uid} className={`border-b border-slate-100 ${selected.has(summary.uid) ? "bg-[#eef8f1]" : active ? "bg-[#e9f6ee]" : summary.seen ? "bg-white" : "bg-[#f7fbf8]"}`}>
+              <div className="flex gap-2.5 px-3 py-3 sm:px-4">
+                <input
+                  type="checkbox"
+                  aria-label={`Select ${summary.subject}`}
+                  className="mt-3 h-4 w-4 shrink-0 accent-[#1f9d4c]"
+                  checked={selected.has(summary.uid)}
+                  onChange={() => toggleSelected(summary.uid)}
+                />
                 <button type="button" className="flex min-w-0 flex-1 gap-3 text-left" onClick={() => void openMessage(summary)}>
                   <Avatar address={person} size={40} />
                   <span className="min-w-0 flex-1">
@@ -494,6 +595,7 @@ function Mailbox({ token, onSignedOut }: { token: string; onSignedOut: (message:
               draft={compose.draft}
               variant="window"
               onSessionError={handleError}
+              onDraftSaved={() => { flash("Draft saved."); void loadFolders(); }}
               onClose={() => setCompose(null)}
               onSent={(text) => { flash(text); setCompose(null); void loadFolders(); if (roleOf(folder) === "sent" || roleOf(folder) === "drafts") void loadList(true); }}
               />
@@ -503,18 +605,13 @@ function Mailbox({ token, onSignedOut }: { token: string; onSignedOut: (message:
         <MessageReader message={message} token={token} folder={folder} isJunk={roleOf(folder) === "junk"} isLoading={isLoadingMessage} onAction={(action) => void act(action)}>
           {compose && compose.variant === "inline" && message && (
             <div className="mx-4 mb-6 overflow-hidden rounded-xl border border-slate-200 shadow-sm">
-              <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2">
-                <p className="flex items-center gap-2 text-sm font-bold text-slate-800"><Pencil className="h-4 w-4" /> Quick Reply</p>
-                <button type="button" aria-label="Close reply" className="rounded p-1 text-slate-500 hover:bg-slate-200" onClick={() => setCompose(null)}>
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
               <React.Fragment key={compose.key}>
                 <Composer
                   token={token}
                   draft={compose.draft}
                   variant="inline"
                   onSessionError={handleError}
+                  onDraftSaved={() => { flash("Draft saved."); void loadFolders(); }}
                   onClose={() => setCompose(null)}
                   onSent={(text) => { flash(text); setCompose(null); setMessage({ ...message, answered: true }); void loadFolders(); }}
                   />
@@ -539,7 +636,7 @@ function Mailbox({ token, onSignedOut }: { token: string; onSignedOut: (message:
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-3 py-2.5 sm:px-4">
           <button type="button" className="rounded-md p-2 text-slate-600 hover:bg-slate-100 lg:hidden" aria-label="Open menu" onClick={() => setMobileNav(true)}>
-            <Inbox className="h-5 w-5" />
+            <Menu className="h-5 w-5" />
           </button>
           <form
             className="flex min-w-0 flex-1 items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 lg:max-w-[640px]"
@@ -618,8 +715,12 @@ function Mailbox({ token, onSignedOut }: { token: string; onSignedOut: (message:
       {showSettings && me && <SettingsModal token={token} me={me} onSaved={setMe} onClose={() => setShowSettings(false)} />}
 
       {toast && (
-        <div role="status" className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm text-white shadow-lg">
-          {toast}
+        <div
+          role={toast.tone === "error" ? "alert" : "status"}
+          className={`fixed left-1/2 top-4 z-[60] flex max-w-[92vw] -translate-x-1/2 items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-xl ${toast.tone === "error" ? "bg-red-600" : "bg-[#15803d]"}`}
+        >
+          {toast.tone === "error" ? <OctagonAlert className="h-4 w-4 shrink-0" /> : <CheckCircle2 className="h-4 w-4 shrink-0" />}
+          <span>{toast.text}</span>
         </div>
       )}
     </div>

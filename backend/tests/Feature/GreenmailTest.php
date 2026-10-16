@@ -206,6 +206,72 @@ class GreenmailTest extends TestCase
         $this->assertCount(0, $this->sent);
     }
 
+    public function test_a_draft_can_be_saved_before_any_recipient_is_added(): void
+    {
+        $token = $this->signIn();
+
+        $this->gm($token)->post('/api/v1/greenmail/drafts', ['to' => '', 'cc' => '', 'bcc' => '', 'subject' => 'Ideas', 'html' => '<p>half-written</p>'], ['Accept' => 'application/json'])->assertOk();
+
+        $this->assertSame('Drafts', $this->mail->appended[0]['folder']);
+        $this->assertStringContainsString('Subject: Ideas', $this->mail->appended[0]['raw']);
+    }
+
+    public function test_spam_can_be_emptied_but_the_inbox_cannot(): void
+    {
+        $this->mail->deliver('caleb@calebadeleye.com', ['subject' => 'Win a prize'], 'Junk');
+        $this->mail->deliver('caleb@calebadeleye.com', ['subject' => 'Cheap pills'], 'Junk');
+        $this->mail->deliver('caleb@calebadeleye.com', ['subject' => 'Real mail']);
+        $token = $this->signIn();
+
+        $this->gm($token)->postJson('/api/v1/greenmail/folders/empty', ['folder' => 'Junk'])->assertOk()->assertJsonPath('deleted', 2);
+        $this->assertSame([], $this->mail->mailboxes['caleb@calebadeleye.com']['Junk']);
+
+        $this->gm($token)->postJson('/api/v1/greenmail/folders/empty', ['folder' => 'INBOX'])->assertStatus(422);
+        $this->assertCount(1, $this->mail->mailboxes['caleb@calebadeleye.com']['INBOX']);
+    }
+
+    public function test_several_messages_can_be_handled_at_once_and_starred_mail_is_counted(): void
+    {
+        $a = $this->mail->deliver('caleb@calebadeleye.com', ['subject' => 'A', 'flagged' => true]);
+        $b = $this->mail->deliver('caleb@calebadeleye.com', ['subject' => 'B', 'flagged' => true]);
+        $c = $this->mail->deliver('caleb@calebadeleye.com', ['subject' => 'C']);
+        $token = $this->signIn();
+        $box = fn () => $this->mail->mailboxes['caleb@calebadeleye.com'];
+
+        $this->gm($token)->getJson('/api/v1/greenmail/folders')->assertJsonPath('starred', 2);
+
+        $this->gm($token)->postJson('/api/v1/greenmail/messages/bulk', ['folder' => 'INBOX', 'uids' => [$a, $c], 'action' => 'read'])->assertOk();
+        $this->assertTrue($box()['INBOX'][$a]['seen'] && $box()['INBOX'][$c]['seen']);
+        $this->assertFalse($box()['INBOX'][$b]['seen']);
+
+        $this->gm($token)->postJson('/api/v1/greenmail/messages/bulk', ['folder' => 'INBOX', 'uids' => [$a, $b], 'action' => 'delete'])
+            ->assertOk()->assertJsonPath('message', '2 messages moved to Trash.');
+        $this->assertSame([$c], array_keys($box()['INBOX']));
+        $this->assertEqualsCanonicalizing([$a, $b], array_keys($box()['Trash']));
+
+        $this->gm($token)->postJson('/api/v1/greenmail/messages/bulk', ['folder' => 'Trash', 'uids' => [$a, $b], 'action' => 'delete'])
+            ->assertOk()->assertJsonPath('message', '2 messages deleted for good.');
+        $this->assertSame([], $box()['Trash']);
+    }
+
+    public function test_a_signature_image_is_uploaded_and_publicly_viewable(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+        $token = $this->signIn();
+
+        $url = $this->gm($token)->post('/api/v1/greenmail/settings/signature-image', ['image' => UploadedFile::fake()->image('me.png', 120, 120)], ['Accept' => 'application/json'])
+            ->assertCreated()->json('url');
+
+        $this->assertMatchesRegularExpression('#/api/v1/greenmail/signature-images/[a-f0-9]{64}/[A-Za-z0-9]{32}\.png$#', $url);
+        // No sign-in needed — the recipient's mail app loads it.
+        $this->app['auth']->forgetGuards();
+        $this->get(parse_url($url, PHP_URL_PATH))->assertOk();
+        $this->get('/api/v1/greenmail/signature-images/'.str_repeat('a', 64).'/../../.env')->assertNotFound();
+
+        $this->gm($token)->post('/api/v1/greenmail/settings/signature-image', ['image' => UploadedFile::fake()->create('evil.php', 10, 'application/x-php')], ['Accept' => 'application/json'])
+            ->assertStatus(422);
+    }
+
     public function test_contacts_belong_to_one_mailbox(): void
     {
         $mine = $this->signIn();

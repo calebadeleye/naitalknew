@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Loader2, LockKeyhole } from "lucide-react";
 import { gm, storeToken } from "./api";
+import { Brand } from "./ui";
 
 /** Mailbox sign-in. ?email=… or ?domain=… (from yourdomain.com/greenmail) pre-fill the address. */
 export function LoginScreen({ onSignedIn, notice }: { onSignedIn: (token: string) => void; notice: string | null }) {
@@ -41,11 +42,8 @@ export function LoginScreen({ onSignedIn, notice }: { onSignedIn: (token: string
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#f3f6f4] px-4 py-10">
       <div className="w-full max-w-md">
-        <div className="mb-6 flex items-center justify-center gap-2">
-          <img src="/logo-96.png" alt="" width={48} height={18} className="h-7 w-auto rounded bg-[#0f1a2b] px-2 py-1" />
-          <span className="text-xl font-black text-slate-900">
-            Naitalk <span className="font-semibold text-slate-500">Webmail</span>
-          </span>
+        <div className="mb-6 flex justify-center">
+          <Brand size="lg" />
         </div>
         <form onSubmit={submit} className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm">
           <h1 className="text-xl font-black text-slate-900">Sign in to your email</h1>

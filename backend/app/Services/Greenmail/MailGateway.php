@@ -47,6 +47,12 @@ interface MailGateway
     /** Removes the message for good (callers move to Trash first when that's wanted). */
     public function delete(string $folder, int $uid): void;
 
+    /** Removes every message in the folder for good; returns how many. */
+    public function emptyFolder(string $path): int;
+
+    /** How many messages in the folder are starred (flagged). */
+    public function countFlagged(string $path): int;
+
     /** Creates the folder if it doesn't exist yet (e.g. "Archive"). */
     public function ensureFolder(string $path): void;
 

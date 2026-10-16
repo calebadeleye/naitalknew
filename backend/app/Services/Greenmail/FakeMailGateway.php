@@ -157,6 +157,19 @@ class FakeMailGateway implements MailGateway
         unset($this->mailboxes[$this->email][$folder][$uid]);
     }
 
+    public function emptyFolder(string $path): int
+    {
+        $count = count($this->box()[$path] ?? []);
+        $this->mailboxes[$this->email][$path] = [];
+
+        return $count;
+    }
+
+    public function countFlagged(string $path): int
+    {
+        return collect($this->box()[$path] ?? [])->where('flagged', true)->count();
+    }
+
     public function ensureFolder(string $path): void
     {
         $this->mailboxes[$this->email][$path] ??= [];

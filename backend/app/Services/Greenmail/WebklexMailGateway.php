@@ -201,6 +201,25 @@ class WebklexMailGateway implements MailGateway
         $this->find($folder, $uid, withBody: false)?->delete(true);
     }
 
+    public function emptyFolder(string $path): int
+    {
+        $count = (int) ($this->folder($path)->status()['messages'] ?? 0);
+
+        if ($count > 0) {
+            // One STORE over the whole folder + EXPUNGE, not a delete per message.
+            $this->client()->openFolder($path, true);
+            $this->client()->getConnection()->store(['\\Deleted'], 1, $count, '+', true, IMAP::ST_MSGN)->validatedData();
+            $this->client()->expunge();
+        }
+
+        return $count;
+    }
+
+    public function countFlagged(string $path): int
+    {
+        return rescue(fn () => $this->folder($path)->query()->where('FLAGGED')->count(), 0, report: false);
+    }
+
     public function ensureFolder(string $path): void
     {
         if (! $this->client()->getFolderByPath($path, soft_fail: true)) {

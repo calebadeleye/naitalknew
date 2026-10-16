@@ -61,7 +61,11 @@ class MailSender
             ->html($data['html'])
             ->text($data['text'] ?? trim(html_entity_decode(strip_tags((string) preg_replace('/<br\s*\/?>|<\/p>/i', "\n", $data['html'])))));
 
-        $message->to(...$data['to']);
+        // Empty fields arrive as null (Laravel's ConvertEmptyStringsToNull) —
+        // a draft may have no recipients yet.
+        if (! empty($data['to'])) {
+            $message->to(...$data['to']);
+        }
 
         if (! empty($data['cc'])) {
             $message->cc(...$data['cc']);
