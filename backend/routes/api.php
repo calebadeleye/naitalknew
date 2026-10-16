@@ -34,11 +34,18 @@ use App\Http\Controllers\Api\Admin\SupportTicketController as AdminSupportTicket
 use App\Http\Controllers\Api\Client\PaymentOptionsController;
 use App\Http\Controllers\Api\Greenmail\AssistantController as GreenmailAssistantController;
 use App\Http\Controllers\Api\Greenmail\CalendarController as GreenmailCalendarController;
+use App\Http\Controllers\Api\Greenmail\CampaignController as GreenmailCampaignController;
 use App\Http\Controllers\Api\Greenmail\ContactController as GreenmailContactController;
 use App\Http\Controllers\Api\Greenmail\MailController as GreenmailMailController;
+use App\Http\Controllers\Api\Greenmail\NoteController as GreenmailNoteController;
+use App\Http\Controllers\Api\Greenmail\RuleController as GreenmailRuleController;
+use App\Http\Controllers\Api\Greenmail\ScheduledController as GreenmailScheduledController;
 use App\Http\Controllers\Api\Greenmail\SessionController as GreenmailSessionController;
 use App\Http\Controllers\Api\Greenmail\SettingsController as GreenmailSettingsController;
 use App\Http\Controllers\Api\Greenmail\TaskController as GreenmailTaskController;
+use App\Http\Controllers\Api\Greenmail\TemplateController as GreenmailTemplateController;
+use App\Http\Controllers\Api\Greenmail\UnsubscribeController as GreenmailUnsubscribeController;
+use App\Http\Controllers\Api\Greenmail\VacationController as GreenmailVacationController;
 use App\Http\Controllers\Api\Client\SupportTicketController as ClientSupportTicketController;
 use App\Http\Controllers\Api\Admin\ServiceStatusController;
 use App\Http\Controllers\Api\Admin\WebsiteQuoteController as AdminWebsiteQuoteController;
@@ -87,6 +94,8 @@ Route::prefix('v1')->group(function (): void {
     Route::prefix('greenmail')->group(function (): void {
         Route::post('/session', [GreenmailSessionController::class, 'store'])->middleware('throttle:greenmail-login');
         Route::get('/signature-images/{owner}/{name}', [GreenmailSettingsController::class, 'signatureImage']);
+        Route::get('/unsubscribe/{token}', [GreenmailUnsubscribeController::class, 'show'])->middleware('throttle:30,1');
+        Route::post('/unsubscribe/{token}', [GreenmailUnsubscribeController::class, 'store'])->middleware('throttle:30,1');
 
         Route::middleware('greenmail')->group(function (): void {
             Route::get('/session', [GreenmailSessionController::class, 'show']);
@@ -117,6 +126,32 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/tasks', [GreenmailTaskController::class, 'store']);
             Route::patch('/tasks/{task}', [GreenmailTaskController::class, 'update']);
             Route::delete('/tasks/{task}', [GreenmailTaskController::class, 'destroy']);
+            Route::get('/check', [GreenmailMailController::class, 'check']);
+            Route::post('/scheduled', [GreenmailMailController::class, 'schedule'])->middleware('throttle:greenmail-send');
+            Route::get('/scheduled', [GreenmailScheduledController::class, 'index']);
+            Route::delete('/scheduled/{scheduled}', [GreenmailScheduledController::class, 'destroy']);
+            Route::get('/notes', [GreenmailNoteController::class, 'index']);
+            Route::post('/notes', [GreenmailNoteController::class, 'store']);
+            Route::put('/notes/{note}', [GreenmailNoteController::class, 'update']);
+            Route::delete('/notes/{note}', [GreenmailNoteController::class, 'destroy']);
+            Route::get('/templates', [GreenmailTemplateController::class, 'index']);
+            Route::post('/templates', [GreenmailTemplateController::class, 'store']);
+            Route::put('/templates/{template}', [GreenmailTemplateController::class, 'update']);
+            Route::delete('/templates/{template}', [GreenmailTemplateController::class, 'destroy']);
+            Route::get('/rules', [GreenmailRuleController::class, 'index']);
+            Route::post('/rules', [GreenmailRuleController::class, 'store'])->middleware('throttle:greenmail-settings');
+            Route::put('/rules/{rule}', [GreenmailRuleController::class, 'update'])->middleware('throttle:greenmail-settings');
+            Route::delete('/rules/{rule}', [GreenmailRuleController::class, 'destroy'])->middleware('throttle:greenmail-settings');
+            Route::get('/vacation', [GreenmailVacationController::class, 'show']);
+            Route::put('/vacation', [GreenmailVacationController::class, 'update'])->middleware('throttle:greenmail-settings');
+            Route::get('/campaigns', [GreenmailCampaignController::class, 'index']);
+            Route::post('/campaigns', [GreenmailCampaignController::class, 'store']);
+            Route::get('/campaigns/{campaign}', [GreenmailCampaignController::class, 'show']);
+            Route::put('/campaigns/{campaign}', [GreenmailCampaignController::class, 'update']);
+            Route::delete('/campaigns/{campaign}', [GreenmailCampaignController::class, 'destroy']);
+            Route::post('/campaigns/{campaign}/send', [GreenmailCampaignController::class, 'send']);
+            Route::post('/campaigns/{campaign}/test', [GreenmailCampaignController::class, 'test'])->middleware('throttle:greenmail-send');
+            Route::post('/campaigns/{campaign}/cancel', [GreenmailCampaignController::class, 'cancel']);
         });
     });
     Route::post('/auth/reset-password', [AuthController::class, 'resetPassword']);

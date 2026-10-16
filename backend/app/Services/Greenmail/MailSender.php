@@ -4,10 +4,12 @@ namespace App\Services\Greenmail;
 
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Str;
+use Symfony\Component\Mailer\Envelope;
 use Symfony\Component\Mailer\Mailer;
 use Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
+use Symfony\Component\Mime\RawMessage;
 
 /**
  * Sends as the signed-in mailbox through the mail server's own SMTP (the
@@ -17,7 +19,7 @@ use Symfony\Component\Mime\Email;
 class MailSender
 {
     /**
-     * @param  array{to: array<int, string>, cc?: array<int, string>, bcc?: array<int, string>, subject: string, html: string, text?: ?string, in_reply_to?: ?string, references?: ?string}  $data
+     * @param  array{to: array<int, string>, cc?: array<int, string>, bcc?: array<int, string>, subject: string, html: string, text?: ?string, in_reply_to?: ?string, references?: ?string, headers?: array<string, string>}  $data
      * @param  array<int, UploadedFile>  $attachments  files uploaded from the browser
      * @param  array<int, array{name: string, mime: string, content: string}>  $forwarded  files carried over from a forwarded message
      * @return string the raw RFC 822 message as sent
@@ -27,7 +29,25 @@ class MailSender
         $message = $this->build($fromEmail, $fromName, $data, $attachments, $forwarded);
         $raw = $message->toString();
 
-        $this->deliver($message, $fromEmail, $password);
+        $this->transmit($message, null, $fromEmail, $password);
+
+        return $raw;
+    }
+
+    /**
+     * Send a message composed earlier (Send later). Its Date becomes now, so
+     * it sorts as just sent in the recipient's inbox.
+     *
+     * @param  array<int, string>  $recipients  every To, Cc and Bcc address
+     * @return string the message as sent
+     */
+    public function sendRaw(string $raw, string $fromEmail, array $recipients, string $password): string
+    {
+        [$head, $body] = array_pad(preg_split("/\r?\n\r?\n/", $raw, 2), 2, '');
+        $head = (string) preg_replace('/^Date:.*$/mi', 'Date: '.now()->toRfc2822String(), $head, 1);
+        $raw = $head."\r\n\r\n".$body;
+
+        $this->transmit(new RawMessage($raw), new Envelope(new Address($fromEmail), array_map(fn (string $email) => new Address($email), $recipients)), $fromEmail, $password);
 
         return $raw;
     }
@@ -38,7 +58,8 @@ class MailSender
         return $this->build($fromEmail, $fromName, $data, $attachments, $forwarded)->toString();
     }
 
-    protected function deliver(Email $message, string $username, string $password): void
+    /** The one place mail leaves (tests replace it). */
+    protected function transmit(RawMessage $message, ?Envelope $envelope, string $username, string $password): void
     {
         $config = config('greenmail.smtp');
         $transport = new EsmtpTransport($config['host'], $config['port'], false);
@@ -50,7 +71,7 @@ class MailSender
             $transport->getStream()->setStreamOptions(['ssl' => ['verify_peer' => false, 'verify_peer_name' => false, 'allow_self_signed' => true]]);
         }
 
-        (new Mailer($transport))->send($message);
+        (new Mailer($transport))->send($message, $envelope);
     }
 
     private function build(string $fromEmail, ?string $fromName, array $data, array $attachments, array $forwarded = []): Email
@@ -79,6 +100,10 @@ class MailSender
         $headers = $message->getHeaders();
         $headers->addIdHeader('Message-ID', Str::uuid()->toString().'@'.$domain);
         $headers->addTextHeader('X-Mailer', 'Greenmail (NAI TALK)');
+
+        foreach ($data['headers'] ?? [] as $name => $value) {
+            $headers->addTextHeader($name, $value);
+        }
 
         if (! empty($data['in_reply_to'])) {
             $headers->addTextHeader('In-Reply-To', $data['in_reply_to']);

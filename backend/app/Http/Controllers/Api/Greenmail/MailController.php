@@ -4,12 +4,17 @@ namespace App\Http\Controllers\Api\Greenmail;
 
 use App\Http\Controllers\Controller;
 use App\Models\Greenmail\GreenmailContact;
+use App\Models\Greenmail\GreenmailScheduledMessage;
 use App\Models\Greenmail\GreenmailSetting;
+use App\Services\Greenmail\Campaigns;
 use App\Services\Greenmail\FolderRoles;
 use App\Services\Greenmail\HtmlSanitizer;
 use App\Services\Greenmail\MailGateway;
 use App\Services\Greenmail\MailSender;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use InvalidArgumentException;
@@ -197,8 +202,8 @@ class MailController extends Controller
 
     public function send(Request $request, MailSender $sender)
     {
-        $data = $this->validateCompose($request, requireRecipient: true);
         $session = $request->attributes->get('greenmail_session');
+        $data = $this->personalise($this->validateCompose($request, requireRecipient: true), $session->email);
         $settings = GreenmailSetting::query()->where('owner_email', $session->email)->first();
 
         try {
@@ -223,6 +228,67 @@ class MailController extends Controller
         $this->rememberRecipients($session->email, array_merge($data['to'], $data['cc'] ?? [], $data['bcc'] ?? []));
 
         return response()->json(['message' => 'Sent.'], 201);
+    }
+
+    /**
+     * Send later: the message is composed now (attachments included) and the
+     * scheduler sends it at send_at. The mailbox password is kept encrypted
+     * with it until then, as for a signed-in session.
+     */
+    public function schedule(Request $request, MailSender $sender)
+    {
+        $data = $this->personalise($this->validateCompose($request, requireRecipient: true), $request->attributes->get('greenmail_session')->email);
+        $sendAt = Carbon::parse($request->validate(['send_at' => ['required', 'date', 'after:now', 'before:+1 year']], [
+            'send_at.after' => 'Pick a time in the future.',
+            'send_at.before' => 'Pick a time within the next year.',
+        ])['send_at'])->utc();
+
+        $session = $request->attributes->get('greenmail_session');
+        abort_if(GreenmailScheduledMessage::query()->where('owner_email', $session->email)->where('status', 'scheduled')->count() >= (int) config('greenmail.max_scheduled'), 422, 'You already have the most emails waiting to be sent. Cancel one or wait for it to go out.');
+
+        $settings = GreenmailSetting::query()->where('owner_email', $session->email)->first();
+        $raw = $sender->compose($session->email, $settings?->display_name, $data, $request->file('attachments', []), $this->forwardedAttachments($data));
+        $path = 'greenmail-outbox/'.Str::uuid().'.eml';
+        Storage::disk('local')->put($path, $raw);
+
+        $scheduled = GreenmailScheduledMessage::query()->create([
+            'owner_email' => $session->email,
+            'password_encrypted' => Crypt::encryptString($session->password()),
+            'subject' => $data['subject'] ?: '(no subject)',
+            'recipients' => array_values(array_unique(array_map('strtolower', array_merge($data['to'], $data['cc'] ?? [], $data['bcc'] ?? [])))),
+            'raw_path' => $path,
+            'send_at' => $sendAt,
+        ]);
+
+        if (! empty($data['draft_uid'])) {
+            rescue(fn () => $this->mail()->delete($this->folderForRole('drafts'), (int) $data['draft_uid']), report: false);
+        }
+
+        $this->rememberRecipients($session->email, $scheduled->recipients);
+
+        return response()->json(['scheduled' => $scheduled, 'message' => 'Scheduled. It will be sent '.$sendAt->diffForHumans().'.'], 201);
+    }
+
+    /**
+     * Newest arrivals in the Inbox after the given uid — polled while Green
+     * Mail is open, for the "new mail" notice.
+     */
+    public function check(Request $request)
+    {
+        $since = (int) ($request->validate(['since' => ['nullable', 'integer', 'min:0']])['since'] ?? 0);
+        $inbox = FolderRoles::pathFor($this->mail()->folders(), 'inbox') ?? 'INBOX';
+        $page = $this->inFolder(fn () => $this->mail()->messages($inbox, 1, 10, 'all', null));
+        $messages = collect($page['messages']);
+
+        return response()->json([
+            'folder' => $inbox,
+            'latest_uid' => (int) ($messages->max('uid') ?? 0),
+            'new' => $since > 0 ? $messages->filter(fn (array $m) => $m['uid'] > $since && ! $m['seen'])->sortByDesc('uid')->values()->map(fn (array $m) => [
+                'uid' => $m['uid'],
+                'subject' => $m['subject'],
+                'from' => $m['from'],
+            ])->all() : [],
+        ]);
     }
 
     public function saveDraft(Request $request, MailSender $sender)
@@ -306,6 +372,26 @@ class MailController extends Controller
         }
 
         return $files;
+    }
+
+    /**
+     * A template's {{first_name}} / {{name}} / {{email}} in an ordinary email
+     * are filled in for the first recipient (their name from Contacts).
+     */
+    private function personalise(array $data, string $owner): array
+    {
+        if (! str_contains($data['subject'].$data['html'], '{{') || empty($data['to'])) {
+            return $data;
+        }
+
+        $email = strtolower($data['to'][0]);
+        $name = GreenmailContact::query()->where('owner_email', $owner)->where('email', $email)->value('name');
+        $campaigns = app(Campaigns::class);
+
+        return array_merge($data, [
+            'subject' => $campaigns->personalise($data['subject'], $name, $email, html: false),
+            'html' => $campaigns->personalise($data['html'], $name, $email),
+        ]);
     }
 
     private function rememberRecipients(string $owner, array $addresses): void

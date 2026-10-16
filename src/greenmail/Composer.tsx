@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Bold, Italic, Link2, List, ListOrdered, Loader2, Paperclip, Quote, Send, Trash2, Underline, UserPlus, X } from "lucide-react";
-import { gm, type Attachment, type Contact } from "./api";
+import { Bold, CalendarClock, ChevronDown, FileText, Italic, Link2, List, ListOrdered, Loader2, Paperclip, Quote, Send, Trash2, Underline, UserPlus, X } from "lucide-react";
+import { gm, type Attachment, type Contact, type Template } from "./api";
+import { useFeedback } from "./feedback";
+import { announceChange } from "./sync";
+import { useTemplates } from "./TemplatesView";
 import { formatBytes } from "./ui";
 
 export type ComposeDraft = {
@@ -54,7 +57,11 @@ export function Composer({
   const [subject, setSubject] = useState(draft.subject);
   const [files, setFiles] = useState<File[]>([]);
   const [forwarded, setForwarded] = useState<Attachment[]>(draft.forward?.attachments ?? []);
-  const [busy, setBusy] = useState<"send" | "draft" | null>(null);
+  const [busy, setBusy] = useState<"send" | "draft" | "later" | null>(null);
+  const [menu, setMenu] = useState<"templates" | "later" | null>(null);
+  const [laterAt, setLaterAt] = useState("");
+  const templates = useTemplates(token, onSessionError);
+  const { toast } = useFeedback();
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -102,6 +109,67 @@ export function Composer({
       setError(err instanceof Error ? err.message : "Could not send.");
     } finally {
       setBusy(null);
+    }
+  };
+
+  /** Send later: the server keeps it and sends it at `when`. */
+  const schedule = async (when: Date) => {
+    setMenu(null);
+    setBusy("later");
+    setError(null);
+    try {
+      const data = form();
+      data.append("send_at", when.toISOString());
+      const result = await gm<{ message: string }>("/scheduled", token, { method: "POST", body: data });
+      announceChange("scheduled");
+      onSent(result.message);
+    } catch (err) {
+      onSessionError(err);
+      setError(err instanceof Error ? err.message : "Could not schedule it.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const nextMorning = (daysAhead: number) => {
+    const date = new Date();
+    date.setDate(date.getDate() + daysAhead);
+    date.setHours(8, 0, 0, 0);
+    return date;
+  };
+  const daysToMonday = ((8 - new Date().getDay()) % 7) || 7;
+
+  /** Put a template in: into an empty message (keeping the signature), or at the cursor. */
+  const applyTemplate = (template: Template) => {
+    setMenu(null);
+    const editor = editorRef.current;
+    if (!editor) return;
+    if (!subject.trim() && template.subject) setSubject(template.subject);
+    const signature = editor.querySelector(".gm-signature");
+    const written = (editor.innerText || "").replace(signature?.textContent ?? "", "").replace(/^\s*--\s*$/m, "").trim();
+    if (!written) {
+      editor.innerHTML = (template.body_html ?? "") + (signature ? `<p><br></p>${signature.outerHTML}` : "");
+    } else {
+      editor.focus();
+      document.execCommand("insertHTML", false, template.body_html ?? "");
+    }
+    toast(`Template “${template.name}” added.`);
+  };
+
+  const saveAsTemplate = async () => {
+    setMenu(null);
+    const name = window.prompt("Name this template", subject || "My template");
+    if (!name?.trim()) return;
+    try {
+      // The signature is left out — it's added to each new message anyway.
+      const copy = editorRef.current?.cloneNode(true) as HTMLElement | undefined;
+      copy?.querySelectorAll(".gm-signature").forEach((node) => node.remove());
+      const result = await gm<{ message: string }>("/templates", token, { method: "POST", body: JSON.stringify({ name: name.trim(), subject: subject || null, body_html: copy?.innerHTML ?? "" }) });
+      toast(result.message);
+      announceChange("templates");
+    } catch (err) {
+      onSessionError(err);
+      toast(err instanceof Error ? err.message : "Could not save the template.", "error");
     }
   };
 
@@ -193,6 +261,34 @@ export function Composer({
           const url = window.prompt("Link address (https://…)");
           if (url && /^(https?:|mailto:)/i.test(url.trim())) command("createLink", url.trim());
         })}
+        <div className="relative ml-auto">
+          <button type="button" aria-expanded={menu === "templates"} className="inline-flex items-center gap-1 rounded px-2 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100" onMouseDown={(event) => event.preventDefault()} onClick={() => setMenu(menu === "templates" ? null : "templates")}>
+            <FileText className="h-4 w-4" /> Templates
+          </button>
+          {menu === "templates" && (
+            <div className="absolute right-0 top-full z-30 mt-1 w-64 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+              {templates === null ? (
+                <p className="px-3 py-2 text-xs text-slate-400">Loading…</p>
+              ) : templates.length === 0 ? (
+                <p className="px-3 py-2 text-xs text-slate-500">No templates yet.</p>
+              ) : (
+                <ul className="max-h-56 overflow-y-auto">
+                  {templates.map((template) => (
+                    <li key={template.id}>
+                      <button type="button" className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50" onMouseDown={(event) => event.preventDefault()} onClick={() => applyTemplate(template)}>
+                        <span className="block truncate font-semibold text-slate-800">{template.name}</span>
+                        {template.subject && <span className="block truncate text-xs text-slate-500">{template.subject}</span>}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <button type="button" className="block w-full border-t border-slate-100 px-3 py-2 text-left text-sm font-semibold text-[#1a7f3f] hover:bg-slate-50" onClick={() => void saveAsTemplate()}>
+                Save this message as a template
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       <div
@@ -231,9 +327,34 @@ export function Composer({
       {error && <p className="mx-4 mb-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
 
       <div className="flex items-center gap-2 border-t border-slate-200 px-4 py-3">
-        <button type="button" className="inline-flex items-center gap-2 rounded-lg bg-[#1f9d4c] px-5 py-2 text-sm font-bold text-white hover:bg-[#188a42] disabled:opacity-60" disabled={busy !== null || !to.trim()} onClick={() => void send()}>
-          {busy === "send" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Send
-        </button>
+        <div className="relative flex">
+          <button type="button" className="inline-flex items-center gap-2 rounded-l-lg bg-[#1f9d4c] px-5 py-2 text-sm font-bold text-white hover:bg-[#188a42] disabled:opacity-60" disabled={busy !== null || !to.trim()} onClick={() => void send()}>
+            {busy === "send" || busy === "later" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Send
+          </button>
+          <button type="button" aria-label="Send later" title="Send later" aria-expanded={menu === "later"} className="rounded-r-lg border-l border-white/30 bg-[#1f9d4c] px-2 text-white hover:bg-[#188a42] disabled:opacity-60" disabled={busy !== null || !to.trim()} onClick={() => setMenu(menu === "later" ? null : "later")}>
+            <ChevronDown className="h-4 w-4" />
+          </button>
+          {menu === "later" && (
+            <div className="absolute bottom-full left-0 z-30 mb-2 w-72 rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
+              <p className="flex items-center gap-1.5 px-2 py-1 text-xs font-bold uppercase tracking-wide text-slate-500"><CalendarClock className="h-3.5 w-3.5" /> Send later</p>
+              {[
+                ["Tomorrow morning", nextMorning(1)],
+                ["Monday morning", nextMorning(daysToMonday)],
+              ].map(([label, date]) => (
+                <button key={label as string} type="button" className="flex w-full justify-between rounded-lg px-2 py-2 text-left text-sm hover:bg-slate-50" onClick={() => void schedule(date as Date)}>
+                  <span className="font-semibold text-slate-800">{label as string}</span>
+                  <span className="text-xs text-slate-500">{(date as Date).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" })}</span>
+                </button>
+              ))}
+              <div className="mt-1 flex gap-2 border-t border-slate-100 px-2 pt-2">
+                <input type="datetime-local" aria-label="Pick a date and time" value={laterAt} onChange={(event) => setLaterAt(event.target.value)} className="min-w-0 flex-1 rounded-md border border-slate-300 px-2 py-1 text-xs" />
+                <button type="button" disabled={!laterAt || new Date(laterAt) <= new Date()} className="rounded-md bg-[#1f9d4c] px-2.5 py-1 text-xs font-bold text-white disabled:opacity-50" onClick={() => void schedule(new Date(laterAt))}>
+                  Schedule
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
         <button type="button" className="rounded-lg p-2 text-slate-600 hover:bg-slate-100" aria-label="Attach files" title="Attach files" onClick={() => fileRef.current?.click()}>
           <Paperclip className="h-4 w-4" />
         </button>

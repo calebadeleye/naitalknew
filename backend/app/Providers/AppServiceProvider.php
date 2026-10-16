@@ -95,6 +95,8 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(20)->by('gm-login-ip|'.$request->ip()),
         ]);
         RateLimiter::for('greenmail-send', fn ($request) => Limit::perMinute(20)->by('gm-send|'.$request->header('X-Greenmail-Token')));
+        // Rules and the vacation reply each rewrite the mailbox's settings on the mail server.
+        RateLimiter::for('greenmail-settings', fn ($request) => Limit::perMinute(20)->by('gm-settings|'.$request->header('X-Greenmail-Token')));
         RateLimiter::for('greenmail-assistant', fn ($request) => Limit::perMinute(15)->by('gm-ai|'.$request->header('X-Greenmail-Token')));
 
         RateLimiter::for('support-ticket', fn ($request) => Limit::perMinute(10)->by($request->user()?->id ?: $request->ip()));

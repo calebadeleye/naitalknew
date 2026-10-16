@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Clock, Loader2, MapPin, Plus } from "lucide-
 import { gm, type CalendarEvent } from "./api";
 import { EventModal } from "./EventModal";
 import { addDays, eventOnDay, isoDate, monthGrid, sameDay, timeLabel } from "./planner";
+import { announceChange, useOnChange } from "./sync";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -26,6 +27,7 @@ export function CalendarView({ token, onSessionError, flash }: { token: string; 
   }, [days, token, onSessionError]);
 
   useEffect(load, [load]);
+  useOnChange("events", load);
 
   const today = new Date();
   const dayEvents = (events ?? []).filter((event) => eventOnDay(event, selected));
@@ -131,7 +133,7 @@ export function CalendarView({ token, onSessionError, flash }: { token: string; 
           onSaved={(message) => {
             setEditing(null);
             flash(message);
-            load();
+            announceChange("events");
           }}
         />
       )}

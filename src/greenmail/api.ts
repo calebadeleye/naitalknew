@@ -102,3 +102,47 @@ export type Me = { email: string; display_name: string | null; signature_html: s
 export type CalendarEvent = { id: number; title: string; starts_at: string; ends_at: string | null; all_day: boolean; location: string | null; notes: string | null };
 
 export type Task = { id: number; title: string; due_date: string | null; done: boolean; completed_at: string | null; notes: string | null };
+
+export type Note = { id: number; title: string | null; body: string | null; color: "yellow" | "green" | "blue" | "pink" | "gray" | null; pinned: boolean; updated_at: string };
+
+export type Template = { id: number; name: string; subject: string | null; body_html: string | null };
+
+export type RuleKind = "filter" | "automation";
+export type MailRule = {
+  id: number;
+  kind: RuleKind;
+  name: string;
+  field: "any" | "from" | "to" | "subject";
+  operator: "contains" | "is" | "begins" | "ends";
+  value: string | null;
+  action: "move" | "delete" | "mark_read" | "star" | "forward" | "auto_reply";
+  target: string | null;
+  reply_subject: string | null;
+  reply_text: string | null;
+  active: boolean;
+};
+
+export type Vacation = { enabled: boolean; subject: string; message: string; starts_at: string | null; ends_at: string | null; open_ended: boolean };
+
+export type ScheduledEmail = { id: number; subject: string | null; recipients: string[]; send_at: string; status: "scheduled" | "sending" | "sent" | "failed" | "cancelled"; error: string | null; sent_at: string | null };
+
+export type Campaign = {
+  id: number;
+  name: string;
+  subject: string;
+  status: "draft" | "sending" | "sent" | "cancelled" | "failed";
+  send_at: string | null;
+  total: number;
+  sent_count: number;
+  failed_count: number;
+  skipped_count: number;
+  started_at: string | null;
+  finished_at: string | null;
+  last_error: string | null;
+  created_at: string;
+  body_html?: string;
+  unsubscribed?: number;
+  recipients?: Array<{ id: number; email: string; name: string | null; status: "pending" | "sent" | "failed" | "skipped"; error: string | null; sent_at: string | null }>;
+};
+
+export type CampaignLimits = { per_minute: number; per_day: number; max_recipients: number };

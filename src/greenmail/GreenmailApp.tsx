@@ -1,16 +1,16 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
   ArrowLeft,
   Bot,
   CalendarDays,
-  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
   Download,
   FileText,
+  Filter as FilterIcon,
   Folder as FolderIcon,
   Inbox,
   Loader2,
@@ -18,6 +18,7 @@ import {
   LogOut,
   Mail,
   MailOpen,
+  Megaphone,
   Menu,
   OctagonAlert,
   Paperclip,
@@ -27,24 +28,35 @@ import {
   Send,
   Settings,
   Star,
+  StickyNote,
   Trash2,
+  Workflow,
   X,
 } from "lucide-react";
-import { clearToken, gm, readToken, SessionExpired, type Folder, type FullMessage, type Me, type MessageSummary } from "./api";
+import { clearToken, gm, readToken, SessionExpired, type Folder, type FullMessage, type Me, type MessageSummary, type Template } from "./api";
+import { CampaignsView } from "./CampaignsView";
 import { Composer, type ComposeDraft } from "./Composer";
+import { FeedbackProvider, useFeedback } from "./feedback";
 import { InstallHelp } from "./InstallHelp";
 import { LoginScreen } from "./LoginScreen";
 import { currentDomain, useGreenmailAppShell, useInstall } from "./pwa";
 import { MessageReader, type ReaderAction } from "./MessageReader";
+import { NotesView } from "./NotesView";
+import { AutomationView, FiltersView } from "./RulesView";
 import { SettingsModal } from "./SettingsModal";
 import { CalendarView } from "./CalendarView";
 import { SidePanel } from "./SidePanel";
 import { TasksView } from "./TasksView";
+import { TemplatesView } from "./TemplatesView";
 import { Avatar, Brand, displayName, escapeHtml, formatBytes, fullDate, listDate, withoutRemoteImages } from "./ui";
 
 type Filter = "all" | "unread" | "flagged" | "attachments";
 type ListPage = { messages: MessageSummary[]; total: number; page: number; last_page: number };
 type Compose = { draft: ComposeDraft; variant: "inline" | "window"; key: number };
+type View = "mail" | "calendar" | "tasks" | "notes" | "templates" | "campaigns" | "filters" | "automation";
+
+/** How often Green Mail looks for new mail while it's open. */
+const NEW_MAIL_CHECK_MS = 30000;
 
 const ROLE_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   inbox: Inbox,
@@ -54,6 +66,16 @@ const ROLE_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   trash: Trash2,
   archive: Archive,
 };
+
+const TOOLS: Array<[Exclude<View, "mail">, string, React.ComponentType<{ className?: string }>]> = [
+  ["calendar", "Calendar", CalendarDays],
+  ["tasks", "Tasks", ListTodo],
+  ["notes", "Notes", StickyNote],
+  ["templates", "Templates", FileText],
+  ["campaigns", "Campaigns", Megaphone],
+  ["filters", "Filters", FilterIcon],
+  ["automation", "Automation", Workflow],
+];
 
 const ROLE_LABEL: Record<string, string> = { inbox: "Inbox", sent: "Sent", drafts: "Drafts", junk: "Spam", trash: "Trash", archive: "Archive" };
 
@@ -97,7 +119,7 @@ export function GreenmailApp() {
   }
 
   return (
-    <>
+    <FeedbackProvider>
       <Mailbox
         token={token}
         onInstall={installer.canInstall ? install : null}
@@ -108,7 +130,7 @@ export function GreenmailApp() {
         }}
       />
       {installHelp}
-    </>
+    </FeedbackProvider>
   );
 }
 
@@ -130,11 +152,11 @@ function Mailbox({ token, onSignedOut, onInstall }: { token: string; onSignedOut
   const [showSidePanel, setShowSidePanel] = useState(() => window.matchMedia?.("(min-width: 1536px)").matches ?? false);
   const [collapsed, setCollapsed] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [toast, setToast] = useState<{ text: string; tone: "success" | "error" } | null>(null);
   const [starredCount, setStarredCount] = useState(0);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [mobileNav, setMobileNav] = useState(false);
-  const [view, setView] = useState<"mail" | "calendar" | "tasks">("mail");
+  const [view, setView] = useState<View>("mail");
+  const { toast, confirm } = useFeedback();
 
   const handleError = useCallback(
     (error: unknown) => {
@@ -143,11 +165,7 @@ function Mailbox({ token, onSignedOut, onInstall }: { token: string; onSignedOut
     [onSignedOut],
   );
 
-  const flash = (text: string, tone: "success" | "error" = "success") => {
-    const next = { text, tone };
-    setToast(next);
-    window.setTimeout(() => setToast((current) => (current === next ? null : current)), 5000);
-  };
+  const flash = useCallback((text: string, tone: "success" | "error" = "success") => toast(text, tone), [toast]);
 
   const loadFolders = useCallback(
     () =>
@@ -186,19 +204,71 @@ function Mailbox({ token, onSignedOut, onInstall }: { token: string; onSignedOut
     setSelected(new Set());
   }, [loadList]);
 
-  // New mail appears without reloading: re-check every minute and on return to the tab.
-  useEffect(() => {
-    const refresh = () => {
-      void loadFolders();
-      void loadList(true);
-    };
-    const timer = window.setInterval(refresh, 60000);
-    window.addEventListener("focus", refresh);
-    return () => {
-      window.clearInterval(timer);
-      window.removeEventListener("focus", refresh);
-    };
+  // Changes show without reloading: the list and counts refresh quietly every
+  // 30 seconds, when the tab comes back into view, and after every action.
+  const refresh = useCallback(() => {
+    void loadFolders();
+    void loadList(true);
   }, [loadFolders, loadList]);
+
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+
+  // "You have new mail": watch the Inbox for messages newer than the newest seen so far.
+  const newestUid = useRef(0);
+  const openFromNoticeRef = useRef<(folderPath: string, uid: number) => void>(() => undefined);
+  useEffect(() => {
+    let stopped = false;
+    const check = async () => {
+      if (stopped) return;
+      try {
+        const result = await gm<{ folder: string; latest_uid: number; new: Array<{ uid: number; subject: string; from: { name: string | null; email: string } }> }>(`/check?since=${newestUid.current}`, token);
+        const isFirstCheck = newestUid.current === 0;
+        newestUid.current = Math.max(newestUid.current, result.latest_uid);
+        if (isFirstCheck || result.new.length === 0) return;
+
+        const [latest] = result.new;
+        const sender = latest.from.name || latest.from.email;
+        if (result.new.length === 1) {
+          toast(`New email from ${sender}: ${latest.subject}`, "info", { label: "Open", run: () => openFromNoticeRef.current(result.folder, latest.uid) });
+        } else {
+          toast(`You have ${result.new.length} new emails — the latest from ${sender}.`, "info", { label: "View", run: () => openFromNoticeRef.current(result.folder, 0) });
+        }
+        refreshRef.current();
+      } catch (error) {
+        handleError(error);
+      }
+    };
+
+    void check();
+    const timer = window.setInterval(() => {
+      void check();
+      refreshRef.current();
+    }, NEW_MAIL_CHECK_MS);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        void check();
+        refreshRef.current();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [token, toast, handleError]);
+
+  // Unread count in the tab title, and on the installed app's icon where supported.
+  const inboxUnread = folders.find((f) => f.role === "inbox")?.unread ?? 0;
+  useEffect(() => {
+    document.title = inboxUnread > 0 ? `(${inboxUnread}) Green Mail` : "Green Mail";
+    const nav = navigator as Navigator & { setAppBadge?: (n?: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
+    if (inboxUnread > 0) void nav.setAppBadge?.(inboxUnread).catch(() => undefined);
+    else void nav.clearAppBadge?.().catch(() => undefined);
+  }, [inboxUnread]);
 
   const roleOf = (path: string) => folders.find((f) => f.path === path)?.role ?? null;
   const pathOf = (role: string) => folders.find((f) => f.role === role)?.path ?? null;
@@ -212,6 +282,24 @@ function Mailbox({ token, onSignedOut, onInstall }: { token: string; onSignedOut
     setMessage(null);
     setCompose(null);
     setMobileNav(false);
+  };
+
+  openFromNoticeRef.current = (folderPath: string, uid: number) => {
+    openFolder(folderPath);
+    if (!uid) return;
+    setSelectedUid(uid);
+    setIsLoadingMessage(true);
+    gm<FullMessage>(`/messages/${uid}?folder=${encodeURIComponent(folderPath)}`, token)
+      .then((full) => {
+        setMessage(full);
+        setList((current) => current && { ...current, messages: current.messages.map((m) => (m.uid === uid ? { ...m, seen: true } : m)) });
+        void loadFolders();
+      })
+      .catch((error) => {
+        handleError(error);
+        setSelectedUid(null);
+      })
+      .finally(() => setIsLoadingMessage(false));
   };
 
   const openMessage = async (summary: MessageSummary) => {
@@ -307,19 +395,29 @@ function Mailbox({ token, onSignedOut, onInstall }: { token: string; onSignedOut
     });
   };
 
-  const newMessage = (to = "") => {
+  const newMessage = (to = "", template?: Template) => {
     setView("mail");
-    setCompose({ variant: "window", key: Date.now(), draft: { to, cc: "", bcc: "", subject: "", bodyHtml: `<p><br></p>${signature}` } });
+    setSelectedUid(null);
+    setMessage(null);
+    setCompose({ variant: "window", key: Date.now(), draft: { to, cc: "", bcc: "", subject: template?.subject ?? "", bodyHtml: `${template?.body_html ?? "<p><br></p>"}${signature}` } });
   };
 
   const afterRemoval = (uid: number, text: string) => {
     flash(text);
     setList((current) => current && { ...current, messages: current.messages.filter((m) => m.uid !== uid), total: Math.max(0, current.total - 1) });
+    setSelected((current) => {
+      const next = new Set(current);
+      next.delete(uid);
+      return next;
+    });
     setSelectedUid(null);
     setMessage(null);
     setCompose(null);
-    void loadFolders();
+    // Then confirm with the server, so the list and counts match without a reload.
+    refresh();
   };
+
+  const isTrash = (path: string) => roleOf(path) === "trash";
 
   const act = async (action: ReaderAction) => {
     if (!message) return;
@@ -334,9 +432,11 @@ function Mailbox({ token, onSignedOut, onInstall }: { token: string; onSignedOut
           return;
         case "star": {
           const flagged = !message.flagged;
-          await gm(`/messages/${uid}`, token, { method: "PATCH", body: JSON.stringify({ folder, flagged }) });
           setMessage({ ...message, flagged });
           setList((current) => current && { ...current, messages: current.messages.map((m) => (m.uid === uid ? { ...m, flagged } : m)) });
+          await gm(`/messages/${uid}`, token, { method: "PATCH", body: JSON.stringify({ folder, flagged }) });
+          flash(flagged ? "Starred." : "Star removed.");
+          void loadFolders();
           return;
         }
         case "unread":
@@ -344,9 +444,18 @@ function Mailbox({ token, onSignedOut, onInstall }: { token: string; onSignedOut
           setList((current) => current && { ...current, messages: current.messages.map((m) => (m.uid === uid ? { ...m, seen: false } : m)) });
           setSelectedUid(null);
           setMessage(null);
+          flash("Marked as unread.");
           void loadFolders();
           return;
         case "delete": {
+          const forGood = isTrash(folder);
+          const ok = await confirm({
+            title: forGood ? "Delete this email for good?" : "Delete this email?",
+            message: forGood ? `“${message.subject}” will be removed permanently. This can't be undone.` : `“${message.subject}” will be moved to Trash.`,
+            confirmLabel: forGood ? "Delete for good" : "Delete",
+            danger: true,
+          });
+          if (!ok) return;
           const result = await gm<{ message: string }>(`/messages/${uid}${q}`, token, { method: "DELETE" });
           afterRemoval(uid, result.message);
           return;
@@ -370,7 +479,15 @@ function Mailbox({ token, onSignedOut, onInstall }: { token: string; onSignedOut
     const flagged = !summary.flagged;
     setList((current) => current && { ...current, messages: current.messages.map((m) => (m.uid === summary.uid ? { ...m, flagged } : m)) });
     if (message?.uid === summary.uid) setMessage({ ...message, flagged });
-    await gm(`/messages/${summary.uid}`, token, { method: "PATCH", body: JSON.stringify({ folder, flagged }) }).catch(handleError);
+    try {
+      await gm(`/messages/${summary.uid}`, token, { method: "PATCH", body: JSON.stringify({ folder, flagged }) });
+      flash(flagged ? "Starred." : "Star removed.");
+    } catch (error) {
+      handleError(error);
+      flash(error instanceof Error ? error.message : "That did not work.", "error");
+    }
+    void loadFolders();
+    if (filter === "flagged") void loadList(true);
   };
 
   const pageUids = list?.messages.map((m) => m.uid) ?? [];
@@ -387,6 +504,23 @@ function Mailbox({ token, onSignedOut, onInstall }: { token: string; onSignedOut
   const bulk = async (action: "delete" | "archive" | "spam" | "not_spam" | "read" | "unread") => {
     const uids = [...selected];
     if (uids.length === 0) return;
+    if (action === "delete") {
+      const forGood = isTrash(folder);
+      const noun = uids.length === 1 ? "this email" : `these ${uids.length} emails`;
+      const ok = await confirm({
+        title: forGood ? `Delete ${noun} for good?` : `Delete ${noun}?`,
+        message: forGood ? "They will be removed permanently. This can't be undone." : "They will be moved to Trash.",
+        confirmLabel: forGood ? "Delete for good" : "Delete",
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    // Feels instant: take them off the page now; the refresh below confirms.
+    if (action !== "read" && action !== "unread") {
+      setList((current) => current && { ...current, messages: current.messages.filter((m) => !uids.includes(m.uid)), total: Math.max(0, current.total - uids.length) });
+    } else {
+      setList((current) => current && { ...current, messages: current.messages.map((m) => (uids.includes(m.uid) ? { ...m, seen: action === "read" } : m)) });
+    }
     try {
       const result = await gm<{ message: string }>("/messages/bulk", token, { method: "POST", body: JSON.stringify({ folder, uids, action }) });
       flash(result.message);
@@ -405,7 +539,8 @@ function Mailbox({ token, onSignedOut, onInstall }: { token: string; onSignedOut
 
   const emptyFolder = async () => {
     const label = roleOf(folder) === "junk" ? "Spam" : "Trash";
-    if (!window.confirm(`Delete everything in ${label} for good? This can't be undone.`)) return;
+    const ok = await confirm({ title: `Empty ${label}?`, message: `Everything in ${label} (${list?.total ?? 0}) will be deleted for good, on the server too. This can't be undone.`, confirmLabel: `Empty ${label}`, danger: true });
+    if (!ok) return;
     try {
       const result = await gm<{ message: string }>("/folders/empty", token, { method: "POST", body: JSON.stringify({ folder }) });
       flash(result.message);
@@ -477,8 +612,7 @@ function Mailbox({ token, onSignedOut, onInstall }: { token: string; onSignedOut
           </>
         )}
         {!collapsed && <p className="mt-5 px-3 pb-1 text-sm font-semibold text-white/60">Tools</p>}
-        {folderButton("tool-calendar", "Calendar", CalendarDays, view === "calendar", () => { setView("calendar"); setMobileNav(false); })}
-        {folderButton("tool-tasks", "Tasks", ListTodo, view === "tasks", () => { setView("tasks"); setMobileNav(false); })}
+        {TOOLS.map(([key, label, Icon]) => folderButton(`tool-${key}`, label, Icon, view === key, () => { setView(key); setMobileNav(false); }))}
       </nav>
       {quota && !collapsed && (
         <div className="mx-3 mb-3 mt-auto rounded-xl border border-white/10 p-3 text-xs text-white/70">
@@ -721,6 +855,11 @@ function Mailbox({ token, onSignedOut, onInstall }: { token: string; onSignedOut
         <div className="flex min-h-0 flex-1">
           {view === "calendar" && <CalendarView token={token} onSessionError={handleError} flash={flash} />}
           {view === "tasks" && <TasksView token={token} onSessionError={handleError} />}
+          {view === "notes" && <NotesView token={token} onSessionError={handleError} />}
+          {view === "templates" && <TemplatesView token={token} onSessionError={handleError} onUse={(template) => newMessage("", template)} />}
+          {view === "campaigns" && <CampaignsView token={token} onSessionError={handleError} />}
+          {view === "filters" && <FiltersView token={token} folders={folders} onSessionError={handleError} />}
+          {view === "automation" && <AutomationView token={token} onSessionError={handleError} />}
           {view === "mail" && listPane}
           {view === "mail" && readerPane}
           {showSidePanel && (
@@ -756,15 +895,6 @@ function Mailbox({ token, onSignedOut, onInstall }: { token: string; onSignedOut
 
       {showSettings && me && <SettingsModal token={token} me={me} onSaved={setMe} onClose={() => setShowSettings(false)} />}
 
-      {toast && (
-        <div
-          role={toast.tone === "error" ? "alert" : "status"}
-          className={`fixed left-1/2 top-4 z-[60] flex max-w-[92vw] -translate-x-1/2 items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-xl ${toast.tone === "error" ? "bg-red-600" : "bg-[#15803d]"}`}
-        >
-          {toast.tone === "error" ? <OctagonAlert className="h-4 w-4 shrink-0" /> : <CheckCircle2 className="h-4 w-4 shrink-0" />}
-          <span>{toast.text}</span>
-        </div>
-      )}
     </div>
   );
 }

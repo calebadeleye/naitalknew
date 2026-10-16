@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Bot, CalendarDays, ChevronDown, ChevronUp, FileText, Languages, ListChecks, ListTodo, Loader2, Pencil, Plus, Send, Trash2, UserRound } from "lucide-react";
 import { gm, type CalendarEvent, type Contact, type FullMessage } from "./api";
 import { EventModal } from "./EventModal";
+import { useFeedback } from "./feedback";
+import { announceChange, useOnChange } from "./sync";
 import { addDays, startOfDay, timeLabel } from "./planner";
 import { TaskRow, useTasks } from "./TasksView";
 import { Avatar } from "./ui";
@@ -152,6 +154,7 @@ function ContactsCard({ token, onWriteTo, onSessionError }: { token: string; onW
   const [showAll, setShowAll] = useState(false);
   const [editing, setEditing] = useState<Partial<Contact> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { toast, confirm } = useFeedback();
 
   const load = () =>
     gm<{ contacts: Contact[] }>("/contacts", token)
@@ -163,14 +166,16 @@ function ContactsCard({ token, onWriteTo, onSessionError }: { token: string; onW
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => void load(), [token]);
+  useOnChange("contacts", () => void load());
 
   const save = async () => {
     if (!editing) return;
     setError(null);
     try {
       await gm(editing.id ? `/contacts/${editing.id}` : "/contacts", token, { method: editing.id ? "PUT" : "POST", body: JSON.stringify(editing) });
+      toast(editing.id ? "Contact updated." : "Contact added.");
       setEditing(null);
-      await load();
+      announceChange("contacts");
     } catch (err) {
       onSessionError(err);
       setError(err instanceof Error ? err.message : "Could not save.");
@@ -178,9 +183,15 @@ function ContactsCard({ token, onWriteTo, onSessionError }: { token: string; onW
   };
 
   const remove = async (contact: Contact) => {
-    if (!window.confirm(`Delete ${contact.name || contact.email} from your contacts?`)) return;
-    await gm(`/contacts/${contact.id}`, token, { method: "DELETE" }).catch(onSessionError);
-    await load();
+    if (!(await confirm({ title: "Delete this contact?", message: contact.name ? `${contact.name} <${contact.email}>` : contact.email, confirmLabel: "Delete", danger: true }))) return;
+    try {
+      await gm(`/contacts/${contact.id}`, token, { method: "DELETE" });
+      toast("Contact deleted.");
+    } catch (err) {
+      onSessionError(err);
+      toast(err instanceof Error ? err.message : "Could not delete.", "error");
+    }
+    announceChange("contacts");
   };
 
   // The server lists named contacts first, so the first three are the useful ones.
@@ -277,6 +288,8 @@ function CalendarCard({ token, onSessionError, onOpen }: { token: string; onSess
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => void load(), [token]);
+  useOnChange("events", () => void load());
+  const { toast } = useFeedback();
 
   return (
     <Card title="Calendar" icon={<CalendarDays className="h-5 w-5 text-slate-700" />}>
@@ -313,9 +326,10 @@ function CalendarCard({ token, onSessionError, onOpen }: { token: string; onSess
           defaultDate={new Date()}
           onSessionError={onSessionError}
           onClose={() => setAdding(false)}
-          onSaved={() => {
+          onSaved={(text) => {
             setAdding(false);
-            void load();
+            toast(text);
+            announceChange("events");
           }}
         />
       )}

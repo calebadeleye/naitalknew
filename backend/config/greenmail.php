@@ -29,4 +29,17 @@ return [
 
     'per_page' => 25,
     'max_attachment_mb' => 20,
+
+    // ISPConfig reads the vacation reply's start/end times in the server's own zone.
+    'server_timezone' => env('GREENMAIL_SERVER_TIMEZONE', 'Europe/Berlin'),
+
+    // Filters and automation rules per mailbox (each kind).
+    'max_rules' => 50,
+
+    // Campaigns go out a few at a time so the server's reputation (and every
+    // other customer's mail) isn't put at risk by one big send.
+    'campaign_per_minute' => (int) env('GREENMAIL_CAMPAIGN_PER_MINUTE', 20),
+    'campaign_daily_limit' => (int) env('GREENMAIL_CAMPAIGN_DAILY_LIMIT', 500),
+    'campaign_max_recipients' => (int) env('GREENMAIL_CAMPAIGN_MAX_RECIPIENTS', 1000),
+    'max_scheduled' => 50,
 ];

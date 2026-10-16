@@ -1,13 +1,16 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { CalendarDays, Loader2, Plus, Trash2 } from "lucide-react";
 import { gm, type Task } from "./api";
+import { useFeedback } from "./feedback";
 import { dueLabel } from "./planner";
+import { announceChange, useOnChange } from "./sync";
 
 const TONE: Record<string, string> = { overdue: "text-red-600", today: "text-[#c2410c]", soon: "text-[#1a7f3f]", later: "text-slate-500" };
 
 /** Shared by the Tasks page and the side-panel card. */
 export function useTasks(token: string, status: "open" | "done", onSessionError: (error: unknown) => void) {
   const [tasks, setTasks] = useState<Task[] | null>(null);
+  const { toast, confirm } = useFeedback();
 
   const load = useCallback(
     () =>
@@ -24,21 +27,47 @@ export function useTasks(token: string, status: "open" | "done", onSessionError:
     void load();
   }, [load]);
 
+  // The Tasks page and the side-panel card stay in step.
+  useOnChange("tasks", () => void load());
+
+  const failed = (error: unknown) => {
+    onSessionError(error);
+    toast(error instanceof Error ? error.message : "That did not work.", "error");
+  };
+
   const add = async (title: string, dueDate: string | null) => {
-    await gm("/tasks", token, { method: "POST", body: JSON.stringify({ title, due_date: dueDate }) }).catch(onSessionError);
-    await load();
+    try {
+      await gm("/tasks", token, { method: "POST", body: JSON.stringify({ title, due_date: dueDate }) });
+      toast("Task added.");
+    } catch (error) {
+      failed(error);
+    }
+    announceChange("tasks");
   };
 
   const update = async (task: Task, changes: Partial<Pick<Task, "title" | "due_date" | "done">>) => {
     // Feels instant: tick first, then confirm with the server.
     setTasks((current) => current && (changes.done !== undefined ? current.filter((t) => t.id !== task.id) : current.map((t) => (t.id === task.id ? { ...t, ...changes } : t))));
-    await gm(`/tasks/${task.id}`, token, { method: "PATCH", body: JSON.stringify(changes) }).catch(onSessionError);
-    await load();
+    try {
+      await gm(`/tasks/${task.id}`, token, { method: "PATCH", body: JSON.stringify(changes) });
+      if (changes.done !== undefined) toast(changes.done ? "Task completed." : "Task moved back to To do.");
+      else toast("Due date updated.");
+    } catch (error) {
+      failed(error);
+    }
+    announceChange("tasks");
   };
 
   const remove = async (task: Task) => {
+    if (!(await confirm({ title: "Delete this task?", message: task.title, confirmLabel: "Delete", danger: true }))) return;
     setTasks((current) => current && current.filter((t) => t.id !== task.id));
-    await gm(`/tasks/${task.id}`, token, { method: "DELETE" }).catch(onSessionError);
+    try {
+      await gm(`/tasks/${task.id}`, token, { method: "DELETE" });
+      toast("Task deleted.");
+    } catch (error) {
+      failed(error);
+    }
+    announceChange("tasks");
   };
 
   return { tasks, add, update, remove };

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Loader2, Trash2, X } from "lucide-react";
 import { gm, type CalendarEvent } from "./api";
+import { useFeedback } from "./feedback";
 import { isoDate, pad } from "./planner";
 
 const timeOf = (iso: string) => {
@@ -32,6 +33,7 @@ export function EventModal({
   const [location, setLocation] = useState(event?.location ?? "");
   const [notes, setNotes] = useState(event?.notes ?? "");
   const [busy, setBusy] = useState(false);
+  const { confirm } = useFeedback();
   const [error, setError] = useState<string | null>(null);
 
   const save = async (submit: React.FormEvent) => {
@@ -56,7 +58,7 @@ export function EventModal({
   };
 
   const remove = async () => {
-    if (!event || !window.confirm(`Delete "${event.title}"?`)) return;
+    if (!event || !(await confirm({ title: "Delete this event?", message: event.title, confirmLabel: "Delete", danger: true }))) return;
     setBusy(true);
     try {
       await gm(`/events/${event.id}`, token, { method: "DELETE" });

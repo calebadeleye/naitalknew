@@ -10,7 +10,9 @@ use App\Services\Greenmail\MailSender;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
+use Symfony\Component\Mailer\Envelope;
 use Symfony\Component\Mime\Email;
+use Symfony\Component\Mime\RawMessage;
 use Tests\Concerns\CreatesHostingFixtures;
 use Tests\Concerns\FakesIspConfig;
 use Tests\TestCase;
@@ -38,9 +40,9 @@ class GreenmailTest extends TestCase
         {
             public function __construct(private array &$log) {}
 
-            protected function deliver(Email $message, string $username, string $password): void
+            protected function transmit(RawMessage $message, ?Envelope $envelope, string $username, string $password): void
             {
-                $this->log[] = ['message' => $message, 'username' => $username, 'password' => $password];
+                $this->log[] = ['message' => $message, 'envelope' => $envelope, 'username' => $username, 'password' => $password];
             }
         });
     }

@@ -47,6 +47,8 @@ Schedule::job(new SyncSiteStatisticsJob)->dailyAt('06:20');
 
 // Greenmail: forget expired/idle webmail sessions (and the passwords they hold).
 Schedule::call(fn () => app(\App\Services\Greenmail\GreenmailSessions::class)->pruneExpired())->hourly()->name('greenmail-prune-sessions');
+// Greenmail: "Send later" emails that are due, and the next few campaign emails.
+Schedule::command('greenmail:dispatch')->everyMinute()->withoutOverlapping(10);
 Schedule::job(new SyncMailboxesJob)->everySixHours();
 Schedule::job(new SyncDatabasesJob)->everySixHours();
 Schedule::job(new SyncFtpAccountsJob)->everySixHours();
