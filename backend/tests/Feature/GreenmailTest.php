@@ -11,11 +11,13 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Symfony\Component\Mime\Email;
+use Tests\Concerns\CreatesHostingFixtures;
+use Tests\Concerns\FakesIspConfig;
 use Tests\TestCase;
 
 class GreenmailTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesHostingFixtures, FakesIspConfig, RefreshDatabase;
 
     private FakeMailGateway $mail;
 
@@ -215,6 +217,25 @@ class GreenmailTest extends TestCase
         $theirs = $this->signIn('other@example.com', 'other-pass');
         $this->gm($theirs)->getJson('/api/v1/greenmail/contacts')->assertJsonCount(0, 'contacts');
         $this->gm($theirs)->deleteJson("/api/v1/greenmail/contacts/{$contact['id']}")->assertNotFound();
+    }
+
+    public function test_the_storage_meter_falls_back_to_the_mailbox_quota_and_ispconfig_usage(): void
+    {
+        // This server's Dovecot reports no IMAP quota (FakeMailGateway returns none either).
+        $ispConfig = $this->fakeIspConfig();
+        $service = $this->createProvisionableHostingService();
+        \App\Jobs\ProvisionHostingServiceJob::dispatch($service->id);
+        $email = 'caleb@'.$service->fresh()->primary_domain;
+        $clientId = (int) $service->fresh()->ispConfigServiceMappings()->first()->clientMapping->ispconfig_client_id;
+        $ispConfig->mailUserAdd($ispConfig->login(), $clientId, ['email' => $email]);
+        $ispConfig->setMailUsageBytes($email, 300 * 1048576);
+        \App\Models\MailboxRecord::query()->create(['hosting_service_id' => $service->id, 'email_address' => $email, 'quota_mb' => 1000, 'status' => 'active']);
+        $this->mail->addAccount($email, 'pw-1234567');
+
+        $this->gm($this->signIn($email, 'pw-1234567'))->getJson('/api/v1/greenmail/session')
+            ->assertOk()
+            ->assertJsonPath('quota.used_bytes', 300 * 1048576)
+            ->assertJsonPath('quota.limit_bytes', 1000 * 1048576);
     }
 
     public function test_the_assistant_summarises_the_open_email(): void

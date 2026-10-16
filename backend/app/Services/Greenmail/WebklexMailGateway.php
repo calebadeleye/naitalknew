@@ -100,7 +100,8 @@ class WebklexMailGateway implements MailGateway
 
         match ($filter) {
             'unread' => $query->unseen(),
-            'flagged' => $query->flagged(),
+            // webklex's flagged()/whereFlagged() wrongly require an argument; IMAP FLAGGED takes none.
+            'flagged' => $query->where('FLAGGED'),
             'attachments' => $query->where('CUSTOM HEADER Content-Type', 'multipart/mixed'),
             default => $query->all(),
         };

@@ -7,6 +7,7 @@ use App\Models\Greenmail\GreenmailSetting;
 use App\Services\Greenmail\Exceptions\MailAuthenticationFailed;
 use App\Services\Greenmail\Exceptions\MailServerUnavailable;
 use App\Services\Greenmail\GreenmailSessions;
+use App\Services\Greenmail\MailboxUsage;
 use App\Services\Greenmail\MailGateway;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -32,7 +33,7 @@ class SessionController extends Controller
     }
 
     /** Who is signed in, their name/signature and storage use. */
-    public function show(Request $request, MailGateway $mail)
+    public function show(Request $request, MailGateway $mail, MailboxUsage $usage)
     {
         $session = $request->attributes->get('greenmail_session');
         $settings = GreenmailSetting::query()->where('owner_email', $session->email)->first();
@@ -41,7 +42,7 @@ class SessionController extends Controller
             'email' => $session->email,
             'display_name' => $settings?->display_name,
             'signature_html' => $settings?->signature_html,
-            'quota' => $mail->quota(),
+            'quota' => $mail->quota() ?? rescue(fn () => $usage->forMailbox($session->email), null, report: false),
         ]);
     }
 
