@@ -197,6 +197,33 @@ class GreenmailTest extends TestCase
         $this->assertEqualsCanonicalizing(['chidi@elinthgroup.com', 'team@elinthgroup.com'], GreenmailContact::pluck('email')->all());
     }
 
+    public function test_forwarding_carries_the_original_attachments_the_sender_kept(): void
+    {
+        $original = $this->mail->deliver('caleb@calebadeleye.com', [
+            'subject' => 'Contract',
+            'attachments' => [
+                ['name' => 'contract.pdf', 'mime' => 'application/pdf', 'content' => '%PDF-contract'],
+                ['name' => 'notes.txt', 'mime' => 'text/plain', 'content' => 'private notes'],
+            ],
+        ]);
+        $token = $this->signIn();
+
+        $this->gm($token)->post('/api/v1/greenmail/send', [
+            'to' => 'lawyer@example.com',
+            'subject' => 'Fwd: Contract',
+            'html' => '<p>See attached.</p>',
+            'forward_folder' => 'INBOX',
+            'forward_uid' => $original,
+            'forward_attachments' => [0], // the sender removed notes.txt
+        ], ['Accept' => 'application/json'])->assertCreated();
+
+        $attachments = $this->sent[0]['message']->getAttachments();
+        $this->assertCount(1, $attachments);
+        $this->assertSame('contract.pdf', $attachments[0]->getFilename());
+        $this->assertSame('%PDF-contract', $attachments[0]->getBody());
+        $this->assertStringContainsString('contract.pdf', $this->mail->appended[0]['raw'], 'the Sent copy has it too');
+    }
+
     public function test_sending_needs_a_valid_recipient(): void
     {
         $token = $this->signIn();

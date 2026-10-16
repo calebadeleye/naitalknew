@@ -18,12 +18,13 @@ class MailSender
 {
     /**
      * @param  array{to: array<int, string>, cc?: array<int, string>, bcc?: array<int, string>, subject: string, html: string, text?: ?string, in_reply_to?: ?string, references?: ?string}  $data
-     * @param  array<int, UploadedFile>  $attachments
+     * @param  array<int, UploadedFile>  $attachments  files uploaded from the browser
+     * @param  array<int, array{name: string, mime: string, content: string}>  $forwarded  files carried over from a forwarded message
      * @return string the raw RFC 822 message as sent
      */
-    public function send(string $fromEmail, ?string $fromName, string $password, array $data, array $attachments = []): string
+    public function send(string $fromEmail, ?string $fromName, string $password, array $data, array $attachments = [], array $forwarded = []): string
     {
-        $message = $this->build($fromEmail, $fromName, $data, $attachments);
+        $message = $this->build($fromEmail, $fromName, $data, $attachments, $forwarded);
         $raw = $message->toString();
 
         $this->deliver($message, $fromEmail, $password);
@@ -32,9 +33,9 @@ class MailSender
     }
 
     /** The same message, for saving as a draft instead of sending. */
-    public function compose(string $fromEmail, ?string $fromName, array $data, array $attachments = []): string
+    public function compose(string $fromEmail, ?string $fromName, array $data, array $attachments = [], array $forwarded = []): string
     {
-        return $this->build($fromEmail, $fromName, $data, $attachments)->toString();
+        return $this->build($fromEmail, $fromName, $data, $attachments, $forwarded)->toString();
     }
 
     protected function deliver(Email $message, string $username, string $password): void
@@ -52,7 +53,7 @@ class MailSender
         (new Mailer($transport))->send($message);
     }
 
-    private function build(string $fromEmail, ?string $fromName, array $data, array $attachments): Email
+    private function build(string $fromEmail, ?string $fromName, array $data, array $attachments, array $forwarded = []): Email
     {
         $domain = Str::after($fromEmail, '@');
         $message = (new Email)
@@ -82,6 +83,10 @@ class MailSender
         if (! empty($data['in_reply_to'])) {
             $headers->addTextHeader('In-Reply-To', $data['in_reply_to']);
             $headers->addTextHeader('References', trim(($data['references'] ?? '').' '.$data['in_reply_to']));
+        }
+
+        foreach ($forwarded as $file) {
+            $message->attach($file['content'], $file['name'], $file['mime'] ?: 'application/octet-stream');
         }
 
         foreach ($attachments as $file) {

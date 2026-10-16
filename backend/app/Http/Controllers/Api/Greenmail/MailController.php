@@ -202,7 +202,7 @@ class MailController extends Controller
         $settings = GreenmailSetting::query()->where('owner_email', $session->email)->first();
 
         try {
-            $raw = $sender->send($session->email, $settings?->display_name, $session->password(), $data, $request->file('attachments', []));
+            $raw = $sender->send($session->email, $settings?->display_name, $session->password(), $data, $request->file('attachments', []), $this->forwardedAttachments($data));
         } catch (TransportExceptionInterface $exception) {
             report($exception);
 
@@ -232,7 +232,7 @@ class MailController extends Controller
         $settings = GreenmailSetting::query()->where('owner_email', $session->email)->first();
         $drafts = $this->folderForRole('drafts');
 
-        $this->mail()->append($drafts, $sender->compose($session->email, $settings?->display_name, $data, $request->file('attachments', [])), ['\\Seen', '\\Draft']);
+        $this->mail()->append($drafts, $sender->compose($session->email, $settings?->display_name, $data, $request->file('attachments', []), $this->forwardedAttachments($data)), ['\\Seen', '\\Draft']);
 
         if (! empty($data['draft_uid'])) {
             rescue(fn () => $this->mail()->delete($drafts, (int) $data['draft_uid']), report: false);
@@ -267,9 +267,45 @@ class MailController extends Controller
             'reply_uid' => ['nullable', 'integer'],
             'reply_folder' => ['nullable', 'string', 'max:200'],
             'draft_uid' => ['nullable', 'integer'],
+            // Forward: which of the original message's attachments to carry over.
+            'forward_folder' => ['nullable', 'required_with:forward_attachments', 'string', 'max:200'],
+            'forward_uid' => ['nullable', 'required_with:forward_attachments', 'integer'],
+            'forward_attachments' => ['nullable', 'array', 'max:30'],
+            'forward_attachments.*' => ['integer', 'min:0'],
             'attachments' => ['nullable', 'array', 'max:10'],
             'attachments.*' => ['file', "max:{$maxKb}"],
         ], ['to.required' => 'Add at least one recipient.']) + ['to' => [], 'subject' => '', 'html' => ''];
+    }
+
+    /**
+     * The forwarded message's attachments, read from the mail server (the
+     * browser never has to upload them again). Capped like uploads.
+     *
+     * @return array<int, array{name: string, mime: string, content: string}>
+     */
+    private function forwardedAttachments(array $data): array
+    {
+        if (empty($data['forward_attachments']) || empty($data['forward_folder']) || empty($data['forward_uid'])) {
+            return [];
+        }
+
+        $limit = (int) config('greenmail.max_attachment_mb') * 1048576 * 2;
+        $total = 0;
+        $files = [];
+
+        foreach (array_unique($data['forward_attachments']) as $index) {
+            $file = $this->inFolder(fn () => $this->mail()->attachment($data['forward_folder'], (int) $data['forward_uid'], (int) $index));
+
+            if (! $file) {
+                continue;
+            }
+
+            $total += strlen($file['content']);
+            abort_if($total > $limit, 422, 'The forwarded attachments are too large to send in one email.');
+            $files[] = $file;
+        }
+
+        return $files;
     }
 
     private function rememberRecipients(string $owner, array $addresses): void

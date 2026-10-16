@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Bold, Italic, Link2, List, ListOrdered, Loader2, Paperclip, Quote, Send, Trash2, Underline, UserPlus, X } from "lucide-react";
-import { gm, type Contact } from "./api";
+import { gm, type Attachment, type Contact } from "./api";
 import { formatBytes } from "./ui";
 
 export type ComposeDraft = {
@@ -18,6 +18,8 @@ export type ComposeDraft = {
   replyingTo?: string;
   /** The original message — not shown in the editor, added under the reply when it's sent. */
   quoteHtml?: string;
+  /** Forward: the original's attachments, sent along unless removed (the server copies them). */
+  forward?: { folder: string; uid: number; attachments: Attachment[] };
 };
 
 /**
@@ -51,6 +53,7 @@ export function Composer({
   const [editRecipients, setEditRecipients] = useState(!draft.replyingTo);
   const [subject, setSubject] = useState(draft.subject);
   const [files, setFiles] = useState<File[]>([]);
+  const [forwarded, setForwarded] = useState<Attachment[]>(draft.forward?.attachments ?? []);
   const [busy, setBusy] = useState<"send" | "draft" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
@@ -80,6 +83,11 @@ export function Composer({
     if (draft.replyUid) data.append("reply_uid", String(draft.replyUid));
     if (draft.replyFolder) data.append("reply_folder", draft.replyFolder);
     files.forEach((file) => data.append("attachments[]", file));
+    if (draft.forward && forwarded.length > 0) {
+      data.append("forward_folder", draft.forward.folder);
+      data.append("forward_uid", String(draft.forward.uid));
+      forwarded.forEach((attachment) => data.append("forward_attachments[]", String(attachment.index)));
+    }
     return data;
   };
 
@@ -199,8 +207,16 @@ export function Composer({
 
       {draft.quoteHtml && <p className="px-4 pb-2 text-[11px] text-slate-400">The original message is included below your reply when it's sent.</p>}
 
-      {files.length > 0 && (
+      {(files.length > 0 || forwarded.length > 0) && (
         <div className="flex flex-wrap gap-2 px-4 pb-2">
+          {forwarded.map((attachment) => (
+            <span key={`fwd-${attachment.index}`} className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-700">
+              <Paperclip className="h-3 w-3" /> {attachment.name} <span className="text-slate-400">({formatBytes(attachment.size)})</span>
+              <button type="button" aria-label={`Don't forward ${attachment.name}`} onClick={() => setForwarded(forwarded.filter((a) => a.index !== attachment.index))}>
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
           {files.map((file, index) => (
             <span key={`${file.name}-${index}`} className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-700">
               <Paperclip className="h-3 w-3" /> {file.name} <span className="text-slate-400">({formatBytes(file.size)})</span>

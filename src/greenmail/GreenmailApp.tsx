@@ -251,6 +251,7 @@ function Mailbox({ token, onSignedOut }: { token: string; onSignedOut: (message:
           bcc: "",
           subject: /^fwd?:/i.test(subjectBase) ? subjectBase : `Fwd: ${subjectBase}`,
           bodyHtml: `${intro}${signature}`,
+          forward: { folder, uid: message.uid, attachments: message.attachments },
           quoteHtml: `<div>---------- Forwarded message ----------<br>From: ${escapeHtml(displayName(message.from))} &lt;${escapeHtml(message.from.email)}&gt;<br>Date: ${escapeHtml(fullDate(message.date))}<br>Subject: ${escapeHtml(message.subject)}</div><br>${original}`,
         },
       });
