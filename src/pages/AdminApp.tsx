@@ -14,8 +14,6 @@ import {
   Bot,
   Briefcase,
   Building2,
-  CalendarClock,
-  CheckCircle2,
   ChevronDown,
   ChevronRight,
   Clock,
@@ -74,7 +72,6 @@ import {
   Upload,
   User,
   Users,
-  Wallet,
   Wifi,
   X,
   Zap,
@@ -106,7 +103,7 @@ import {
   initScrollDepthTracking,
 } from "../lib/analytics";
 import { captureAdAttribution } from "../lib/adAttribution";
-import type { LogoImage, ClientLogo, Project, Review, SiteContent, HostingPlanCard, ServiceCatalogItem, ClientOrderSummary, BankTransferDetails, PricingPackage, AdminDashboardMetric, AdminDashboardSnapshot, AdminAnalyticsOverview, AdminFunnelOverview, AdminRenewalOverview, AdminServicePagesOverview, ClientDashboardSnapshot, ClientAuthMode, LaravelPage, AdminRecordsSectionId } from "../shared/types";
+import type { LogoImage, ClientLogo, Project, Review, SiteContent, HostingPlanCard, ServiceCatalogItem, ClientOrderSummary, BankTransferDetails, PricingPackage, AdminDashboardMetric, AdminDashboardSnapshot, AdminAnalyticsOverview, AdminFunnelOverview, AdminServicePagesOverview, ClientDashboardSnapshot, ClientAuthMode, LaravelPage, AdminRecordsSectionId } from "../shared/types";
 import { LARAVEL_API_BASE_URL, laravelApi } from "../shared/api";
 import { parseNairaAmount, formatNaira, formatKobo, toDateInputValue, formatDate, formatDateTime, accountTypeLabel, clientStatusPillClass, hostingStatusPillClass, formatMb, catalogCategoryIcon, ISO_DATE_PATTERN } from "../shared/format";
 import { fallbackClientLogos, fallbackProjects, fallbackReviews, fallbackSiteContent, whatsappUrl } from "../shared/siteDefaults";
@@ -120,15 +117,6 @@ import { PaymentMethodsPanel } from "../admin/PaymentMethodsPanel";
 import { GlobalBlockedIpsPanel } from "../admin/GlobalBlockedIpsPanel";
 import { AreaThemeToggle, useAreaTheme } from "../shared/areaTheme";
 import { useTicketsNeedingReply } from "../admin/useTicketsNeedingReply";
-
-export const adminMetrics = [
-  { label: "Total Revenue", value: "₦5,420,000", delta: "15.2%", icon: Wallet, tone: "lime" },
-  { label: "Total Invoices", value: "342", delta: "8.9%", icon: FileText, tone: "cyan" },
-  { label: "Paid Invoices", value: "238", delta: "12.1%", icon: CheckCircle2, tone: "lime" },
-  { label: "Overdue Invoices", value: "18", delta: "₦1,235,000 overdue", icon: CalendarClock, tone: "gold" },
-  { label: "Active Services", value: "256", delta: "11.3%", icon: Server, tone: "violet" },
-  { label: "New Clients", value: "26", delta: "8.4%", icon: Users, tone: "cyan" },
-];
 
 export const REASON_CATEGORIES: Array<{ value: string; label: string }> = [
   { value: "hosting_expired", label: "Hosting expired" },
@@ -972,292 +960,6 @@ export function AdminServicesGroupedDashboard({
         page={page}
         onPageChange={setPage}
       />
-    </section>
-  );
-}
-
-export function AdminDashboardOverview({
-  data,
-  isLoading,
-  onNavigate,
-  dateRange,
-  onDateRangeChange,
-  renewalData,
-}: {
-  data: AdminDashboardSnapshot | null;
-  isLoading: boolean;
-  onNavigate?: (section: string) => void;
-  dateRange?: { from: string; to: string } | null;
-  onDateRangeChange?: (range: { from: string; to: string } | null) => void;
-  renewalData?: AdminRenewalOverview | null;
-}) {
-  const todayIso = new Date().toISOString().slice(0, 10);
-  const dashboardMetrics = data?.metrics?.length
-    ? data.metrics.map((metric, index) => ({
-        ...metric,
-        delta: metric.amount || (typeof metric.raw === "number" ? `${metric.raw}` : "Live"),
-        icon: adminMetrics[index]?.icon || BarChart3,
-        tone: adminMetrics[index]?.tone || "lime",
-      }))
-    : adminMetrics.map((metric) => ({ ...metric, value: "—", delta: "No data yet" }));
-  const renewals = data?.upcoming_renewals?.length ? data.upcoming_renewals : null;
-  const payments = data?.recent_payments?.length ? data.recent_payments : null;
-  const invoices = data?.invoice_overview?.length ? data.invoice_overview : null;
-  const topServices = data?.top_services?.length ? data.top_services : null;
-  const systemStatus = data?.system_status?.length ? data.system_status : null;
-  const recentOrders = data?.recent_orders?.length ? data.recent_orders : null;
-  const totalInvoices = invoices ? invoices.reduce((sum, item) => sum + (item.count || 0), 0) : 0;
-
-  return (
-    <section className="grid gap-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h2 className="text-3xl font-black text-white">Dashboard</h2>
-          <p className="mt-2 text-sm text-white/58">
-            {isLoading ? "Loading live Laravel dashboard data..." : "Live data from the Laravel billing engine."}
-          </p>
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
-            <label className="text-[10px] font-black uppercase text-white/45" htmlFor="dashboard-range-from">
-              From
-            </label>
-            <input
-              id="dashboard-range-from"
-              type="date"
-              className="bg-transparent text-xs font-bold text-white outline-none [color-scheme:dark]"
-              max={dateRange?.to || todayIso}
-              value={dateRange?.from || ""}
-              onChange={(event) => {
-                const from = event.target.value;
-                if (!from) {
-                  onDateRangeChange?.(null);
-                  return;
-                }
-                onDateRangeChange?.({ from, to: dateRange?.to && dateRange.to >= from ? dateRange.to : todayIso });
-              }}
-            />
-            <span className="text-white/20">–</span>
-            <label className="text-[10px] font-black uppercase text-white/45" htmlFor="dashboard-range-to">
-              To
-            </label>
-            <input
-              id="dashboard-range-to"
-              type="date"
-              className="bg-transparent text-xs font-bold text-white outline-none [color-scheme:dark]"
-              min={dateRange?.from}
-              max={todayIso}
-              value={dateRange?.to || ""}
-              onChange={(event) => {
-                const to = event.target.value;
-                if (!dateRange?.from || !to) return;
-                onDateRangeChange?.({ from: dateRange.from, to });
-              }}
-            />
-          </div>
-          {dateRange && (
-            <button type="button" className="btn-outline justify-center !min-h-9 !px-3 !text-[11px]" onClick={() => onDateRangeChange?.(null)}>
-              Clear range
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-        {dashboardMetrics.map((metric) => {
-          const Icon = metric.icon;
-          const targetSection = metric.label === "Active Services" ? "services" : metric.label === "New Clients" ? "clients" : null;
-          const isClickable = Boolean(onNavigate && targetSection);
-          return (
-            <article
-              key={metric.label}
-              className={`metric-card tone-${metric.tone} ${isClickable ? "cursor-pointer transition hover:-translate-y-0.5 hover:border-primary/40" : ""}`}
-              role={isClickable ? "button" : undefined}
-              tabIndex={isClickable ? 0 : undefined}
-              onClick={isClickable ? () => onNavigate?.(targetSection as string) : undefined}
-              onKeyDown={
-                isClickable
-                  ? (event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        onNavigate?.(targetSection as string);
-                      }
-                    }
-                  : undefined
-              }
-            >
-              <div className="metric-icon"><Icon className="h-5 w-5" /></div>
-              <p className="mt-4 text-xs text-white/58">{metric.label}</p>
-              <h3 className="mt-2 text-2xl font-black text-white">{metric.value}</h3>
-              <p className="mt-2 text-xs text-primary">{metric.delta}</p>
-            </article>
-          );
-        })}
-      </div>
-
-      <div className="grid gap-5 xl:grid-cols-[0.95fr_1.1fr]">
-        <article className="dashboard-card">
-          <div className="flex items-center justify-between">
-            <h3>Upcoming Renewals</h3>
-            <span>View all</span>
-          </div>
-          <div className="mt-4 grid gap-3">
-            {renewals ? renewals.map((renewal) => (
-              <div key={renewal.service_number} className="data-row">
-                <div className="row-icon"><Globe2 className="h-4 w-4" /></div>
-                <div className="min-w-0 flex-1">
-                  <p>{renewal.primary_domain || renewal.client || renewal.service_number}</p>
-                  <small>{renewal.plan || renewal.status}</small>
-                </div>
-                <small>{renewal.renews_at ? formatDate(renewal.renews_at) : "No date"}</small>
-                <strong>{renewal.status}</strong>
-              </div>
-            )) : <p className="text-sm text-white/40">No upcoming renewals.</p>}
-          </div>
-        </article>
-
-        <article className="dashboard-card">
-          <div className="flex items-center justify-between">
-            <h3>Recent Payments</h3>
-            <span>View all</span>
-          </div>
-          <div className="mt-4 grid gap-3">
-            {payments ? payments.map((payment) => (
-              <div key={`${payment.invoice_number}-${payment.amount}`} className="data-row">
-                <div className="avatar-initial">{(payment.client || "C").charAt(0)}</div>
-                <div className="min-w-0 flex-1">
-                  <p>{payment.client || "Client"}</p>
-                  <small>{payment.invoice_number || payment.gateway}</small>
-                </div>
-                <span className={payment.status === "paid" ? "status-pill paid" : "status-pill failed"}>{payment.status}</span>
-                <div className="text-right">
-                  <strong>{payment.amount}</strong>
-                  <small className="block">{payment.paid_at ? formatDate(payment.paid_at) : ""}</small>
-                </div>
-              </div>
-            )) : <p className="text-sm text-white/40">No recent payments yet.</p>}
-          </div>
-        </article>
-      </div>
-
-      <div className="grid gap-5 xl:grid-cols-[0.9fr_1fr_1.1fr]">
-        <article className="dashboard-card">
-          <h3>Invoices Overview</h3>
-          <div className="donut-wrap">
-            <div className="donut-chart"><span>{totalInvoices}<small>Total</small></span></div>
-            <div className="grid gap-2 text-sm text-white/64">
-              {invoices ? invoices.map((item) => (
-                <p key={item.status}>{item.status}: {item.count}</p>
-              )) : <p className="text-white/40">No invoice data yet.</p>}
-            </div>
-          </div>
-        </article>
-        <article className="dashboard-card">
-          <h3>Top Services</h3>
-          <div className="mt-5 grid gap-4">
-            {topServices ? topServices.map((service, index) => (
-              <div key={service.name} className="service-meter">
-                <span>{service.name}</span>
-                <div><i style={{ width: `${Math.max(18, 88 - index * 14)}%` }} /></div>
-                <strong>{service.count}</strong>
-              </div>
-            )) : <p className="text-sm text-white/40">No service data yet.</p>}
-          </div>
-        </article>
-        <article className="dashboard-card">
-          <h3>System Status</h3>
-          <div className="mt-5 grid gap-4">
-            {systemStatus ? systemStatus.map((item) => (
-              <div key={item.name} className="system-row">
-                <span>{item.name}</span>
-                <strong>{item.status}</strong>
-              </div>
-            )) : <p className="text-sm text-white/40">No system status data yet.</p>}
-          </div>
-        </article>
-      </div>
-
-      <article className="dashboard-card overflow-x-auto">
-        <div className="flex items-center justify-between">
-          <h3>Recent Orders</h3>
-          <span>View all</span>
-        </div>
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>Order #</th>
-              <th>Client</th>
-              <th>Service</th>
-              <th>Amount</th>
-              <th>Status</th>
-              <th>Date</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {recentOrders ? recentOrders.map((order) => (
-              <tr key={order.order_number}>
-                <td>{order.order_number}</td>
-                <td>{order.client || "Client"}</td>
-                <td>{order.billing_cycle} hosting</td>
-                <td>{order.total}</td>
-                <td><span className={order.status === "completed" ? "status-pill paid" : "status-pill pending"}>{order.status}</span></td>
-                <td>{formatDate(order.created_at)}</td>
-                <td><MoreVertical className="h-4 w-4" /></td>
-              </tr>
-            )) : (
-              <tr>
-                <td colSpan={7} className="text-center text-white/40">No recent orders yet.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </article>
-
-      {renewalData && (
-        <article className="dashboard-card">
-          <div className="flex items-center justify-between">
-            <h3>Renewals &amp; Churn</h3>
-            <span>{formatDate(renewalData.date_range.from)} – {formatDate(renewalData.date_range.to)}</span>
-          </div>
-          <div className="mt-5 grid gap-4 sm:grid-cols-3">
-            <div className="rounded-lg border border-white/8 bg-black/15 p-4">
-              <p className="text-xs text-white/54">Hosting Renewal Rate</p>
-              <p className="mt-2 text-2xl font-black text-white">
-                {renewalData.hosting.renewal_rate === null ? "—" : `${renewalData.hosting.renewal_rate}%`}
-              </p>
-              <p className="mt-1 text-xs text-white/40">{renewalData.hosting.renewed} of {renewalData.hosting.due} renewed</p>
-            </div>
-            <div className="rounded-lg border border-white/8 bg-black/15 p-4">
-              <p className="text-xs text-white/54">Revenue Lost to Churn</p>
-              <p className="mt-2 text-2xl font-black text-white">{renewalData.hosting.churned_revenue || "₦0"}</p>
-              <p className="mt-1 text-xs text-white/40">Unpaid hosting renewal invoices</p>
-            </div>
-            <div className="rounded-lg border border-white/8 bg-black/15 p-4">
-              <p className="text-xs text-white/54">Domain Renewal Rate</p>
-              <p className="mt-2 text-2xl font-black text-white">
-                {renewalData.domains.renewal_rate === null ? "—" : `${renewalData.domains.renewal_rate}%`}
-              </p>
-              <p className="mt-1 text-xs text-white/40">{renewalData.domains.renewed} of {renewalData.domains.due} renewed</p>
-            </div>
-          </div>
-
-          {renewalData.hosting.by_plan.length > 0 && (
-            <div className="mt-5 grid gap-4">
-              <p className="text-xs font-black uppercase text-white/45">By Plan</p>
-              {renewalData.hosting.by_plan.map((row) => (
-                <div key={row.plan} className="service-meter">
-                  <span className="truncate" title={row.plan}>{row.plan}</span>
-                  <div><i style={{ width: `${row.renewal_rate ?? 0}%` }} /></div>
-                  <strong>{row.renewal_rate === null ? "—" : `${row.renewal_rate}%`}</strong>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <p className="mt-4 text-xs leading-5 text-white/35">{renewalData.domains.note}</p>
-        </article>
-      )}
     </section>
   );
 }
@@ -4651,7 +4353,6 @@ export const adminSectionGroups: Array<{ label: string; sections: AdminSectionDe
   {
     label: "Overview",
     sections: [
-      { id: "dashboard", label: "Dashboard", icon: BarChart3 },
       { id: "analytics", label: "Analytics", icon: Activity },
       { id: "naigrowth", label: "NaiGrowth", icon: Bot },
     ],
@@ -5013,9 +4714,6 @@ export function AdminApp() {
   const [content, setContent] = useState<SiteContent>(fallbackSiteContent);
   const [adminToken, setAdminToken] = useState(() => sessionStorage.getItem("naitalk_laravel_admin_token") || "");
   const [dashboardData, setDashboardData] = useState<AdminDashboardSnapshot | null>(null);
-  const [isDashboardLoading, setIsDashboardLoading] = useState(false);
-  const [dashboardDateRange, setDashboardDateRange] = useState<{ from: string; to: string } | null>(null);
-  const [renewalData, setRenewalData] = useState<AdminRenewalOverview | null>(null);
   const [analyticsData, setAnalyticsData] = useState<AdminAnalyticsOverview | null>(null);
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(false);
   const [analyticsDateRange, setAnalyticsDateRange] = useState<{ from: string; to: string } | null>(null);
@@ -5131,29 +4829,17 @@ export function AdminApp() {
     });
   };
 
-  const loadAdminDashboard = async (token = adminToken, range = dashboardDateRange) => {
+  const loadAdminDashboard = async (token = adminToken) => {
     if (!token) return;
-    setIsDashboardLoading(true);
 
     try {
-      const query = range ? `?from=${range.from}&to=${range.to}` : "";
-      const data = await laravelApi<AdminDashboardSnapshot>(`/api/v1/admin/dashboard${query}`, token);
+      const data = await laravelApi<AdminDashboardSnapshot>("/api/v1/admin/dashboard", token);
       setDashboardData(data);
     } catch (error) {
       sessionStorage.removeItem("naitalk_laravel_admin_token");
       setAdminToken("");
       setIsAuthenticated(false);
       setMessage(error instanceof Error ? error.message : "Laravel dashboard could not be loaded");
-    } finally {
-      setIsDashboardLoading(false);
-    }
-
-    try {
-      const query = range ? `?from=${range.from}&to=${range.to}` : "";
-      const renewals = await laravelApi<AdminRenewalOverview>(`/api/v1/admin/billing/renewals-overview${query}`, token);
-      setRenewalData(renewals);
-    } catch {
-      // Non-critical — the rest of the dashboard still renders without it.
     }
   };
 
@@ -6145,10 +5831,10 @@ export function AdminApp() {
           </p>
         )}
 
-        {activeSection !== "dashboard" && !routeClientId && !routeServiceId && (
+        {activeSection !== "analytics" && !routeClientId && !routeServiceId && (
           <AdminBreadcrumbs
             items={[
-              { label: "Dashboard", onClick: () => navigateToSection("dashboard") },
+              { label: adminSectionLabels.analytics, onClick: () => navigateToSection("analytics") },
               { label: adminSectionLabels[activeSection] },
             ]}
           />
@@ -6188,20 +5874,6 @@ export function AdminApp() {
             adminToken={adminToken}
             onBack={() => navigateAdminRoute(adminPath("services"))}
             onOpenClient={(clientId) => navigateAdminRoute(adminClientDetailPath(clientId))}
-          />
-        )}
-
-        {activeSection === "dashboard" && !routeClientId && !routeServiceId && (
-          <AdminDashboardOverview
-            data={dashboardData}
-            isLoading={isDashboardLoading}
-            onNavigate={(section) => navigateToSection(section as AdminSectionId)}
-            dateRange={dashboardDateRange}
-            renewalData={renewalData}
-            onDateRangeChange={(range) => {
-              setDashboardDateRange(range);
-              void loadAdminDashboard(adminToken, range);
-            }}
           />
         )}
 
