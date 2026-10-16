@@ -151,7 +151,7 @@ export function GreenmailHomeSection({ clientLogos }: { clientLogos?: ClientLogo
   return (
     <section id="green-mail" className="relative overflow-hidden border-y border-white/8 py-20" style={{ background: "radial-gradient(circle at 85% 15%, rgba(155,234,22,0.16), transparent 45%)" }}>
       <div className="mx-auto grid max-w-7xl gap-12 px-4 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:px-8">
-        <div>
+        <div className="min-w-0">
           <span className="eyebrow">Free with every hosting plan</span>
           <div className="mt-5 flex items-center gap-3">
             <img src="/greenmail-app/badge-128.webp" alt="" width={52} height={52} className="rounded-2xl shadow-[0_10px_30px_rgba(155,234,22,0.25)]" />
@@ -176,7 +176,7 @@ export function GreenmailHomeSection({ clientLogos }: { clientLogos?: ClientLogo
           </div>
         </div>
 
-        <div className="grid gap-4">
+        <div className="grid min-w-0 gap-4">
           <div className="grid grid-cols-2 gap-4">
             {[
               [stats?.businesses ?? null, "businesses use Green Mail"],
@@ -188,7 +188,7 @@ export function GreenmailHomeSection({ clientLogos }: { clientLogos?: ClientLogo
               </div>
             ))}
           </div>
-          <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
+          <div className="min-w-0 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-5">
             <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-white/50"><CheckCircle2 className="h-4 w-4 text-primary" /> Trusted by growing brands</p>
             <div className="mt-4">
               <GreenmailBrandStrip clientLogos={clientLogos} />
