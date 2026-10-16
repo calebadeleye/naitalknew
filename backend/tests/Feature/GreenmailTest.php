@@ -299,6 +299,53 @@ class GreenmailTest extends TestCase
             ->assertStatus(422);
     }
 
+    public function test_calendar_events_are_listed_by_range_and_stored_in_utc(): void
+    {
+        $token = $this->signIn();
+        $base = '/api/v1/greenmail/events';
+
+        $this->gm($token)->postJson($base, ['title' => 'Client call', 'starts_at' => '2026-10-20T12:00:00+01:00', 'ends_at' => '2026-10-20T12:30:00+01:00', 'location' => 'Google Meet'])
+            ->assertCreated()->assertJsonPath('event.title', 'Client call');
+        $this->assertSame('2026-10-20 11:00:00', \App\Models\Greenmail\GreenmailEvent::value('starts_at')->format('Y-m-d H:i:s'));
+        $this->gm($token)->postJson($base, ['title' => 'Conference', 'starts_at' => '2026-10-19T09:00:00Z', 'ends_at' => '2026-10-21T17:00:00Z'])->assertCreated();
+        $this->gm($token)->postJson($base, ['title' => 'Next month', 'starts_at' => '2026-11-20T09:00:00Z'])->assertCreated();
+        $this->gm($token)->postJson($base, ['title' => 'Backwards', 'starts_at' => '2026-10-20T10:00:00Z', 'ends_at' => '2026-10-20T09:00:00Z'])
+            ->assertStatus(422)->assertJsonValidationErrors('ends_at');
+
+        // The 20th: the call, plus the conference that started the day before.
+        $titles = collect($this->gm($token)->getJson("{$base}?from=2026-10-20T00:00:00Z&to=2026-10-21T00:00:00Z")->assertOk()->json('events'))->pluck('title')->all();
+        $this->assertEqualsCanonicalizing(['Client call', 'Conference'], $titles);
+
+        $id = \App\Models\Greenmail\GreenmailEvent::where('title', 'Client call')->value('id');
+        $this->gm($token)->putJson("{$base}/{$id}", ['title' => 'Client call (moved)', 'starts_at' => '2026-10-20T15:00:00Z'])->assertOk()->assertJsonPath('event.title', 'Client call (moved)');
+
+        $other = $this->signIn('other@example.com', 'other-pass');
+        $this->gm($other)->getJson("{$base}?from=2026-10-01T00:00:00Z&to=2026-11-30T00:00:00Z")->assertJsonCount(0, 'events');
+        $this->gm($other)->deleteJson("{$base}/{$id}")->assertNotFound();
+        $this->gm($token)->deleteJson("{$base}/{$id}")->assertOk();
+    }
+
+    public function test_tasks_are_ordered_by_due_date_and_can_be_completed(): void
+    {
+        $token = $this->signIn();
+        $base = '/api/v1/greenmail/tasks';
+
+        $this->gm($token)->postJson($base, ['title' => 'Prepare monthly report', 'due_date' => '2026-10-17'])->assertCreated();
+        $this->gm($token)->postJson($base, ['title' => 'Someday'])->assertCreated();
+        $first = $this->gm($token)->postJson($base, ['title' => 'Complete client website design', 'due_date' => '2026-10-16'])->assertCreated()->json('task.id');
+        $this->gm($token)->postJson($base, ['title' => 'Bad date', 'due_date' => '16/10/2026'])->assertStatus(422);
+
+        $this->gm($token)->getJson($base)->assertOk()->assertJsonPath('tasks.0.title', 'Complete client website design')->assertJsonPath('tasks.2.title', 'Someday');
+
+        $this->gm($token)->patchJson("{$base}/{$first}", ['done' => true])->assertOk()->assertJsonPath('task.done', true);
+        $this->assertNotNull(\App\Models\Greenmail\GreenmailTask::find($first)->completed_at);
+        $this->gm($token)->getJson($base)->assertJsonCount(2, 'tasks');
+        $this->gm($token)->getJson("{$base}?status=done")->assertJsonCount(1, 'tasks');
+
+        $other = $this->signIn('other@example.com', 'other-pass');
+        $this->gm($other)->patchJson("{$base}/{$first}", ['done' => false])->assertNotFound();
+    }
+
     public function test_contacts_belong_to_one_mailbox(): void
     {
         $mine = $this->signIn();

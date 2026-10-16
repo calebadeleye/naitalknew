@@ -1,5 +1,4 @@
 import React from "react";
-import { Mail } from "lucide-react";
 import "@fontsource/pacifico/latin-400.css";
 import type { Address } from "./api";
 
@@ -68,16 +67,14 @@ export function withoutRemoteImages(html: string): string {
 }
 
 /**
- * The Green Mail wordmark (no logo yet): a green envelope badge and the name
- * in Pacifico. `onDark` for the sidebar; `compact` shows the badge only.
+ * The Green Mail wordmark: the app icon (public/greenmail-app/) and the name in
+ * Pacifico. `onDark` for the sidebar; `compact` shows the icon only.
  */
 export function Brand({ onDark = false, compact = false, size = "md" }: { onDark?: boolean; compact?: boolean; size?: "md" | "lg" }) {
-  const badge = size === "lg" ? "h-11 w-11" : "h-9 w-9";
+  const box = size === "lg" ? 48 : 38;
   return (
     <span className="inline-flex items-center gap-2.5" aria-label="Green Mail">
-      <span className={`inline-flex ${badge} shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#2bb85c] to-[#15803d] text-white shadow-sm`}>
-        <Mail className={size === "lg" ? "h-6 w-6" : "h-5 w-5"} />
-      </span>
+      <img src="/greenmail-app/badge-128.webp" alt="" width={box} height={box} className="shrink-0 rounded-xl" style={{ width: box, height: box }} />
       {!compact && (
         <span
           className={`whitespace-nowrap leading-none ${size === "lg" ? "text-[34px]" : "text-[26px]"} ${onDark ? "text-white" : "text-[#15803d]"}`}

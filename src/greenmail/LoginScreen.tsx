@@ -1,13 +1,24 @@
 import React, { useState } from "react";
-import { Loader2, LockKeyhole } from "lucide-react";
+import { Download, Loader2, LockKeyhole } from "lucide-react";
 import { gm, storeToken } from "./api";
+import { rememberedEmail, rememberSignIn } from "./pwa";
 import { Brand } from "./ui";
 
 /** Mailbox sign-in. ?email=… or ?domain=… (from yourdomain.com/greenmail) pre-fill the address. */
-export function LoginScreen({ onSignedIn, notice }: { onSignedIn: (token: string) => void; notice: string | null }) {
+export function LoginScreen({
+  onSignedIn,
+  notice,
+  domain,
+  onInstall,
+}: {
+  onSignedIn: (token: string) => void;
+  notice: string | null;
+  /** The website this Green Mail belongs to (remembered on the device). */
+  domain: string;
+  onInstall: (() => void) | null;
+}) {
   const params = new URLSearchParams(window.location.search);
-  const domain = (params.get("domain") || "").replace(/^www\./i, "").replace(/[^a-z0-9.-]/gi, "");
-  const [email, setEmail] = useState(params.get("email") || (domain ? `@${domain}` : ""));
+  const [email, setEmail] = useState(params.get("email") || rememberedEmail(domain) || (domain ? `@${domain}` : ""));
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -28,6 +39,7 @@ export function LoginScreen({ onSignedIn, notice }: { onSignedIn: (token: string
     try {
       const response = await gm<{ token: string }>("/session", "", { method: "POST", body: JSON.stringify({ email: email.trim(), password }) });
       storeToken(response.token, remember);
+      rememberSignIn(email);
       onSignedIn(response.token);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not sign in.");
@@ -97,6 +109,11 @@ export function LoginScreen({ onSignedIn, notice }: { onSignedIn: (token: string
             )}
           </p>
         </form>
+        {onInstall && (
+          <button type="button" onClick={onInstall} className="mx-auto mt-4 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-[#15803d] hover:bg-white">
+            <Download className="h-4 w-4" /> Install Green Mail on this device
+          </button>
+        )}
       </div>
     </main>
   );

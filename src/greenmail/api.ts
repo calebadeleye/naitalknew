@@ -98,3 +98,7 @@ export type FullMessage = MessageSummary & {
 export type Contact = { id: number; name: string | null; email: string; phone: string | null; company: string | null; notes: string | null };
 
 export type Me = { email: string; display_name: string | null; signature_html: string | null; quota: { used_bytes: number; limit_bytes: number } | null };
+
+export type CalendarEvent = { id: number; title: string; starts_at: string; ends_at: string | null; all_day: boolean; location: string | null; notes: string | null };
+
+export type Task = { id: number; title: string; due_date: string | null; done: boolean; completed_at: string | null; notes: string | null };

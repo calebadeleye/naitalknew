@@ -3,15 +3,18 @@ import {
   Archive,
   ArrowLeft,
   Bot,
+  CalendarDays,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Download,
   FileText,
   Folder as FolderIcon,
   Inbox,
   Loader2,
+  ListTodo,
   LogOut,
   Mail,
   MailOpen,
@@ -29,10 +32,14 @@ import {
 } from "lucide-react";
 import { clearToken, gm, readToken, SessionExpired, type Folder, type FullMessage, type Me, type MessageSummary } from "./api";
 import { Composer, type ComposeDraft } from "./Composer";
+import { InstallHelp } from "./InstallHelp";
 import { LoginScreen } from "./LoginScreen";
+import { currentDomain, useGreenmailAppShell, useInstall } from "./pwa";
 import { MessageReader, type ReaderAction } from "./MessageReader";
 import { SettingsModal } from "./SettingsModal";
+import { CalendarView } from "./CalendarView";
 import { SidePanel } from "./SidePanel";
+import { TasksView } from "./TasksView";
 import { Avatar, Brand, displayName, escapeHtml, formatBytes, fullDate, listDate, withoutRemoteImages } from "./ui";
 
 type Filter = "all" | "unread" | "flagged" | "attachments";
@@ -54,6 +61,14 @@ const ROLE_LABEL: Record<string, string> = { inbox: "Inbox", sent: "Sent", draft
 export function GreenmailApp() {
   const [token, setToken] = useState(readToken);
   const [notice, setNotice] = useState<string | null>(null);
+  // Which website this Green Mail belongs to (from yourdomain.com/greenmail, or remembered).
+  const [domain] = useState(currentDomain);
+  const installer = useInstall();
+  const [showInstallHelp, setShowInstallHelp] = useState(false);
+  useGreenmailAppShell(domain);
+
+  const install = () => void installer.install().then((result) => result === "ios" && setShowInstallHelp(true));
+  const installHelp = showInstallHelp && <InstallHelp onClose={() => setShowInstallHelp(false)} />;
 
   useEffect(() => {
     document.title = "Green Mail";
@@ -66,29 +81,38 @@ export function GreenmailApp() {
 
   if (!token) {
     return (
-      <LoginScreen
-        notice={notice}
-        onSignedIn={(newToken) => {
-          setNotice(null);
-          setToken(newToken);
-        }}
-      />
+      <>
+        <LoginScreen
+          notice={notice}
+          domain={domain}
+          onInstall={installer.canInstall ? install : null}
+          onSignedIn={(newToken) => {
+            setNotice(null);
+            setToken(newToken);
+          }}
+        />
+        {installHelp}
+      </>
     );
   }
 
   return (
-    <Mailbox
-      token={token}
-      onSignedOut={(message) => {
-        clearToken();
-        setNotice(message);
-        setToken("");
-      }}
-    />
+    <>
+      <Mailbox
+        token={token}
+        onInstall={installer.canInstall ? install : null}
+        onSignedOut={(message) => {
+          clearToken();
+          setNotice(message);
+          setToken("");
+        }}
+      />
+      {installHelp}
+    </>
   );
 }
 
-function Mailbox({ token, onSignedOut }: { token: string; onSignedOut: (message: string | null) => void }) {
+function Mailbox({ token, onSignedOut, onInstall }: { token: string; onSignedOut: (message: string | null) => void; onInstall: (() => void) | null }) {
   const [me, setMe] = useState<Me | null>(null);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [folder, setFolder] = useState("INBOX");
@@ -110,6 +134,7 @@ function Mailbox({ token, onSignedOut }: { token: string; onSignedOut: (message:
   const [starredCount, setStarredCount] = useState(0);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [mobileNav, setMobileNav] = useState(false);
+  const [view, setView] = useState<"mail" | "calendar" | "tasks">("mail");
 
   const handleError = useCallback(
     (error: unknown) => {
@@ -179,6 +204,7 @@ function Mailbox({ token, onSignedOut }: { token: string; onSignedOut: (message:
   const pathOf = (role: string) => folders.find((f) => f.role === role)?.path ?? null;
 
   const openFolder = (path: string, nextFilter: Filter = "all") => {
+    setView("mail");
     setFolder(path);
     setFilter(nextFilter);
     setPage(1);
@@ -281,7 +307,10 @@ function Mailbox({ token, onSignedOut }: { token: string; onSignedOut: (message:
     });
   };
 
-  const newMessage = (to = "") => setCompose({ variant: "window", key: Date.now(), draft: { to, cc: "", bcc: "", subject: "", bodyHtml: `<p><br></p>${signature}` } });
+  const newMessage = (to = "") => {
+    setView("mail");
+    setCompose({ variant: "window", key: Date.now(), draft: { to, cc: "", bcc: "", subject: "", bodyHtml: `<p><br></p>${signature}` } });
+  };
 
   const afterRemoval = (uid: number, text: string) => {
     flash(text);
@@ -409,7 +438,7 @@ function Mailbox({ token, onSignedOut }: { token: string; onSignedOut: (message:
       type="button"
       title={collapsed ? label : undefined}
       onClick={onClick}
-      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[15px] transition ${active ? "bg-white/10 font-bold text-white shadow-[inset_3px_0_0_#22c55e]" : "text-white/80 hover:bg-white/5 hover:text-white"}`}
+      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[15px] transition ${active && (view === "mail" || key.startsWith("tool-")) ? "bg-white/10 font-bold text-white shadow-[inset_3px_0_0_#22c55e]" : "text-white/80 hover:bg-white/5 hover:text-white"}`}
     >
       <Icon className="h-[18px] w-[18px] shrink-0" />
       {!collapsed && <span className="min-w-0 flex-1 truncate text-left">{label}</span>}
@@ -447,6 +476,9 @@ function Mailbox({ token, onSignedOut }: { token: string; onSignedOut: (message:
             {otherFolders.map((f) => folderButton(f.path, f.role === "archive" ? "Archive" : f.name, f.role === "archive" ? Archive : FolderIcon, folder === f.path, () => openFolder(f.path), f.unread))}
           </>
         )}
+        {!collapsed && <p className="mt-5 px-3 pb-1 text-sm font-semibold text-white/60">Tools</p>}
+        {folderButton("tool-calendar", "Calendar", CalendarDays, view === "calendar", () => { setView("calendar"); setMobileNav(false); })}
+        {folderButton("tool-tasks", "Tasks", ListTodo, view === "tasks", () => { setView("tasks"); setMobileNav(false); })}
       </nav>
       {quota && !collapsed && (
         <div className="mx-3 mb-3 mt-auto rounded-xl border border-white/10 p-3 text-xs text-white/70">
@@ -666,6 +698,11 @@ function Mailbox({ token, onSignedOut }: { token: string; onSignedOut: (message:
           >
             <Bot className="h-4 w-4" /> <span className="hidden sm:inline">AI Assistant</span>
           </button>
+          {onInstall && (
+            <button type="button" title="Install Green Mail on this device" className="inline-flex items-center gap-1.5 rounded-lg border border-[#1f9d4c]/40 px-2.5 py-2 text-sm font-bold text-[#15803d] hover:bg-[#eef8f1]" onClick={onInstall}>
+              <Download className="h-4 w-4" /> <span className="hidden md:inline">Install app</span>
+            </button>
+          )}
           <button type="button" aria-label="Settings" title="Settings" className="rounded-lg p-2 text-slate-600 hover:bg-slate-100" onClick={() => setShowSettings(true)}>
             <Settings className="h-5 w-5" />
           </button>
@@ -682,8 +719,10 @@ function Mailbox({ token, onSignedOut }: { token: string; onSignedOut: (message:
         </header>
 
         <div className="flex min-h-0 flex-1">
-          {listPane}
-          {readerPane}
+          {view === "calendar" && <CalendarView token={token} onSessionError={handleError} flash={flash} />}
+          {view === "tasks" && <TasksView token={token} onSessionError={handleError} />}
+          {view === "mail" && listPane}
+          {view === "mail" && readerPane}
           {showSidePanel && (
             <aside className="fixed inset-y-0 right-0 z-40 flex w-[min(340px,100vw)] flex-col border-l border-slate-200 bg-[#f6f8f7] shadow-2xl 2xl:static 2xl:z-auto 2xl:w-[330px] 2xl:shrink-0 2xl:shadow-none">
               <button type="button" aria-label="Close assistant panel" className="self-end p-2 text-slate-500 hover:text-slate-800 2xl:hidden" onClick={() => setShowSidePanel(false)}>
@@ -696,13 +735,15 @@ function Mailbox({ token, onSignedOut }: { token: string; onSignedOut: (message:
                 onSessionError={handleError}
                 onUseDraft={(text) => startReply("reply", text)}
                 onWriteTo={(email) => newMessage(email)}
+                onOpenCalendar={() => setView("calendar")}
+                onOpenTasks={() => setView("tasks")}
               />
             </aside>
           )}
         </div>
       </div>
 
-      {!selectedUid && !compose && (
+      {view === "mail" && !selectedUid && !compose && (
         <button
           type="button"
           aria-label="Compose"

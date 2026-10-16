@@ -110,6 +110,26 @@ async function injectSeoTags(html, pathname) {
  * canonical ends up pointing at the private path itself. Both are real bugs,
  * not intentional: strip the (wrong) canonical and force noindex.
  */
+/**
+ * Green Mail pages are their own installable app: swap the site's manifest,
+ * icons and theme colour for Green Mail's, so "Install" installs Green Mail
+ * (for this website — the domain rides along into the manifest's start_url).
+ */
+function applyGreenmailHead(html, domainParam) {
+  const domain = String(domainParam || "")
+    .toLowerCase()
+    .replace(/^www\./, "")
+    .replace(/[^a-z0-9.-]/g, "")
+    .slice(0, 100);
+  const manifest = `/greenmail/manifest.webmanifest${domain ? `?domain=${encodeURIComponent(domain)}` : ""}`;
+  return html
+    .replace(/<link[^>]*rel="manifest"[^>]*>/s, `<link rel="manifest" href="${manifest}" />`)
+    .replace(/<link[^>]*rel="apple-touch-icon"[^>]*>/s, '<link rel="apple-touch-icon" sizes="180x180" href="/greenmail-app/apple-touch-icon.png" />\n    <meta name="apple-mobile-web-app-capable" content="yes" />\n    <meta name="apple-mobile-web-app-title" content="Green Mail" />')
+    .replace(/<link[^>]*rel="icon"[^>]*>\s*/gs, "")
+    .replace(/<meta\s+name="theme-color"[^>]*>/s, '<meta name="theme-color" content="#15803d" />\n    <link rel="icon" type="image/png" sizes="32x32" href="/greenmail-app/favicon-32.png" />')
+    .replace(/<title>[\s\S]*?<\/title>/, "<title>Green Mail</title>");
+}
+
 function applyPrivateNoindex(html) {
   return html
     .replace(/<link[^>]*rel="canonical"[^>]*>\s*/s, "")
@@ -686,6 +706,38 @@ async function startServer() {
     res.status(404).json({ error: "API route not found" });
   });
 
+  // Green Mail's web app manifest (installable PWA). Built per request so an
+  // app installed from calebadeleye.com/greenmail opens with that domain
+  // pre-filled (start_url carries ?domain=) and is a separate install from
+  // another company's Green Mail on the same device (id includes the domain).
+  app.get("/greenmail/manifest.webmanifest", (req, res) => {
+    const domain = String(req.query.domain || "")
+      .toLowerCase()
+      .replace(/^www\./, "")
+      .replace(/[^a-z0-9.-]/g, "")
+      .slice(0, 100);
+    const query = domain ? `?domain=${encodeURIComponent(domain)}` : "";
+    res.type("application/manifest+json").set("Cache-Control", "no-cache").send(
+      JSON.stringify({
+        id: `/greenmail${query}`,
+        name: domain ? `Green Mail · ${domain}` : "Green Mail",
+        short_name: "Green Mail",
+        description: "Email, calendar and tasks.",
+        start_url: `/greenmail${query}${query ? "&" : "?"}source=app`,
+        scope: "/greenmail",
+        display: "standalone",
+        orientation: "any",
+        background_color: "#f3f6f4",
+        theme_color: "#15803d",
+        icons: [
+          { src: "/greenmail-app/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+          { src: "/greenmail-app/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+          { src: "/greenmail-app/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+        ],
+      }),
+    );
+  });
+
   // Registered ahead of the SPA catch-all (and, in production, ahead of
   // express.static(distPath) too) so this always wins over any static
   // dist/sitemap.xml -- there isn't one anymore (removed public/sitemap.xml
@@ -765,6 +817,9 @@ async function startServer() {
       let html = await injectSeoTags(template, pathname);
       if (isPrivatePath(pathname) || status === 503) {
         html = applyPrivateNoindex(html);
+      }
+      if (pathname === "/greenmail" || pathname.startsWith("/greenmail/")) {
+        html = applyGreenmailHead(html, req.query.domain);
       }
 
       res

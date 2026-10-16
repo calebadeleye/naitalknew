@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { Bot, ChevronDown, ChevronUp, FileText, Languages, ListChecks, Loader2, Pencil, Plus, Send, Trash2, UserRound } from "lucide-react";
-import { gm, type Contact, type FullMessage } from "./api";
+import { Bot, CalendarDays, ChevronDown, ChevronUp, FileText, Languages, ListChecks, ListTodo, Loader2, Pencil, Plus, Send, Trash2, UserRound } from "lucide-react";
+import { gm, type CalendarEvent, type Contact, type FullMessage } from "./api";
+import { EventModal } from "./EventModal";
+import { addDays, startOfDay, timeLabel } from "./planner";
+import { TaskRow, useTasks } from "./TasksView";
 import { Avatar } from "./ui";
 
 type AssistantAction = "summarise" | "draft_reply" | "action_items" | "translate_yoruba" | "ask";
@@ -13,6 +16,8 @@ export function SidePanel({
   onUseDraft,
   onWriteTo,
   onSessionError,
+  onOpenCalendar,
+  onOpenTasks,
 }: {
   token: string;
   message: FullMessage | null;
@@ -20,10 +25,14 @@ export function SidePanel({
   onUseDraft: (text: string) => void;
   onWriteTo: (email: string) => void;
   onSessionError: (error: unknown) => void;
+  onOpenCalendar: () => void;
+  onOpenTasks: () => void;
 }) {
   return (
     <div className="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-3">
       <AssistantCard token={token} message={message} folder={folder} onUseDraft={onUseDraft} onSessionError={onSessionError} />
+      <CalendarCard token={token} onSessionError={onSessionError} onOpen={onOpenCalendar} />
+      <TasksCard token={token} onSessionError={onSessionError} onOpen={onOpenTasks} />
       <ContactsCard token={token} onWriteTo={onWriteTo} onSessionError={onSessionError} />
     </div>
   );
@@ -247,6 +256,114 @@ function ContactsCard({ token, onWriteTo, onSessionError }: { token: string; onW
             </button>
           </div>
         </form>
+      )}
+    </Card>
+  );
+}
+
+/** Today's events, as in the mockup; "View calendar" opens the full month. */
+function CalendarCard({ token, onSessionError, onOpen }: { token: string; onSessionError: (error: unknown) => void; onOpen: () => void }) {
+  const [events, setEvents] = useState<CalendarEvent[] | null>(null);
+  const [adding, setAdding] = useState(false);
+  const today = startOfDay(new Date());
+
+  const load = () =>
+    gm<{ events: CalendarEvent[] }>(`/events?from=${encodeURIComponent(today.toISOString())}&to=${encodeURIComponent(addDays(today, 1).toISOString())}`, token)
+      .then((response) => setEvents(response.events))
+      .catch((error) => {
+        onSessionError(error);
+        setEvents([]);
+      });
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => void load(), [token]);
+
+  return (
+    <Card title="Calendar" icon={<CalendarDays className="h-5 w-5 text-slate-700" />}>
+      <p className="-mt-1 mb-2 text-xs text-slate-500">Today, {today.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
+      {events === null ? (
+        <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+      ) : events.length === 0 ? (
+        <p className="text-xs text-slate-500">Nothing planned today.</p>
+      ) : (
+        <ul className="grid gap-2">
+          {events.map((event) => (
+            <li key={event.id} className="flex gap-3 text-sm">
+              <span className="w-[68px] shrink-0 text-xs leading-5 text-slate-500">{event.all_day ? "All day" : <>{timeLabel(event.starts_at)}{event.ends_at && <><br />{timeLabel(event.ends_at)}</>}</>}</span>
+              <span className="min-w-0 border-l-2 border-[#1f9d4c] pl-2.5">
+                <span className="block truncate font-semibold text-slate-800">{event.title}</span>
+                {event.location && <span className="block truncate text-xs text-slate-500">{event.location}</span>}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="mt-3 flex items-center justify-between">
+        <button type="button" className="inline-flex items-center gap-1 text-sm font-bold text-[#1a7f3f] hover:underline" onClick={() => setAdding(true)}>
+          <Plus className="h-4 w-4" /> New event
+        </button>
+        <button type="button" className="text-xs font-bold text-[#1a7f3f] hover:underline" onClick={onOpen}>
+          View calendar
+        </button>
+      </div>
+      {adding && (
+        <EventModal
+          token={token}
+          event={null}
+          defaultDate={new Date()}
+          onSessionError={onSessionError}
+          onClose={() => setAdding(false)}
+          onSaved={() => {
+            setAdding(false);
+            void load();
+          }}
+        />
+      )}
+    </Card>
+  );
+}
+
+/** What's due, with a quick add; "View all" opens the Tasks page. */
+function TasksCard({ token, onSessionError, onOpen }: { token: string; onSessionError: (error: unknown) => void; onOpen: () => void }) {
+  const { tasks, add, update } = useTasks(token, "open", onSessionError);
+  const [title, setTitle] = useState("");
+
+  return (
+    <Card title="Tasks" icon={<ListTodo className="h-5 w-5 text-slate-700" />}>
+      {tasks === null ? (
+        <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+      ) : tasks.length === 0 ? (
+        <p className="text-xs text-slate-500">Nothing to do.</p>
+      ) : (
+        <ul>
+          {tasks.slice(0, 5).map((task) => (
+            <React.Fragment key={task.id}>
+              <TaskRow task={task} compact onToggle={() => void update(task, { done: true })} />
+            </React.Fragment>
+          ))}
+        </ul>
+      )}
+      <form
+        className="mt-2 flex items-center gap-2 rounded-lg border border-slate-200 px-2 py-1"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!title.trim()) return;
+          void add(title.trim(), null);
+          setTitle("");
+        }}
+      >
+        <Plus className="h-4 w-4 text-slate-400" />
+        <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="New task" aria-label="New task" maxLength={255} className="min-w-0 flex-1 bg-transparent py-1 text-sm outline-none" />
+      </form>
+      {tasks && tasks.length > 5 && (
+        <button type="button" className="mt-2 text-xs font-bold text-[#1a7f3f] hover:underline" onClick={onOpen}>
+          View all {tasks.length}
+        </button>
+      )}
+      {tasks && tasks.length <= 5 && (
+        <button type="button" className="mt-2 text-xs font-bold text-[#1a7f3f] hover:underline" onClick={onOpen}>
+          Open tasks
+        </button>
       )}
     </Card>
   );
