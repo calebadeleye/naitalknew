@@ -113,12 +113,15 @@ export function GreenmailBrandStrip({ clientLogos }: { clientLogos?: ClientLogo[
   const row = (hidden: boolean) => (
     <ul className="flex shrink-0 items-center gap-4 pr-4" aria-hidden={hidden || undefined}>
       {items.map((brand) => (
-        <li key={brand.name} className="flex h-16 min-w-[150px] items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-5" title={brand.name}>
-          {brand.src ? (
-            <img src={brand.src} alt={hidden ? "" : brand.name} loading="lazy" className="max-h-9 max-w-[120px] object-contain opacity-80 brightness-0 invert transition hover:opacity-100" />
-          ) : (
-            <span className="whitespace-nowrap text-sm font-black uppercase tracking-wide text-white/75">{brand.name}</span>
-          )}
+        <li key={brand.name} className="flex w-40 shrink-0 flex-col items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4" title={brand.name}>
+          <span className="flex h-14 w-full items-center justify-center">
+            {brand.src ? (
+              <img src={brand.src} alt={hidden ? "" : brand.name} loading="lazy" decoding="async" className="max-h-14 max-w-full rounded object-contain opacity-90 transition hover:opacity-100" />
+            ) : (
+              <span className="text-center text-base font-black leading-tight text-white/80">{brand.name}</span>
+            )}
+          </span>
+          {brand.src && <span className="w-full truncate text-center text-[10px] font-bold uppercase tracking-wide text-white/45">{brand.name}</span>}
         </li>
       ))}
     </ul>
