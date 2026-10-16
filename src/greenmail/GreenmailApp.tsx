@@ -352,7 +352,9 @@ function Mailbox({ token, onSignedOut, onInstall }: { token: string; onSignedOut
   const startReply = (mode: "reply" | "reply_all" | "forward", bodyText?: string) => {
     if (!message) return;
     const subjectBase = message.subject === "(no subject)" ? "" : message.subject;
-    const intro = bodyText ? bodyText.split(/\n{2,}/).map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br>")}</p>`).join("") : "<p><br></p>";
+    // Where to start typing: the composer puts the cursor here and shows a hint until something is typed.
+    const startHere = `<p class="gm-start" data-placeholder="${mode === "forward" ? "Add a message (optional)…" : "Type your reply here…"}"><br></p>`;
+    const intro = bodyText ? bodyText.split(/\n{2,}/).map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br>")}</p>`).join("") : startHere;
     const original = withoutRemoteImages(message.html);
 
     if (mode === "forward") {
@@ -399,7 +401,7 @@ function Mailbox({ token, onSignedOut, onInstall }: { token: string; onSignedOut
     setView("mail");
     setSelectedUid(null);
     setMessage(null);
-    setCompose({ variant: "window", key: Date.now(), draft: { to, cc: "", bcc: "", subject: template?.subject ?? "", bodyHtml: `${template?.body_html ?? "<p><br></p>"}${signature}` } });
+    setCompose({ variant: "window", key: Date.now(), draft: { to, cc: "", bcc: "", subject: template?.subject ?? "", bodyHtml: `${template?.body_html ?? '<p class="gm-start" data-placeholder="Write your message…"><br></p>'}${signature}` } });
   };
 
   const afterRemoval = (uid: number, text: string) => {

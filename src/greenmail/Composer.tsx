@@ -68,10 +68,38 @@ export function Composer({
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (editorRef.current) editorRef.current.innerHTML = draft.bodyHtml;
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.innerHTML = draft.bodyHtml;
+
+    // Replies go straight to the message: cursor where the person types
+    // (above the signature), scrolled into view. New messages and forwards
+    // start in the To field instead.
+    if (draft.replyingTo) {
+      const start = editor.querySelector(".gm-start") ?? [...editor.children].filter((node) => !node.classList.contains("gm-signature")).pop() ?? editor;
+      editor.focus({ preventScroll: true });
+      const range = document.createRange();
+      range.selectNodeContents(start);
+      range.collapse(!start.textContent?.trim());
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      editor.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
     // Only on open — after that the editor owns its content.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** The message as written, without the editor's "start typing here" marker. */
+  const bodyHtml = () => {
+    const copy = editorRef.current?.cloneNode(true) as HTMLElement | undefined;
+    copy?.querySelectorAll(".gm-start").forEach((node) => {
+      node.classList.remove("gm-start");
+      node.removeAttribute("data-placeholder");
+      if (!node.getAttribute("class")) node.removeAttribute("class");
+    });
+    return copy?.innerHTML ?? "";
+  };
 
   const command = (name: string, value?: string) => {
     editorRef.current?.focus();
@@ -84,7 +112,7 @@ export function Composer({
     data.append("cc", cc);
     data.append("bcc", bcc);
     data.append("subject", subject);
-    data.append("html", (editorRef.current?.innerHTML ?? "") + (draft.quoteHtml ? `<br>${draft.quoteHtml}` : ""));
+    data.append("html", bodyHtml() + (draft.quoteHtml ? `<br>${draft.quoteHtml}` : ""));
     if (draft.inReplyTo) data.append("in_reply_to", draft.inReplyTo);
     if (draft.references) data.append("references", draft.references);
     if (draft.replyUid) data.append("reply_uid", String(draft.replyUid));
@@ -162,9 +190,10 @@ export function Composer({
     if (!name?.trim()) return;
     try {
       // The signature is left out — it's added to each new message anyway.
-      const copy = editorRef.current?.cloneNode(true) as HTMLElement | undefined;
-      copy?.querySelectorAll(".gm-signature").forEach((node) => node.remove());
-      const result = await gm<{ message: string }>("/templates", token, { method: "POST", body: JSON.stringify({ name: name.trim(), subject: subject || null, body_html: copy?.innerHTML ?? "" }) });
+      const copy = document.createElement("div");
+      copy.innerHTML = bodyHtml();
+      copy.querySelectorAll(".gm-signature").forEach((node) => node.remove());
+      const result = await gm<{ message: string }>("/templates", token, { method: "POST", body: JSON.stringify({ name: name.trim(), subject: subject || null, body_html: copy.innerHTML }) });
       toast(result.message);
       announceChange("templates");
     } catch (err) {
