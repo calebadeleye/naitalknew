@@ -1881,8 +1881,12 @@
   --color-red-100: #991b1b;
   --color-red-200: #b91c1c;
   --color-red-300: #b91c1c;
+  --color-red-400: #b91c1c;
   --color-yellow-100: #854d0e;
   --color-yellow-200: #a16207;
+  --color-yellow-300: #a16207;
+  --color-yellow-400: #a16207;
+  --color-amber-400: #b45309;
   --chart-bar: #3f7d12;
   --chart-bar-hover: #2c5a0c;
   color-scheme: light;
@@ -1899,7 +1903,7 @@
   background: rgba(255, 255, 255, 0.92);
 }
 
-[data-theme="light"] :is(.metric-card, .dashboard-card, .portal-card, .admin-panel, .admin-card, .catalog-card, .hosting-stat-card) {
+[data-theme="light"] :is(.metric-card, .dashboard-card, .portal-card, .admin-panel, .admin-card, .catalog-card, .hosting-stat-card, .hosting-modal, .donut-chart span) {
   background: #ffffff;
   box-shadow: 0 1px 2px rgba(11, 22, 32, 0.06), 0 8px 24px -16px rgba(11, 22, 32, 0.18);
 }
