@@ -50,21 +50,50 @@ export async function isEnabledHere(token: string): Promise<boolean> {
   return status.this_device;
 }
 
-export async function enableHere(token: string, domain: string): Promise<void> {
-  const permission = await Notification.requestPermission();
-  if (permission !== "granted") throw new Error("Notifications were not allowed. You can allow them in your browser or phone settings.");
-
-  const { public_key: key } = await gm<{ public_key: string | null }>("/push/key", "");
-  if (!key) throw new Error("Notifications are not available yet. Please try again later.");
-
-  const reg = await registration();
-  if (!reg) throw new Error("This browser can't receive notifications from Green Mail.");
-  await navigator.serviceWorker.ready;
-
-  const subscription = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: toKey(key) }));
-  const json = subscription.toJSON();
-  await gm("/push", token, { method: "POST", body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys, domain: domain || null }) });
+/** Tells the server why turning notifications on failed, so support can see it (best effort). */
+function reportProblem(token: string, stage: string, error: unknown) {
+  const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  void gm("/push/problem", token, { method: "POST", body: JSON.stringify({ stage, message: message.slice(0, 480), standalone: isInstalled() }) }).catch(() => undefined);
 }
+
+export async function enableHere(token: string, domain: string): Promise<void> {
+  let stage = "permission";
+  try {
+    // Must be the first thing after the tap: iPhone only asks for permission straight after a tap.
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") throw new Error(permission === "denied" ? "Notifications were not allowed. Allow them for Green Mail in your phone or browser settings, then try again." : "Notifications were not turned on. Tap the switch again and choose Allow.");
+
+    stage = "key";
+    const { public_key: key } = await gm<{ public_key: string | null }>("/push/key", "");
+    if (!key) throw new Error("Notifications are not available yet. Please try again later.");
+
+    stage = "register";
+    const reg = await registration();
+    if (!reg) throw new Error("This browser can't receive notifications from Green Mail.");
+    await navigator.serviceWorker.ready;
+
+    stage = "subscribe";
+    const subscription = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: toKey(key) }));
+    const json = subscription.toJSON();
+
+    stage = "server";
+    await gm("/push", token, { method: "POST", body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys, domain: domain || null }) });
+  } catch (error) {
+    reportProblem(token, stage, error);
+    if (stage === "subscribe") throw new Error("This device could not sign up for notifications. Close Green Mail completely, open it again from the Home Screen, and try once more.");
+    throw error;
+  }
+}
+
+/** Ask the server to send a test notification to this device. */
+export async function sendTestHere(token: string): Promise<string> {
+  const subscription = await deviceSubscription();
+  if (!subscription) throw new Error("Notifications are not on for this device. Turn them on first.");
+  const result = await gm<{ message: string }>("/push/test", token, { method: "POST", body: JSON.stringify({ endpoint: subscription.endpoint }) });
+  return result.message;
+}
+
+export { isInstalled as runningAsInstalledApp };
 
 /** Stop for this mailbox (other signed-in mailboxes on this device keep theirs). */
 export async function disableHere(token: string): Promise<void> {

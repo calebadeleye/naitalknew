@@ -3,7 +3,7 @@ import { Bell, BellOff, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, Mail, Smar
 import { gm, type Me } from "./api";
 import { useFeedback } from "./feedback";
 import { currentDomain } from "./pwa";
-import { disableHere, enableHere, isEnabledHere, pushSupport, type PushSupport } from "./push";
+import { disableHere, enableHere, isEnabledHere, pushSupport, sendTestHere, type PushSupport } from "./push";
 import { playNewMailSound, setSoundEnabled, soundEnabled } from "./sound";
 
 const field = "mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-[#1f9d4c]";
@@ -202,6 +202,22 @@ export function NotificationsTab({ token, email }: { token: string; email: strin
           </div>
           {support === "supported" && (enabled === null ? <Loader2 className="h-5 w-5 animate-spin text-slate-400" /> : <Switch on={enabled} label="Notifications on this device" onChange={() => void togglePush()} disabled={busy} />)}
         </div>
+        {enabled && (
+          <button
+            type="button"
+            className="mt-3 text-xs font-bold text-[#1a7f3f] hover:underline disabled:opacity-50"
+            disabled={busy}
+            onClick={() => {
+              setBusy(true);
+              sendTestHere(token)
+                .then((message) => toast(message, "info"))
+                .catch((err) => toast(err instanceof Error ? err.message : "The test could not be sent.", "error"))
+                .finally(() => setBusy(false));
+            }}
+          >
+            Send a test notification
+          </button>
+        )}
         {support === "install-first" && (
           <p className="mt-3 flex gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
             <Smartphone className="mt-0.5 h-4 w-4 shrink-0" /> On iPhone and iPad, add Green Mail to your Home Screen first (Share, then Add to Home Screen), open it from there, and turn notifications on here.

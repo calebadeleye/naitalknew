@@ -39,6 +39,7 @@ import { Composer, type ComposeDraft } from "./Composer";
 import { FeedbackProvider, useFeedback } from "./feedback";
 import { GreenmailThemeProvider, useVisibleViewport } from "./theme";
 import { playNewMailSound } from "./sound";
+import { NotificationPrompt } from "./NotificationPrompt";
 import { InstallHelp } from "./InstallHelp";
 import { LoginScreen } from "./LoginScreen";
 import { currentDomain, useGreenmailAppShell, useInstall } from "./pwa";
@@ -975,6 +976,7 @@ function Mailbox({
             onSignOutAll={onSignOutAll}
           />
         </header>
+        {myEmail && <NotificationPrompt token={token} email={myEmail} />}
 
         <div className="flex min-h-0 flex-1">
           {view === "calendar" && <CalendarView token={token} onSessionError={handleError} flash={flash} />}

@@ -55,6 +55,36 @@ class PushNotifications
         ]);
     }
 
+    /** A test notification to one device, so people can see notifications work. */
+    public function sendTest(string $owner, string $endpoint): string
+    {
+        $subscription = GreenmailPushSubscription::query()->where('owner_email', $owner)->where('endpoint_hash', hash('sha256', $endpoint))->first();
+
+        if (! $subscription) {
+            return 'missing';
+        }
+
+        $domain = $subscription->domain ?: Str::after($owner, '@');
+        $outcome = $this->deliver([[
+            'subscription' => $subscription,
+            'payload' => [
+                'title' => 'Green Mail notifications are on',
+                'body' => "You'll get a notification like this when new mail arrives.",
+                'mailbox' => $owner,
+                'uid' => 0,
+                'url' => '/greenmail?domain='.rawurlencode($domain).'&source=push',
+                'tag' => 'greenmail-test',
+                'test' => true,
+            ],
+        ]])[$subscription->endpoint] ?? 'failed';
+
+        if ($outcome === 'expired') {
+            $subscription->delete();
+        }
+
+        return $outcome;
+    }
+
     public function unsubscribe(string $owner, string $endpoint): void
     {
         GreenmailPushSubscription::query()->where('owner_email', $owner)->where('endpoint_hash', hash('sha256', $endpoint))->delete();

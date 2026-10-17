@@ -49,6 +49,31 @@ class PushController extends Controller
         return response()->json(['message' => 'Notifications are on for this device.'], 201);
     }
 
+    public function test(Request $request, PushNotifications $push)
+    {
+        $data = $request->validate(['endpoint' => ['required', 'string', 'max:1000']]);
+
+        return match ($push->sendTest($this->owner($request), $data['endpoint'])) {
+            'sent' => response()->json(['message' => 'Test notification sent. It should appear in a few seconds.']),
+            'missing' => response()->json(['message' => 'Notifications are not on for this device. Turn them on first.'], 422),
+            'expired' => response()->json(['message' => 'This device stopped accepting notifications. Turn them on again.'], 422),
+            default => response()->json(['message' => 'The notification service did not accept it. Please try again in a minute.'], 502),
+        };
+    }
+
+    /** When turning notifications on fails in the browser, it reports why here (for support). */
+    public function problem(Request $request)
+    {
+        $data = $request->validate(['stage' => ['required', 'string', 'max:40'], 'message' => ['nullable', 'string', 'max:500'], 'standalone' => ['nullable', 'boolean']]);
+
+        \Illuminate\Support\Facades\Log::warning('Green Mail: turning on notifications failed', $data + [
+            'mailbox' => $this->owner($request),
+            'user_agent' => mb_substr((string) $request->userAgent(), 0, 300),
+        ]);
+
+        return response()->json(['message' => 'Thanks — noted.']);
+    }
+
     public function destroy(Request $request, PushNotifications $push)
     {
         $data = $request->validate(['endpoint' => ['required', 'string', 'max:1000']]);

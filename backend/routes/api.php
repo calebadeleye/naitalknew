@@ -139,6 +139,8 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/push', [GreenmailPushController::class, 'status']);
             Route::post('/push', [GreenmailPushController::class, 'store'])->middleware('throttle:greenmail-settings');
             Route::delete('/push', [GreenmailPushController::class, 'destroy']);
+            Route::post('/push/test', [GreenmailPushController::class, 'test'])->middleware('throttle:greenmail-settings');
+            Route::post('/push/problem', [GreenmailPushController::class, 'problem'])->middleware('throttle:greenmail-settings');
             Route::post('/password', [GreenmailAccountController::class, 'changePassword'])->middleware('throttle:greenmail-recovery');
             Route::put('/recovery-email', [GreenmailAccountController::class, 'setRecoveryEmail'])->middleware('throttle:greenmail-recovery');
             Route::post('/recovery-email/confirm', [GreenmailAccountController::class, 'confirmRecoveryEmail'])->middleware('throttle:greenmail-recovery');

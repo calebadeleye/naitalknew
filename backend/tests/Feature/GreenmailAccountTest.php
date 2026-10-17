@@ -204,6 +204,12 @@ class GreenmailAccountTest extends TestCase
         $this->artisan('greenmail:push-check');
         $this->assertCount(2, $this->pushed, 'each email is announced once');
 
+        // A test notification on request.
+        $this->withHeader('X-Greenmail-Token', $token)->postJson('/api/v1/greenmail/push/test', ['endpoint' => 'https://push.example.test/phone'])->assertOk();
+        $this->assertSame('Green Mail notifications are on', end($this->pushed)['title']);
+        $this->withHeader('X-Greenmail-Token', $token)->postJson('/api/v1/greenmail/push/test', ['endpoint' => 'https://push.example.test/never'])->assertStatus(422);
+        $this->withHeader('X-Greenmail-Token', $token)->postJson('/api/v1/greenmail/push/problem', ['stage' => 'subscribe', 'message' => 'AbortError'])->assertOk();
+
         // Signing out on the device turns its notifications off.
         $this->withHeader('X-Greenmail-Token', $token)->deleteJson('/api/v1/greenmail/session')->assertOk();
         $this->assertSame(0, GreenmailPushSubscription::count());
