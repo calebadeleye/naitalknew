@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { trackPageView } from "../lib/analytics";
 
 export type AdminSectionId =
+  | "dashboard"
   | "analytics"
   | "naigrowth"
   | "logo"
@@ -30,7 +31,8 @@ export type AdminSectionId =
   | "websiteQuotes";
 
 const SECTION_PATHS: Record<AdminSectionId, string> = {
-  analytics: "",
+  dashboard: "",
+  analytics: "analytics",
   naigrowth: "naigrowth",
   logo: "logo",
   clientLogos: "client-logos",
@@ -73,12 +75,12 @@ function parseSection(pathname: string): AdminSectionId {
   const segment = segmentOf(pathname);
 
   if (segment === "" || segment === "services/active") {
-    return segment === "" ? "analytics" : "services";
+    return segment === "" ? "dashboard" : "services";
   }
   if (CLIENT_DETAIL_PATTERN.test(segment)) return "clients";
   if (SERVICE_DETAIL_PATTERN.test(segment)) return "services";
 
-  return PATH_TO_SECTION[segment] ?? "analytics";
+  return PATH_TO_SECTION[segment] ?? "dashboard";
 }
 
 function parseClientId(pathname: string): number | null {
