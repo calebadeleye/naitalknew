@@ -100,3 +100,36 @@ export async function disableHere(token: string): Promise<void> {
   const subscription = await deviceSubscription();
   if (subscription) await gm("/push", token, { method: "DELETE", body: JSON.stringify({ endpoint: subscription.endpoint }) });
 }
+
+export type DeviceCheck = {
+  support: PushSupport;
+  iphoneOrIpad: boolean;
+  installedApp: boolean;
+  permission: string;
+  serviceWorker: string;
+  pushService: string;
+  userAgent: string;
+};
+
+/** What this device supports, for the "Device check" in Settings (and sent to support). */
+export async function checkDevice(token: string): Promise<DeviceCheck> {
+  let serviceWorker = "not supported";
+  let pushService = "none";
+  if ("serviceWorker" in navigator) {
+    const reg = await navigator.serviceWorker.getRegistration("/greenmail").catch(() => undefined);
+    serviceWorker = reg ? (reg.active ? "running" : reg.installing || reg.waiting ? "starting" : "registered") : "not registered";
+    const subscription = await reg?.pushManager?.getSubscription().catch(() => null);
+    if (subscription) pushService = new URL(subscription.endpoint).host;
+  }
+  const report: DeviceCheck = {
+    support: pushSupport(),
+    iphoneOrIpad: isIos(),
+    installedApp: Boolean(isInstalled()),
+    permission: "Notification" in window ? Notification.permission : "not available",
+    serviceWorker,
+    pushService,
+    userAgent: navigator.userAgent,
+  };
+  void gm("/push/problem", token, { method: "POST", body: JSON.stringify({ stage: "device-check", message: JSON.stringify({ ...report, userAgent: undefined }).slice(0, 480), standalone: report.installedApp }) }).catch(() => undefined);
+  return report;
+}

@@ -3,7 +3,7 @@ import { Bell, BellOff, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, Mail, Smar
 import { gm, type Me } from "./api";
 import { useFeedback } from "./feedback";
 import { currentDomain } from "./pwa";
-import { disableHere, enableHere, isEnabledHere, pushSupport, sendTestHere, type PushSupport } from "./push";
+import { checkDevice, disableHere, enableHere, isEnabledHere, pushSupport, sendTestHere, type DeviceCheck, type PushSupport } from "./push";
 import { playNewMailSound, setSoundEnabled, soundEnabled } from "./sound";
 
 const field = "mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-[#1f9d4c]";
@@ -147,6 +147,11 @@ export function NotificationsTab({ token, email }: { token: string; email: strin
   const [support] = useState<PushSupport>(pushSupport);
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
+  const [device, setDevice] = useState<DeviceCheck | null>(null);
+
+  useEffect(() => {
+    void checkDevice(token).then(setDevice);
+  }, [token, enabled]);
 
   useEffect(() => {
     if (support !== "supported") {
@@ -226,6 +231,27 @@ export function NotificationsTab({ token, email }: { token: string; email: strin
         {support === "blocked" && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">Notifications are blocked for Green Mail. Allow them in your browser's site settings (or your phone's settings), then come back here.</p>}
         {support === "unsupported" && <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">This browser can't show notifications. Try Chrome, Edge, Firefox or Safari.</p>}
       </div>
+
+      {device && (
+        <details className="rounded-xl border border-slate-200 p-4 text-xs text-slate-600">
+          <summary className="cursor-pointer font-bold text-slate-800">Device check</summary>
+          <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+            {([
+              ["Opened as installed app", device.installedApp ? "Yes" : device.iphoneOrIpad ? "No — open Green Mail from the Home Screen icon" : "No"],
+              ["Notification permission", device.permission],
+              ["Background helper", device.serviceWorker],
+              ["Signed up with", device.pushService === "none" ? "Not signed up on this device" : device.pushService],
+              ["Status", device.support],
+            ] as Array<[string, string]>).map(([label, value]) => (
+              <React.Fragment key={label}>
+                <dt className="font-semibold text-slate-700">{label}</dt>
+                <dd className="break-words">{value}</dd>
+              </React.Fragment>
+            ))}
+          </dl>
+          <p className="mt-3 break-words text-[10px] text-slate-400">{device.userAgent}</p>
+        </details>
+      )}
     </div>
   );
 }
