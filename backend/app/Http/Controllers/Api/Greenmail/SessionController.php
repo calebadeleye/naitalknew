@@ -43,12 +43,17 @@ class SessionController extends Controller
             'display_name' => $settings?->display_name,
             'signature_html' => $settings?->signature_html,
             'quota' => $mail->quota() ?? rescue(fn () => $usage->forMailbox($session->email), null, report: false),
+            'recovery_email' => $settings?->recovery_email,
+            'recovery_email_verified' => (bool) $settings?->recovery_email_verified_at,
         ]);
     }
 
     public function destroy(Request $request, GreenmailSessions $sessions)
     {
-        $sessions->signOut($request->attributes->get('greenmail_session'));
+        $session = $request->attributes->get('greenmail_session');
+        // Signing out on a device also stops its notifications.
+        \App\Models\Greenmail\GreenmailPushSubscription::query()->where('session_id', $session->id)->delete();
+        $sessions->signOut($session);
 
         return response()->json(['message' => 'Signed out.']);
     }

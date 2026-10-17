@@ -31,7 +31,7 @@ class AuthenticateGreenmail
         }
 
         try {
-            $this->mail->open($session->email, $session->password());
+            $this->openMailbox($session);
         } catch (MailAuthenticationFailed) {
             $this->sessions->signOut($session);
 
@@ -46,6 +46,22 @@ class AuthenticateGreenmail
             return $next($request);
         } finally {
             $this->mail->close();
+        }
+    }
+
+    /** Right after a password change made here, the mail server may still want the old one for a moment. */
+    private function openMailbox(\App\Models\Greenmail\GreenmailSession $session): void
+    {
+        try {
+            $this->mail->open($session->email, $session->password());
+        } catch (MailAuthenticationFailed $exception) {
+            $previous = $session->recentPreviousPassword();
+
+            if ($previous === null) {
+                throw $exception;
+            }
+
+            $this->mail->open($session->email, $previous);
         }
     }
 }

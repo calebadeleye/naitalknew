@@ -38,6 +38,7 @@ import { CampaignsView } from "./CampaignsView";
 import { Composer, type ComposeDraft } from "./Composer";
 import { FeedbackProvider, useFeedback } from "./feedback";
 import { GreenmailThemeProvider, useVisibleViewport } from "./theme";
+import { playNewMailSound } from "./sound";
 import { InstallHelp } from "./InstallHelp";
 import { LoginScreen } from "./LoginScreen";
 import { currentDomain, useGreenmailAppShell, useInstall } from "./pwa";
@@ -162,6 +163,18 @@ function AccountsShell({ domain, onInstall }: { domain: string; onInstall: (() =
     },
     [token, refresh, switchTo, toast],
   );
+
+  // A tapped phone notification for another signed-in mailbox opens that mailbox.
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type !== "greenmail:open-inbox" || !event.data.mailbox) return;
+      const target = readAccounts().find((a) => a.email === event.data.mailbox);
+      if (target && target.token !== token) switchTo(target.token);
+    };
+    navigator.serviceWorker.addEventListener("message", onMessage);
+    return () => navigator.serviceWorker.removeEventListener("message", onMessage);
+  }, [token, switchTo]);
 
   const others = accounts.filter((a) => a.token !== token);
   const otherUnread = useOtherAccounts(others, (next) => switchTo(next), (account) => leave(account.token, `${account.email || "An account"} was signed out (its session ended). Add it again from the account menu.`));
@@ -339,6 +352,7 @@ function Mailbox({
 
         const [latest] = result.new;
         const sender = latest.from.name || latest.from.email;
+        playNewMailSound();
         if (result.new.length === 1) {
           toast(`New email from ${sender}: ${latest.subject}`, "info", { label: "Open", run: () => openFromNoticeRef.current(result.folder, latest.uid) });
         } else {

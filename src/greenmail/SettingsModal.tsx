@@ -3,6 +3,7 @@ import { Bold, ImagePlus, Italic, Link2, Loader2, Monitor, Moon, Sun, X } from "
 import { gm, type Me } from "./api";
 import { useGreenmailTheme, type ThemeChoice } from "./theme";
 import { escapeHtml } from "./ui";
+import { NotificationsTab, SecurityTab } from "./SettingsTabs";
 
 /** Name shown on sent mail, and the signature (text, links and images) added to new messages and replies. */
 export function SettingsModal({ token, me, onSaved, onClose }: { token: string; me: Me; onSaved: (me: Me) => void; onClose: () => void }) {
@@ -13,6 +14,7 @@ export function SettingsModal({ token, me, onSaved, onClose }: { token: string; 
   const editorRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const theme = useGreenmailTheme();
+  const [tab, setTab] = useState<"general" | "security" | "notifications">("general");
 
   useEffect(() => {
     const saved = me.signature_html?.trim() ?? "";
@@ -76,6 +78,23 @@ export function SettingsModal({ token, me, onSaved, onClose }: { token: string; 
             <X className="h-5 w-5" />
           </button>
         </div>
+        <div role="tablist" aria-label="Settings sections" className="mt-3 flex gap-1 rounded-xl bg-slate-100 p-1">
+          {([
+            ["general", "General"],
+            ["security", "Security"],
+            ["notifications", "Notifications"],
+          ] as Array<[typeof tab, string]>).map(([value, label]) => (
+            <button key={value} type="button" role="tab" aria-selected={tab === value} onClick={() => setTab(value)} className={`flex-1 rounded-lg px-2 py-1.5 text-sm font-semibold transition ${tab === value ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === "security" && <SecurityTab token={token} me={me} onMeChanged={onSaved} />}
+        {tab === "notifications" && <NotificationsTab token={token} email={me.email} />}
+
+        {/* Kept mounted while another tab is open, so an unsaved signature isn't lost. */}
+        <div className={tab === "general" ? undefined : "hidden"}>
         {/* Appearance applies straight away and is remembered on this device. */}
         <p className="mt-4 text-sm font-semibold text-slate-700">Appearance</p>
         <div role="radiogroup" aria-label="Appearance" className="mt-1.5 grid grid-cols-3 gap-2">
@@ -152,6 +171,7 @@ export function SettingsModal({ token, me, onSaved, onClose }: { token: string; 
           <button type="button" disabled={busy || uploading} className="rounded-lg bg-[#1f9d4c] px-4 py-2 text-sm font-bold text-white disabled:opacity-60" onClick={() => void save()}>
             {busy ? "Saving…" : "Save"}
           </button>
+        </div>
         </div>
       </div>
     </div>

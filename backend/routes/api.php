@@ -32,12 +32,15 @@ use App\Http\Controllers\Api\Admin\ServiceOfferingController as AdminServiceOffe
 use App\Http\Controllers\Api\Admin\ServicesDashboardController;
 use App\Http\Controllers\Api\Admin\SupportTicketController as AdminSupportTicketController;
 use App\Http\Controllers\Api\Client\PaymentOptionsController;
+use App\Http\Controllers\Api\Greenmail\AccountController as GreenmailAccountController;
 use App\Http\Controllers\Api\Greenmail\AssistantController as GreenmailAssistantController;
 use App\Http\Controllers\Api\Greenmail\CalendarController as GreenmailCalendarController;
 use App\Http\Controllers\Api\Greenmail\CampaignController as GreenmailCampaignController;
 use App\Http\Controllers\Api\Greenmail\ContactController as GreenmailContactController;
 use App\Http\Controllers\Api\Greenmail\MailController as GreenmailMailController;
 use App\Http\Controllers\Api\Greenmail\NoteController as GreenmailNoteController;
+use App\Http\Controllers\Api\Greenmail\PasswordResetController as GreenmailPasswordResetController;
+use App\Http\Controllers\Api\Greenmail\PushController as GreenmailPushController;
 use App\Http\Controllers\Api\Greenmail\RuleController as GreenmailRuleController;
 use App\Http\Controllers\Api\Greenmail\ScheduledController as GreenmailScheduledController;
 use App\Http\Controllers\Api\Greenmail\SessionController as GreenmailSessionController;
@@ -98,6 +101,9 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/session', [GreenmailSessionController::class, 'store'])->middleware('throttle:greenmail-login');
         Route::get('/signature-images/{owner}/{name}', [GreenmailSettingsController::class, 'signatureImage']);
         Route::get('/unsubscribe/{token}', [GreenmailUnsubscribeController::class, 'show'])->middleware('throttle:30,1');
+        Route::get('/push/key', [GreenmailPushController::class, 'key']);
+        Route::post('/password/forgot', [GreenmailPasswordResetController::class, 'forgot'])->middleware('throttle:greenmail-recovery');
+        Route::post('/password/reset', [GreenmailPasswordResetController::class, 'reset'])->middleware('throttle:greenmail-recovery');
         Route::post('/unsubscribe/{token}', [GreenmailUnsubscribeController::class, 'store'])->middleware('throttle:30,1');
 
         Route::middleware('greenmail')->group(function (): void {
@@ -130,6 +136,12 @@ Route::prefix('v1')->group(function (): void {
             Route::patch('/tasks/{task}', [GreenmailTaskController::class, 'update']);
             Route::delete('/tasks/{task}', [GreenmailTaskController::class, 'destroy']);
             Route::get('/check', [GreenmailMailController::class, 'check']);
+            Route::get('/push', [GreenmailPushController::class, 'status']);
+            Route::post('/push', [GreenmailPushController::class, 'store'])->middleware('throttle:greenmail-settings');
+            Route::delete('/push', [GreenmailPushController::class, 'destroy']);
+            Route::post('/password', [GreenmailAccountController::class, 'changePassword'])->middleware('throttle:greenmail-recovery');
+            Route::put('/recovery-email', [GreenmailAccountController::class, 'setRecoveryEmail'])->middleware('throttle:greenmail-recovery');
+            Route::post('/recovery-email/confirm', [GreenmailAccountController::class, 'confirmRecoveryEmail'])->middleware('throttle:greenmail-recovery');
             Route::post('/scheduled', [GreenmailMailController::class, 'schedule'])->middleware('throttle:greenmail-send');
             Route::get('/scheduled', [GreenmailScheduledController::class, 'index']);
             Route::delete('/scheduled/{scheduled}', [GreenmailScheduledController::class, 'destroy']);

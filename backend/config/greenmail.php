@@ -42,4 +42,14 @@ return [
     'campaign_daily_limit' => (int) env('GREENMAIL_CAMPAIGN_DAILY_LIMIT', 500),
     'campaign_max_recipients' => (int) env('GREENMAIL_CAMPAIGN_MAX_RECIPIENTS', 1000),
     'max_scheduled' => 50,
+
+    // Web Push (phone/desktop notifications). Keys: php artisan greenmail:vapid-keys --write
+    'vapid' => [
+        'public_key' => env('GREENMAIL_VAPID_PUBLIC_KEY'),
+        'private_key' => env('GREENMAIL_VAPID_PRIVATE_KEY'),
+        'subject' => env('GREENMAIL_VAPID_SUBJECT', 'mailto:hello@naitalk.com'),
+    ],
+
+    // Devices signed up for notifications per mailbox.
+    'max_push_devices' => 10,
 ];

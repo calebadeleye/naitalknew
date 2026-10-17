@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Check, LogOut, Plus, Users } from "lucide-react";
 import { gm, MAX_ACCOUNTS, SessionExpired, type Folder, type StoredAccount } from "./api";
 import { useFeedback } from "./feedback";
+import { playNewMailSound } from "./sound";
 import { Avatar } from "./ui";
 
 /**
@@ -36,6 +37,7 @@ export function useOtherAccounts(others: StoredAccount[], onSwitch: (token: stri
         const first = newest.current[account.token] === undefined;
         newest.current[account.token] = Math.max(newest.current[account.token] ?? 0, check.latest_uid);
         if (!first && check.new.length > 0) {
+          playNewMailSound();
           const latest = check.new[0];
           const who = account.email || "another account";
           handlers.current.toast(

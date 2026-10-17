@@ -49,6 +49,8 @@ Schedule::job(new SyncSiteStatisticsJob)->dailyAt('06:20');
 Schedule::call(fn () => app(\App\Services\Greenmail\GreenmailSessions::class)->pruneExpired())->hourly()->name('greenmail-prune-sessions');
 // Greenmail: "Send later" emails that are due, and the next few campaign emails.
 Schedule::command('greenmail:dispatch')->everyMinute()->withoutOverlapping(10);
+// Greenmail: phone/desktop notifications for new mail.
+Schedule::command('greenmail:push-check')->everyMinute()->withoutOverlapping(5);
 Schedule::job(new SyncMailboxesJob)->everySixHours();
 Schedule::job(new SyncDatabasesJob)->everySixHours();
 Schedule::job(new SyncFtpAccountsJob)->everySixHours();
