@@ -179,7 +179,7 @@ export function EmailSetupPanel({ serviceId, token, toast }: { serviceId: number
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-lg border border-white/10 bg-black/20 p-4 text-sm">
-          <p className="font-black text-white">Green Mail (webmail)</p>
+          <p className="font-black text-white">Green Mail</p>
           <p className="mt-1 text-white/55">Sign in with the full email address and its password.</p>
           <a className="btn-primary mt-3 inline-flex" href={setup.settings.webmail_url} target="_blank" rel="noopener">
             Open Green Mail

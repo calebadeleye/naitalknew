@@ -69,7 +69,7 @@ class EmailOnlySetupInstructions extends Notification implements ShouldQueue
         return $mail
             ->line('**Next: create your mailboxes** in the client area (Email Accounts tab). You can see whether each record is in place on the Email setup tab.')
             ->action('Set up my email', $manageUrl)
-            ->line("**Green Mail (webmail):** {$this->settings['webmail_url']} — sign in with the full email address and its password.")
+            ->line("**Green Mail:** {$this->settings['webmail_url']} — sign in with the full email address and its password.")
             ->line("**Phone and desktop mail apps:** incoming {$in['protocol']} {$in['host']}, port {$in['port']} ({$in['security']}); outgoing {$out['protocol']} {$out['host']}, port {$out['port']} ({$out['security']}) or {$out['alternative_port']} ({$out['alternative_security']}). Username: the full email address.")
             ->line('Need a hand? Reply to this email or open a support ticket and we\'ll help you through it.')
             ->attachData($this->recordsText(), "email-dns-records-{$domain}.txt", ['mime' => 'text/plain']);
@@ -112,6 +112,6 @@ class EmailOnlySetupInstructions extends Notification implements ShouldQueue
             ."Incoming: {$in['protocol']} {$in['host']} port {$in['port']} ({$in['security']})\n"
             ."Outgoing: {$out['protocol']} {$out['host']} port {$out['port']} ({$out['security']}) or {$out['alternative_port']} ({$out['alternative_security']})\n"
             ."Username: your full email address\n"
-            ."Webmail:  {$this->settings['webmail_url']}\n";
+            ."Green Mail: {$this->settings['webmail_url']}\n";
     }
 }
