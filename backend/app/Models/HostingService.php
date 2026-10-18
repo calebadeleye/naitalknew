@@ -13,6 +13,22 @@ class HostingService extends Model
 {
     use HasFactory, SoftDeletes;
 
+    protected static function booted(): void
+    {
+        // Every way of ordering (checkout, cart, domain + plan) ends here, so an
+        // email-only plan is recorded as an email service in one place.
+        static::creating(function (HostingService $service): void {
+            if (HostingPlan::query()->whereKey($service->hosting_plan_id)->value('plan_type') === HostingPlan::TYPE_EMAIL) {
+                $service->service_type = 'email';
+            }
+        });
+    }
+
+    public function isEmailOnly(): bool
+    {
+        return $this->service_type === 'email' || (bool) $this->hostingPlan?->isEmailOnly();
+    }
+
     protected $fillable = [
         'client_id',
         'hosting_plan_id',

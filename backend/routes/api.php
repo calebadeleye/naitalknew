@@ -64,6 +64,7 @@ use App\Http\Controllers\Api\Client\DomainOrderController;
 use App\Http\Controllers\Api\Client\DomainTransferController;
 use App\Http\Controllers\Api\Client\Hosting\DatabaseController;
 use App\Http\Controllers\Api\Client\Hosting\FtpAccountController;
+use App\Http\Controllers\Api\Client\Hosting\EmailSetupController;
 use App\Http\Controllers\Api\Client\Hosting\HostingControlPanelController;
 use App\Http\Controllers\Api\Client\Hosting\MailboxController;
 use App\Http\Controllers\Api\Client\Hosting\FileManagerController;
@@ -276,6 +277,9 @@ Route::prefix('v1')->group(function (): void {
                     Route::get('/manage', [HostingControlPanelController::class, 'show']);
                     Route::post('/manage/refresh', [HostingControlPanelController::class, 'refresh'])->middleware('throttle:hosting-manual-sync');
                     Route::post('/manage/auto-renew', [HostingControlPanelController::class, 'updateAutoRenew']);
+
+                    Route::get('/email-setup', [EmailSetupController::class, 'show'])->middleware('throttle:30,1');
+                    Route::post('/email-setup/send', [EmailSetupController::class, 'send'])->middleware('throttle:3,10');
 
                     Route::get('/mailboxes', [MailboxController::class, 'index']);
                     Route::post('/mailboxes', [MailboxController::class, 'store'])->middleware('throttle:hosting-resource-create');

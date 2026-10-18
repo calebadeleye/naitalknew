@@ -61,7 +61,7 @@ class HostingPlanController extends Controller
             'name' => ['required', 'string', 'max:160'],
             'slug' => ['nullable', 'string', 'max:180', Rule::unique('hosting_plans', 'slug')->ignore($hostingPlan)],
             'short_description' => ['required', 'string', 'max:255'],
-            'plan_type' => ['nullable', 'string', Rule::in(['website_care', 'legacy'])],
+            'plan_type' => ['nullable', 'string', Rule::in(['website_care', 'legacy', 'email'])],
             'monthly_price_kobo' => ['required', 'integer', 'min:0'],
             'annual_price_kobo' => ['required', 'integer', 'min:0'],
             'setup_fee_kobo' => ['nullable', 'integer', 'min:0'],

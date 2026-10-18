@@ -8,6 +8,7 @@ use App\Models\HostingPlan;
 use App\Models\ServiceOffering;
 use App\Services\Billing\VatCalculator;
 use App\Services\Billing\Money;
+use Illuminate\Http\Request;
 
 class CatalogController extends Controller
 {
@@ -18,11 +19,17 @@ class CatalogController extends Controller
      * for provisioning and the admin dashboard only. Business owners see
      * plain-English benefits via public_features instead.
      */
-    public function hostingPlans()
+    public function hostingPlans(Request $request)
     {
+        // Website plans by default (every existing pricing grid); the email-only
+        // plans only when asked for (?type=email) — they're sold on their own.
+        $emailOnly = $request->query('type') === 'email';
+
         return HostingPlan::query()
             ->where('is_active', true)
             ->where('is_public', true)
+            ->when($emailOnly, fn ($query) => $query->where('plan_type', HostingPlan::TYPE_EMAIL))
+            ->when(! $emailOnly, fn ($query) => $query->where(fn ($q) => $q->whereNull('plan_type')->orWhere('plan_type', '!=', HostingPlan::TYPE_EMAIL)))
             ->orderBy('sort_order')
             ->get()
             ->map(fn (HostingPlan $plan) => [
@@ -36,6 +43,8 @@ class CatalogController extends Controller
                 'storage_allocation' => $plan->storage_allocation,
                 'websites' => $plan->websites,
                 'unlimited_email' => $plan->email_accounts >= HostingPlan::UNLIMITED_EMAIL_ACCOUNTS,
+                'email_accounts' => $plan->email_accounts,
+                'plan_type' => $plan->plan_type,
                 'display_badge' => $plan->display_badge,
                 'is_popular' => $plan->is_popular,
                 'is_recommended' => $plan->is_recommended,

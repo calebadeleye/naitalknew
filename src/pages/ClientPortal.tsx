@@ -121,6 +121,7 @@ import { TermsAgreement } from "../components/TermsAgreement";
 import { ClientSupportPage } from "../support/ClientSupportPage";
 import { ServiceOrderPage } from "../client/ServiceOrderPage";
 import { CartPage, type CartCheckout } from "../client/CartPage";
+import { EmailSetupPanel } from "../client/EmailSetupPanel";
 import { addToCart, clearCart, setCartOwner, useCart } from "../client/cart";
 import { WebsiteStatisticsPanel } from "../hosting/WebsiteStatisticsPanel";
 import { AreaThemeToggle, useAreaTheme } from "../shared/areaTheme";
@@ -314,6 +315,9 @@ export type HostingManageOverview = {
     captured_at: string;
   } | null;
   capabilities: {
+    /** False for email-only plans: no files, databases, SSH or website settings. */
+    website_enabled?: boolean;
+    email_only?: boolean;
     email_accounts_enabled: boolean;
     databases_enabled: boolean;
     ftp_sftp_enabled: boolean;
@@ -348,7 +352,7 @@ export type HostingFtpAccount = {
   last_synced_at: string | null;
 };
 
-export type HostingTabName = "overview" | "email" | "databases" | "ftp" | "website" | "statistics" | "software";
+export type HostingTabName = "overview" | "email" | "setup" | "databases" | "ftp" | "website" | "statistics" | "software";
 
 export type FileManagerEntry = {
   name: string;
@@ -693,12 +697,23 @@ export function HostingManagePanel({
     [base, token, toast],
   );
 
+  const emailOnly = data ? data.capabilities.website_enabled === false : false;
+
   useEffect(() => {
-    if (tab === "overview" && fileEntries === null && !isLoadingFiles) {
+    // Email-only plans have no website: open on their mailboxes instead of Files.
+    if (data && emailOnly && tab !== "email" && tab !== "setup") {
+      setTab("email");
+      return;
+    }
+    if (data && !emailOnly && tab === "setup") {
+      setTab("overview");
+      return;
+    }
+    if (data && tab === "overview" && fileEntries === null && !isLoadingFiles) {
       void loadFiles("", false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+  }, [tab, data]);
 
   const openFolder = (name: string) => {
     const nextPath = fileManagerPath ? `${fileManagerPath}/${name}` : name;
@@ -890,9 +905,9 @@ export function HostingManagePanel({
           <Server className="h-6 w-6" />
         </div>
         <div>
-          <h1 className="text-xl font-black text-white">Manage Hosting</h1>
+          <h1 className="text-xl font-black text-white">{emailOnly ? "Manage Email" : "Manage Hosting"}</h1>
           <p className="mt-1 text-sm font-bold text-white">{overview.primary_domain || "No domain set"}</p>
-          <p className="text-xs text-white/48">{overview.plan || "Hosting Package"}</p>
+          <p className="text-xs text-white/48">{overview.plan || (emailOnly ? "Email Plan" : "Hosting Package")}</p>
         </div>
         <span className={hostingStatusPillClass(overview.status)}>{formatStatusLabel(overview.status)}</span>
         <div className="hosting-header-meta">
@@ -922,6 +937,35 @@ export function HostingManagePanel({
         </div>
       </div>
 
+      {emailOnly ? (
+        <div className="hosting-stats lg:!grid-cols-2">
+          {(() => {
+            // Email-only usage: what's handed out to mailboxes (no website snapshot to read).
+            const live = (mailboxes?.items || []).filter((mailbox) => mailbox.status !== "deleted" && mailbox.status !== "failed");
+            const allocatedMb = live.reduce((sum, mailbox) => sum + (mailbox.quota_mb || 0), 0);
+            const quotaMb = usage?.disk_quota_mb ?? 0;
+            const limit = mailboxes?.limit ?? usage?.email_accounts_limit ?? 0;
+            return [
+              [HardDrive, "Mailbox space given out", formatMb(allocatedMb), formatMb(quotaMb), quotaMb > 0 ? Math.min(100, Math.round((allocatedMb / quotaMb) * 100)) : 0, quotaMb > allocatedMb ? `${formatMb(quotaMb - allocatedMb)} left to give` : "All space given out", ""],
+              [Mail, "Email Accounts", String(live.length), String(limit), limit > 0 ? Math.min(100, Math.round((live.length / limit) * 100)) : 0, limit > live.length ? `${limit - live.length} Available` : "Limit reached", "tone-violet"],
+            ].map(([Icon, label, used, total, percent, foot, tone]) => (
+              <div key={label as string} className={`hosting-stat-card ${tone as string}`}>
+                <div className="hosting-stat-card-head">
+                  {React.createElement(Icon as React.ComponentType<{ className?: string }>, { className: "h-4 w-4" })}
+                  {label as string}
+                </div>
+                <div className="hosting-stat-card-value">
+                  {used as string} <small>/ {total as string}</small>
+                </div>
+                <div className="hosting-progress-track">
+                  <div className="hosting-progress-fill" style={{ width: `${percent as number}%` }} />
+                </div>
+                <div className="hosting-stat-card-foot">{foot as string}</div>
+              </div>
+            ));
+          })()}
+        </div>
+      ) : (
       <div className="hosting-stats">
         {[
           [HardDrive, "Storage", usage?.disk_used_mb ?? 0, usage?.disk_quota_mb ?? 0, ""],
@@ -968,17 +1012,24 @@ export function HostingManagePanel({
         })}
       </div>
 
+      )}
+
       <div className="hosting-tabs">
         {(
-          [
-            ["overview", Folder, "Files"],
-            ["email", Mail, "Email Accounts"],
-            ["databases", Database, "Databases"],
-            ["ftp", KeyRound, "SSH/SFTP"],
-            ["website", Globe2, "Website"],
-            ["statistics", BarChart3, "Statistics"],
-            ["software", Puzzle, "Software"],
-          ] as [HostingTabName, React.ComponentType<{ className?: string }>, string][]
+          (emailOnly
+            ? [
+                ["email", Mail, "Email Accounts"],
+                ["setup", ShieldCheck, "Email setup"],
+              ]
+            : [
+                ["overview", Folder, "Files"],
+                ["email", Mail, "Email Accounts"],
+                ["databases", Database, "Databases"],
+                ["ftp", KeyRound, "SSH/SFTP"],
+                ["website", Globe2, "Website"],
+                ["statistics", BarChart3, "Statistics"],
+                ["software", Puzzle, "Software"],
+              ]) as [HostingTabName, React.ComponentType<{ className?: string }>, string][]
         ).map(([id, Icon, label]) => (
           <button key={id} type="button" className={tab === id ? "hosting-tab active" : "hosting-tab"} onClick={() => setTab(id)}>
             <Icon className="h-4 w-4" />
@@ -987,8 +1038,8 @@ export function HostingManagePanel({
         ))}
       </div>
 
-      <div className="hosting-panel">
-        <section className="portal-card">
+      <div className={emailOnly ? "hosting-panel lg:!grid-cols-1" : "hosting-panel"}>
+        <section className="portal-card min-w-0">
           {tab === "overview" && (
             <div>
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1168,6 +1219,8 @@ export function HostingManagePanel({
             </div>
           )}
 
+          {tab === "setup" && <EmailSetupPanel serviceId={serviceId} token={token} toast={toast} />}
+
           {tab === "email" && (
             <div>
               <div className="flex items-center justify-between">
@@ -1178,7 +1231,7 @@ export function HostingManagePanel({
                 {capabilities.email_accounts_enabled && (
                   <div className="flex flex-wrap items-center justify-end gap-2">
                     {/* The old Roundcube webmail stays available while Greenmail beds in. */}
-                    {overview.primary_domain && (
+                    {overview.primary_domain && !emailOnly && (
                       <a className="btn-outline" href={`https://${overview.primary_domain}/webmail`} target="_blank" rel="noopener">
                         Classic webmail
                       </a>
@@ -1756,6 +1809,8 @@ export function HostingManagePanel({
 
         </section>
 
+        {/* Email-only plans: the stat cards above already say it all (no web space, bandwidth or databases). */}
+        {!emailOnly && (
         <aside className="portal-card">
           <h2>Hosting Summary</h2>
           <div className="hosting-summary-list">
@@ -1769,6 +1824,7 @@ export function HostingManagePanel({
             <div className="hosting-summary-row"><span>Last Synced</span><strong>{overview.last_synced_at ? formatDateTime(overview.last_synced_at) : "Never"}</strong></div>
           </div>
         </aside>
+        )}
       </div>
 
       <AnimatePresence>
@@ -4459,6 +4515,8 @@ export function ClientPortal() {
   const [orders, setOrders] = useState<ClientOrderSummary[] | null>(null);
   const [invoices, setInvoices] = useState<ClientInvoiceSummary[] | null>(null);
   const [hostingPlans, setHostingPlans] = useState<HostingPlanCard[]>([]);
+  // Ordering an email-only plan (catalog link ?type=email) rather than website hosting.
+  const [orderingEmail, setOrderingEmail] = useState(false);
   const [isLoadingHostingPlans, setIsLoadingHostingPlans] = useState(false);
   const [addOns, setAddOns] = useState<Array<{ name: string; slug: string; monthly_price: string; annual_price: string }>>([]);
   // Fetched from the backend (never hardcoded) so the pre-checkout Order Summary/Review
@@ -4589,6 +4647,8 @@ export function ClientPortal() {
     setBankTransferInfo(null);
 
     const preselected = search.get("plan");
+    const wantsEmail = search.get("type") === "email";
+    setOrderingEmail(wantsEmail);
     if (preselected) {
       setOrderDraft((current) => ({ ...current, plan_slug: preselected }));
     }
@@ -4620,14 +4680,19 @@ export function ClientPortal() {
       .catch(() => undefined);
 
     Promise.all([
-      laravelApi<Array<Record<string, unknown>>>("/api/v1/public/hosting-plans"),
+      laravelApi<Array<Record<string, unknown>>>(`/api/v1/public/hosting-plans${wantsEmail ? "?type=email" : ""}`),
       laravelApi<Array<Record<string, unknown>>>("/api/v1/public/hosting-add-ons"),
     ])
       .then(([plans, planAddOns]) => {
         if (Array.isArray(plans) && plans.length) {
           const mapped = plans.map((plan) => ({ ...toHostingPlanCard(plan), features: [] as string[] }));
           setHostingPlans(mapped);
-          setOrderDraft((current) => ({ ...current, plan_slug: current.plan_slug || mapped[0]?.slug || "" }));
+          // Keep the chosen plan only if it's in this list (email plans and website plans are listed apart).
+          setOrderDraft((current) => ({
+            ...current,
+            plan_slug: mapped.some((plan) => plan.slug === current.plan_slug) ? current.plan_slug : mapped[0]?.slug || "",
+            add_ons: wantsEmail ? [] : current.add_ons,
+          }));
         }
         if (Array.isArray(planAddOns)) {
           setAddOns(
@@ -4676,6 +4741,9 @@ export function ClientPortal() {
       const pending = consumePendingOrder();
       if (pending?.service) {
         navigate(`/client/order/service?offering=${encodeURIComponent(pending.service)}`);
+      } else if (pending?.email) {
+        // Email plans need the client's domain first.
+        navigate(`/client/order/hosting?type=email&plan=${encodeURIComponent(pending.plan)}`);
       } else if (pending) {
         setOrderDraft((current) => ({ ...current, plan_slug: pending.plan, billing_cycle: pending.billing_cycle }));
         navigate("/client/order/review");
@@ -4819,6 +4887,9 @@ export function ClientPortal() {
       const pending = consumePendingOrder();
       if (pending?.service) {
         navigate(`/client/order/service?offering=${encodeURIComponent(pending.service)}`);
+      } else if (pending?.email) {
+        // Email plans need the client's domain first.
+        navigate(`/client/order/hosting?type=email&plan=${encodeURIComponent(pending.plan)}`);
       } else if (pending) {
         setOrderDraft((current) => ({ ...current, plan_slug: pending.plan, billing_cycle: pending.billing_cycle }));
         navigate("/client/order/review");
@@ -4904,7 +4975,7 @@ export function ClientPortal() {
   /** Add the hosting order being filled in to the cart, ready for another. */
   const handleAddHostingToCart = () => {
     if (!orderDraft.plan_slug || !orderDraft.primary_domain.trim()) {
-      toast.push({ type: "error", message: "Choose a plan and enter the website's domain first." });
+      toast.push({ type: "error", message: orderingEmail ? "Choose a plan and enter your domain first." : "Choose a plan and enter the website's domain first." });
       return;
     }
     const result = cart.add({
@@ -5423,8 +5494,17 @@ export function ClientPortal() {
       >
           <section className="grid gap-5 lg:grid-cols-[1fr_320px]">
             <div className="portal-card">
+              {orderingEmail && (
+                <div className="mb-5 rounded-lg border border-primary/25 bg-primary/10 p-4 text-sm text-white/75">
+                  <p className="font-black text-white">Business email on your own domain — no website needed</p>
+                  <p className="mt-1">
+                    Use a domain you already have (with us or anywhere else), or register a new one. After you pay, we set up your email and send you the
+                    DNS records to add — if your domain is registered with us, our team adds them for you.
+                  </p>
+                </div>
+              )}
               <label className="admin-field">
-                <span>Primary domain (optional)</span>
+                <span>{orderingEmail ? "Your domain (for addresses like you@yourbusiness.com)" : "Primary domain (optional)"}</span>
                 <input
                   value={orderDraft.primary_domain}
                   onChange={(event) => setOrderDraft((current) => ({ ...current, primary_domain: event.target.value, register_domain: false }))}
@@ -5439,12 +5519,14 @@ export function ClientPortal() {
               ) : (
                 orderDraft.primary_domain && (
                   <p className="mt-2 text-xs text-white/45">
-                    We'll email you DNS instructions to point this domain to your new hosting once it's active.
+                    {orderingEmail
+                      ? "Once your email is active we'll email you the DNS records (MX, SPF and DKIM) to add where this domain's DNS is managed."
+                      : "We'll email you DNS instructions to point this domain to your new hosting once it's active."}
                   </p>
                 )
               )}
 
-              <h2 className="mt-6 text-xl font-black text-white">Choose your website care plan</h2>
+              <h2 className="mt-6 text-xl font-black text-white">{orderingEmail ? "Choose your business email plan" : "Choose your website care plan"}</h2>
               <div className="mt-5 grid gap-3">
                 {isLoadingHostingPlans ? (
                   <p className="text-sm text-white/55">Loading plans from the service catalogue...</p>
@@ -5479,7 +5561,7 @@ export function ClientPortal() {
                 ))}
               </div>
 
-              {addOns.length > 0 && (
+              {addOns.length > 0 && !orderingEmail && (
                 <div className="mt-6">
                   <h3 className="text-sm font-black uppercase text-white/68">Optional add-ons</h3>
                   <div className="mt-3 grid gap-2">
@@ -5607,7 +5689,7 @@ export function ClientPortal() {
                 <p className="mt-1 text-xs text-white/45">Edit your profile details from Account Settings before checkout if needed.</p>
               </div>
               <div className="mt-6 flex flex-wrap gap-3">
-                <button type="button" className="btn-outline justify-center" onClick={() => navigate("/client/order/hosting")}>
+                <button type="button" className="btn-outline justify-center" onClick={() => navigate(`/client/order/hosting${orderingEmail ? "?type=email" : ""}`)}>
                   Back to edit
                 </button>
                 <button type="button" className="btn-primary justify-center" disabled={!orderDraft.plan_slug} onClick={() => navigate("/client/checkout")}>
@@ -5635,7 +5717,7 @@ export function ClientPortal() {
           {!checkoutResult && (
             <>
               <p className="mt-3 text-sm text-white/60">
-                Create your order for {selectedPlan?.name || "your hosting plan"} — {formatNaira(orderTotal)}. An invoice will be created and emailed to you, and you can pay now or later.
+                Create your order for {selectedPlan?.name || (orderingEmail ? "your email plan" : "your hosting plan")} — {formatNaira(orderTotal)}. An invoice will be created and emailed to you, and you can pay now or later.
               </p>
               <TermsAgreement className="mt-5" checked={orderTermsAccepted} onChange={setOrderTermsAccepted} />
               <button type="button" className="btn-primary mt-5 w-full justify-center" disabled={isSubmittingOrder || !orderTermsAccepted} onClick={() => void handleSubmitOrder()}>
@@ -5720,7 +5802,7 @@ export function ClientPortal() {
         onProfileClick={() => navigate("/client/profile")}
         hideWelcomeHeader
       >
-        <HostingManagePanel serviceId={hostingServiceId} token={clientToken} navigate={navigate} toast={toast} initialTab={search.get("tab") === "website" ? "website" : undefined} />
+        <HostingManagePanel serviceId={hostingServiceId} token={clientToken} navigate={navigate} toast={toast} initialTab={search.get("tab") === "website" ? "website" : search.get("tab") === "setup" ? "setup" : undefined} />
       </ClientPortalShell>
     );
   }

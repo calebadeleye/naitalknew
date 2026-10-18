@@ -10,6 +10,7 @@ use App\Models\HostingService;
 use App\Models\Invoice;
 use App\Models\Order;
 use App\Notifications\NaiTalkInvoiceCreated;
+use App\Services\Email\BusinessEmail;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -28,6 +29,8 @@ class CheckoutService
                 ->where('is_active', true)
                 ->where('is_orderable', true)
                 ->firstOrFail();
+
+            app(BusinessEmail::class)->ensureDomainCanHaveEmailPlan($plan, (string) $payload['primary_domain']);
 
             $this->promoteToBillingClient($client);
             $planPrice = $billingCycle === 'monthly' ? $plan->monthly_price_kobo : $plan->annual_price_kobo;
@@ -66,7 +69,7 @@ class CheckoutService
             $order->items()->create([
                 'orderable_type' => HostingPlan::class,
                 'orderable_id' => $plan->id,
-                'description' => $plan->name.' Hosting',
+                'description' => $plan->orderLabel(),
                 'quantity' => 1,
                 'unit_price_kobo' => $planPrice + $plan->setup_fee_kobo,
                 'total_kobo' => $planPrice + $plan->setup_fee_kobo,

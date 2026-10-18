@@ -28,9 +28,10 @@ class WebsiteCarePackagesTest extends TestCase
 
         // Four public Website Care packages + one hidden internal
         // "Legacy Hosting + SSL" package for imported ISPConfig clients.
-        $this->assertDatabaseCount('hosting_plans', 5);
+        // (The email-only plans come from a migration, not this seeder.)
+        $this->assertSame(5, $this->websitePlanCount());
 
-        $slugs = HostingPlan::query()->orderBy('sort_order')->pluck('slug')->all();
+        $slugs = HostingPlan::query()->where('plan_type', '!=', HostingPlan::TYPE_EMAIL)->orderBy('sort_order')->pluck('slug')->all();
         $this->assertSame(['starter-website-care', 'business-website-care', 'professional-website-care', 'premium-website-care', 'legacy-hosting-ssl'], $slugs);
     }
 
@@ -39,7 +40,7 @@ class WebsiteCarePackagesTest extends TestCase
         (new HostingPlanSeeder())->run();
         (new HostingPlanSeeder())->run();
 
-        $this->assertDatabaseCount('hosting_plans', 5);
+        $this->assertSame(5, $this->websitePlanCount());
     }
 
     public function test_business_website_care_is_marked_popular_and_recommended(): void
@@ -87,7 +88,13 @@ class WebsiteCarePackagesTest extends TestCase
         // Deactivating the legacy plan must never delete it — hosting_services
         // still points at it via a restrictOnDelete() foreign key. 4 Website
         // Care + 1 hidden Legacy Hosting + SSL + the pre-existing "business" row.
-        $this->assertDatabaseCount('hosting_plans', 6);
+        $this->assertSame(6, $this->websitePlanCount());
+    }
+
+    /** Plans other than the email-only ones (those come from a migration). */
+    private function websitePlanCount(): int
+    {
+        return HostingPlan::query()->where(fn ($q) => $q->whereNull('plan_type')->orWhere('plan_type', '!=', HostingPlan::TYPE_EMAIL))->count();
     }
 
     public function test_public_pricing_page_hides_technical_fields(): void

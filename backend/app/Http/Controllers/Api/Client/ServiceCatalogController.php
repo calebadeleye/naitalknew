@@ -20,7 +20,7 @@ class ServiceCatalogController extends Controller
             ->map(fn (HostingPlan $plan) => [
                 'name' => $plan->name,
                 'slug' => $plan->slug,
-                'category' => 'hosting',
+                'category' => $plan->isEmailOnly() ? 'email' : 'hosting',
                 'short_description' => $plan->short_description,
                 'benefits' => $plan->public_features ?? [],
                 // Website Care plans are sold per year (the monthly figure is only
@@ -28,7 +28,7 @@ class ServiceCatalogController extends Controller
                 'starting_price' => Money::naira($plan->annual_price_kobo > 0 ? $plan->annual_price_kobo : $plan->monthly_price_kobo),
                 'billing_type' => $plan->annual_price_kobo > 0 ? 'yearly' : 'monthly',
                 'is_quote_only' => false,
-                'order_route' => '/client/order/hosting?plan='.$plan->slug,
+                'order_route' => '/client/order/hosting?'.($plan->isEmailOnly() ? 'type=email&' : '').'plan='.$plan->slug,
             ]);
 
         $addOns = HostingAddOn::query()

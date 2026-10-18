@@ -12,6 +12,8 @@ use App\Models\ProvisioningLog;
 use App\Models\User;
 use App\Notifications\ExistingDomainDnsInstructions;
 use App\Notifications\NaiTalkHostingProvisioned;
+use App\Services\Email\BusinessEmail;
+use App\Services\Email\EmailSetup;
 use App\Services\Ispconfig\IspConfigClient;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -101,7 +103,9 @@ class IspConfigProvisioningService
         );
 
         $needsClient = ! $mapping->ispconfig_client_id;
-        $needsWebsite = ! $serviceMapping->ispconfig_website_id;
+        // Email-only plans have no website: just the client and the mail domain.
+        $emailOnly = ! ($configuration['website_enabled'] ?? true);
+        $needsWebsite = ! $emailOnly && ! $serviceMapping->ispconfig_website_id;
         $needsMailDomain = ($configuration['max_email_accounts'] ?? 0) > 0 && ! $serviceMapping->ispconfig_mail_domain_id;
 
         if ($needsClient || $needsWebsite || $needsMailDomain) {
@@ -144,19 +148,39 @@ class IspConfigProvisioningService
                 if ($needsMailDomain) {
                     // Mailboxes cannot be created until the domain is registered as a mail
                     // domain in ISPConfig — a separate module from the website/vhost record.
+                    $mailDomain = [
+                        'domain' => $service->primary_domain,
+                        'server_id' => $serverId,
+                        'active' => 'y',
+                    ];
+                    $metadata = [];
+
+                    // Email-only clients send from their domain with no website of ours
+                    // behind it, so sign their mail (DKIM) from day one, like the
+                    // mail domains set up by hand in ISPConfig.
+                    if ($emailOnly) {
+                        $keys = app(BusinessEmail::class)->newDkimKeys();
+                        $mailDomain += [
+                            'dkim' => 'y',
+                            'dkim_selector' => config('ispconfig.dkim_selector', 'default'),
+                            'dkim_private' => $keys['private'],
+                            'dkim_public' => $keys['public'],
+                        ];
+                        $metadata = ['dkim_public' => $keys['public'], 'email_only' => true];
+                    }
+
                     $remoteMailDomainId = $this->client->mailDomainAdd(
                         $sessionId,
                         (int) $mapping->ispconfig_client_id,
-                        [
-                            'domain' => $service->primary_domain,
-                            'server_id' => $serverId,
-                            'active' => 'y',
-                        ],
+                        $mailDomain,
                     );
 
                     $serviceMapping->forceFill([
+                        'ispconfig_client_mapping_id' => $mapping->id,
                         'ispconfig_mail_domain_id' => (string) $remoteMailDomainId,
+                        'technical_status' => $emailOnly ? 'active' : $serviceMapping->technical_status,
                         'last_synced_at' => now(),
+                        'metadata_json' => array_merge($serviceMapping->metadata_json ?? [], $metadata, $emailOnly ? ['idempotency_key' => $this->idempotencyKey($service)] : []),
                     ])->save();
                 }
             } finally {
@@ -197,7 +221,11 @@ class IspConfigProvisioningService
             ]);
         });
 
-        if ($before['status'] !== 'active') {
+        if ($before['status'] !== 'active' && $emailOnly) {
+            // The client's DNS has to point at us before any mail arrives: send the
+            // records (and, for a domain registered with us, ask our team to add them).
+            app(EmailSetup::class)->sendInstructions($service, openTeamTicket: true);
+        } elseif ($before['status'] !== 'active') {
             $service->client->user?->notify(new NaiTalkHostingProvisioned($service));
 
             // Flow 3 ("Hosting Only With Existing Domain") — the client's domain
@@ -210,7 +238,7 @@ class IspConfigProvisioningService
             }
         }
 
-        $this->log($service, 'provision_hosting_service', 'completed', 'ISPConfig client and website are provisioned.', $staffUser, $before, $service->only(['status', 'provisioning_status', 'ispconfig_server_id']), [
+        $this->log($service, 'provision_hosting_service', 'completed', $emailOnly ? 'ISPConfig client and mail domain are provisioned (email only).' : 'ISPConfig client and website are provisioned.', $staffUser, $before, $service->only(['status', 'provisioning_status', 'ispconfig_server_id']), [
             'reason' => $reason,
             'mapping_id' => $mapping->id,
             'service_mapping_id' => $serviceMapping->id,

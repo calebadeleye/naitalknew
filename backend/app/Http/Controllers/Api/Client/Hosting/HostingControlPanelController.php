@@ -51,6 +51,9 @@ class HostingControlPanelController extends Controller
                 'captured_at' => $snapshot->captured_at->toIso8601String(),
             ] : null,
             'capabilities' => [
+                // Email-only plans: no files, databases, SSH or website settings.
+                'website_enabled' => (bool) ($configuration['website_enabled'] ?? true),
+                'email_only' => $service->isEmailOnly(),
                 'email_accounts_enabled' => ($configuration['max_email_accounts'] ?? 0) > 0,
                 'databases_enabled' => ($configuration['max_databases'] ?? 0) > 0,
                 'ftp_sftp_enabled' => ($configuration['sftp_access_enabled'] ?? false) || ($configuration['ssh_access_enabled'] ?? false),

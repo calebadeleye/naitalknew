@@ -9,6 +9,12 @@ return [
     // The hostname clients should enter in their FTP/mail client — not
     // necessarily the same as the ISPConfig control panel host above.
     'public_hostname' => env('ISPCONFIG_PUBLIC_HOSTNAME', 'millions.naitalk.com'),
+    // Email-only plans: what clients point their domain's mail DNS at, and
+    // the mail-app settings they're sent. SPF uses the domain's own MX, so it
+    // follows the mail server if its address ever changes.
+    'mail_hostname' => env('ISPCONFIG_MAIL_HOSTNAME', 'mail.naitalk.com'),
+    'mail_spf' => env('ISPCONFIG_MAIL_SPF', 'v=spf1 mx a:mail.naitalk.com ~all'),
+    'dkim_selector' => env('ISPCONFIG_DKIM_SELECTOR', 'default'),
     'client_template_id' => env('ISPCONFIG_CLIENT_TEMPLATE_ID'),
     'website_template_id' => env('ISPCONFIG_WEBSITE_TEMPLATE_ID'),
     'verify_ssl' => (bool) env('ISPCONFIG_VERIFY_SSL', true),

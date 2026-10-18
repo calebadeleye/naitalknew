@@ -151,6 +151,15 @@ class MailboxController extends Controller
             return null;
         }
 
+        // Email-only plans have no website usage snapshot to read; their space is
+        // shared out as mailbox quotas, so what's left is what isn't allocated yet.
+        if ($service->isEmailOnly()) {
+            return $packageMb - (int) MailboxRecord::query()
+                ->where('hosting_service_id', $service->id)
+                ->whereNotIn('status', ['deleted', 'failed'])
+                ->sum('quota_mb');
+        }
+
         return $packageMb - (int) ($service->latestUsageSnapshot()?->disk_used_mb ?? 0);
     }
 }

@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use App\Services\Email\BusinessEmail;
 use RuntimeException;
 
 /**
@@ -281,10 +282,14 @@ class CartService
         $domain = $line['primary_domain'];
         $this->claimDomain($domain, $seen);
 
+        if ($conflict = app(BusinessEmail::class)->emailPlanConflict($plan, $domain)) {
+            throw new RuntimeException($conflict);
+        }
+
         $addOns = HostingAddOn::query()->whereIn('slug', $line['add_ons'] ?? [])->where('is_active', true)->get();
         $planKobo = (int) $plan->annual_price_kobo + (int) $plan->setup_fee_kobo;
 
-        $items = [['orderable_type' => HostingPlan::class, 'orderable_id' => $plan->id, 'description' => "{$plan->name} Hosting — {$domain}", 'amount_kobo' => $planKobo]];
+        $items = [['orderable_type' => HostingPlan::class, 'orderable_id' => $plan->id, 'description' => "{$plan->orderLabel()} — {$domain}", 'amount_kobo' => $planKobo]];
         foreach ($addOns as $addOn) {
             $items[] = ['orderable_type' => HostingAddOn::class, 'orderable_id' => $addOn->id, 'description' => "{$addOn->name} — {$domain}", 'amount_kobo' => (int) $addOn->annual_price_kobo];
         }
@@ -300,7 +305,7 @@ class CartService
         return [
             'index' => $index,
             'type' => 'hosting',
-            'title' => "{$plan->name} Hosting",
+            'title' => $plan->orderLabel(),
             'subtitle' => $domain.(! empty($line['register_domain']) ? ' (new domain)' : ''),
             'items' => $items,
             'hosting_kobo' => $hostingKobo,

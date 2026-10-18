@@ -14,6 +14,7 @@ use App\Models\Invoice;
 use App\Models\Order;
 use App\Notifications\NaiTalkInvoiceCreated;
 use App\Services\Billing\VatCalculator;
+use App\Services\Email\BusinessEmail;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -206,7 +207,7 @@ class DomainOrderService
 
             if ($hostingPlan) {
                 $planItemPrice = ($billingCycle === 'monthly' ? $hostingPlan->monthly_price_kobo : $hostingPlan->annual_price_kobo) + $hostingPlan->setup_fee_kobo;
-                $this->createOrderItem($order, HostingPlan::class, $hostingPlan->id, $hostingPlan->name.' Hosting', $planItemPrice);
+                $this->createOrderItem($order, HostingPlan::class, $hostingPlan->id, $hostingPlan->orderLabel(), $planItemPrice);
 
                 foreach ($hostingAddOns as $addOn) {
                     $addOnPrice = $billingCycle === 'monthly' ? $addOn->monthly_price_kobo : $addOn->annual_price_kobo;
@@ -372,6 +373,8 @@ class DomainOrderService
             ->where('is_orderable', true)
             ->firstOrFail();
 
+        app(BusinessEmail::class)->ensureDomainCanHaveEmailPlan($hostingPlan, $domainName);
+
         $planPrice = $billingCycle === 'monthly' ? $hostingPlan->monthly_price_kobo : $hostingPlan->annual_price_kobo;
         $hostingAddOns = HostingAddOn::query()
             ->whereIn('slug', $hostingPayload['add_ons'] ?? [])
@@ -386,7 +389,7 @@ class DomainOrderService
         $order = $this->createOrderRecord($client, $vat, $billingCycle, $hostingPayload);
 
         $planItemPrice = $planPrice + $hostingPlan->setup_fee_kobo;
-        $this->createOrderItem($order, HostingPlan::class, $hostingPlan->id, $hostingPlan->name.' Hosting', $planItemPrice);
+        $this->createOrderItem($order, HostingPlan::class, $hostingPlan->id, $hostingPlan->orderLabel(), $planItemPrice);
 
         foreach ($hostingAddOns as $addOn) {
             $addOnPrice = $billingCycle === 'monthly' ? $addOn->monthly_price_kobo : $addOn->annual_price_kobo;

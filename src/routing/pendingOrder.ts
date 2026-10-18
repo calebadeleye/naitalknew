@@ -42,6 +42,8 @@ export type PendingOrder = {
   billing_cycle: "monthly" | "annual";
   /** A stand-alone service (e.g. "ssl-certificate") instead of a hosting plan. */
   service?: string;
+  /** An email-only plan: goes to the email order page (the client enters their domain there). */
+  email?: boolean;
 };
 
 export function hasClientToken(): boolean {
@@ -94,5 +96,16 @@ export function startServiceOrder(slug: string) {
   }
 
   savePendingOrder({ plan: "", billing_cycle: "annual", service: slug });
+  window.location.href = "/client/register";
+}
+
+/** Order an email-only plan from the public site (sign up / in first if needed; the domain is entered on the order page). */
+export function startEmailOrder(slug: string) {
+  if (hasClientToken()) {
+    window.location.href = `/client/order/hosting?type=email&plan=${encodeURIComponent(slug)}`;
+    return;
+  }
+
+  savePendingOrder({ plan: slug, billing_cycle: "annual", email: true });
   window.location.href = "/client/register";
 }

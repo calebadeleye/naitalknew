@@ -18,6 +18,9 @@ class HostingPlan extends Model
      */
     public const UNLIMITED_EMAIL_ACCOUNTS = 9999;
 
+    /** plan_type of the email-only plans: business email on the client's domain, no website. */
+    public const TYPE_EMAIL = 'email';
+
     protected $fillable = [
         'name',
         'slug',
@@ -96,6 +99,19 @@ class HostingPlan extends Model
             'max_subdomains' => 0,
             'max_aliases' => 0,
             'default_server_id' => 1,
+            'website_enabled' => ! $this->isEmailOnly(),
         ], $this->configuration_json ?? []);
+    }
+
+    /** Business email only — provisioning creates a mail domain and no website. */
+    public function isEmailOnly(): bool
+    {
+        return $this->plan_type === self::TYPE_EMAIL;
+    }
+
+    /** What the plan is called on orders and invoices: "Email Business" vs "Starter Website Care Hosting". */
+    public function orderLabel(): string
+    {
+        return $this->isEmailOnly() ? $this->name : $this->name.' Hosting';
     }
 }

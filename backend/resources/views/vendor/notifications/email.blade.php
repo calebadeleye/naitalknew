@@ -5,6 +5,7 @@
         'ClientAccountRestored' => 'Account Restored',
         'ClientAccountSuspended' => 'Account Suspension Notice',
         'ClientNotificationFailed' => 'Notification Delivery Failed',
+        'EmailOnlySetupInstructions' => 'Business Email Setup',
         'HostingDeletedFromIspConfig' => 'Website Removed Notice',
         'HostingExpiredNotice' => 'Hosting Expiry Notice',
         'HostingFinalDeletionWarning' => 'Final Deletion Warning',

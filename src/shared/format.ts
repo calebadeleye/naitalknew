@@ -126,6 +126,7 @@ export const catalogCategoryIcons: Record<string, React.ComponentType<{ classNam
   maintenance: ShieldCheck,
   ai: Bot,
   email_addon: Mail,
+  email: Mail,
 };
 
 export function catalogCategoryIcon(category: string): React.ComponentType<{ className?: string }> {
