@@ -41,8 +41,6 @@ class EmailOnlySetupInstructions extends Notification implements ShouldQueue
     {
         $domain = $this->service->primary_domain;
         $manageUrl = rtrim((string) config('app.frontend_url'), '/').'/client/services/'.$this->service->id.'/manage?tab=setup';
-        $in = $this->settings['incoming'];
-        $out = $this->settings['outgoing'];
 
         $mail = (new MailMessage)
             ->subject("Your business email for {$domain} is ready — DNS setup inside")
@@ -70,7 +68,8 @@ class EmailOnlySetupInstructions extends Notification implements ShouldQueue
             ->line('**Next: create your mailboxes** in the client area (Email Accounts tab). You can see whether each record is in place on the Email setup tab.')
             ->action('Set up my email', $manageUrl)
             ->line("**Green Mail:** {$this->settings['webmail_url']} — sign in with the full email address and its password.")
-            ->line("**Phone and desktop mail apps:** incoming {$in['protocol']} {$in['host']}, port {$in['port']} ({$in['security']}); outgoing {$out['protocol']} {$out['host']}, port {$out['port']} ({$out['security']}) or {$out['alternative_port']} ({$out['alternative_security']}). Username: the full email address.")
+            ->line('**Phone and desktop mail apps** (Outlook, Apple Mail, Gmail app, Thunderbird…) — use these settings:')
+            ->line(new HtmlString($this->settingsHtml()))
             ->line('Need a hand? Reply to this email or open a support ticket and we\'ll help you through it.')
             ->attachData($this->recordsText(), "email-dns-records-{$domain}.txt", ['mime' => 'text/plain']);
     }
@@ -80,16 +79,58 @@ class EmailOnlySetupInstructions extends Notification implements ShouldQueue
         $html = '';
 
         foreach ($this->records as $i => $record) {
-            $html .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;margin:0 0 12px;"><tr><td style="padding:12px 14px;font-size:14px;line-height:22px;">'
-                .'<strong>'.($i + 1).'. '.e($record['type']).' record'.($record['required'] ? '' : ' (recommended)').'</strong><br>'
-                .'Host / Name: <strong>'.e($record['host']).'</strong><br>'
-                .($record['priority'] ? 'Priority: <strong>'.e((string) $record['priority']).'</strong><br>' : '')
-                .'Value: <code style="display:block;margin:4px 0;padding:6px 8px;background:#f1f5f9;border-radius:6px;font-size:12px;line-height:18px;word-break:break-all;overflow-wrap:anywhere;">'.e($record['value']).'</code>'
-                .'<span style="color:#64748b;font-size:12px;line-height:18px;">'.e($record['purpose']).'</span>'
-                .'</td></tr></table>';
+            $html .= $this->box(
+                ($i + 1).'. '.$record['type'].' record'.($record['required'] ? '' : ' (recommended)'),
+                array_filter([
+                    'Host / Name' => '<strong>'.e($record['host']).'</strong>',
+                    'Priority' => $record['priority'] ? '<strong>'.e((string) $record['priority']).'</strong>' : null,
+                    'Value' => $this->code($record['value']),
+                ]),
+                $record['purpose'],
+            );
         }
 
         return $html;
+    }
+
+    /** Mail-app settings, boxed like the DNS records. */
+    private function settingsHtml(): string
+    {
+        $in = $this->settings['incoming'];
+        $out = $this->settings['outgoing'];
+
+        return $this->box("Incoming mail ({$in['protocol']})", [
+            'Server' => $this->code($in['host']),
+            'Port' => '<strong>'.e((string) $in['port']).'</strong>',
+            'Security' => '<strong>'.e($in['security']).'</strong>',
+            'Username' => 'your full email address',
+            'Password' => 'the mailbox password',
+        ], 'For reading your mail.')
+            .$this->box("Outgoing mail ({$out['protocol']})", [
+                'Server' => $this->code($out['host']),
+                'Port' => '<strong>'.e((string) $out['port']).'</strong> (or <strong>'.e((string) $out['alternative_port']).'</strong>)',
+                'Security' => '<strong>'.e($out['security']).'</strong> (<strong>'.e($out['alternative_security']).'</strong> on port '.e((string) $out['alternative_port']).')',
+                'Username' => 'your full email address',
+                'Password' => 'the mailbox password',
+            ], 'For sending. Turn on "My outgoing server requires authentication" if your app asks.');
+    }
+
+    /** @param  array<string, string>  $rows  label => trusted HTML */
+    private function box(string $title, array $rows, string $note): string
+    {
+        $html = '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;margin:0 0 12px;"><tr><td style="padding:12px 14px;font-size:14px;line-height:22px;">'
+            .'<strong>'.e($title).'</strong><br>';
+
+        foreach ($rows as $label => $value) {
+            $html .= e($label).': '.$value.($value !== '' && ! str_starts_with($value, '<code') ? '<br>' : '');
+        }
+
+        return $html.'<span style="color:#64748b;font-size:12px;line-height:18px;">'.e($note).'</span></td></tr></table>';
+    }
+
+    private function code(string $value): string
+    {
+        return '<code style="display:block;margin:4px 0;padding:6px 8px;background:#f1f5f9;border-radius:6px;font-size:12px;line-height:18px;word-break:break-all;overflow-wrap:anywhere;">'.e($value).'</code>';
     }
 
     private function recordsText(): string
