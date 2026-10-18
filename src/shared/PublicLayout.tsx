@@ -101,6 +101,7 @@ import {
   initScrollDepthTracking,
 } from "../lib/analytics";
 import { captureAdAttribution } from "../lib/adAttribution";
+import { MegaMenuBar, MegaMenuMobile } from "./MegaMenu";
 import type { LogoImage, ClientLogo, Project, Review, SiteContent, HostingPlanCard, ServiceCatalogItem, ClientOrderSummary, BankTransferDetails, PricingPackage, AdminDashboardMetric, AdminDashboardSnapshot, ClientDashboardSnapshot, ClientAuthMode, LaravelPage, AdminRecordsSectionId } from "./types";
 import { LARAVEL_API_BASE_URL, laravelApi } from "./api";
 import { parseNairaAmount, formatNaira, formatKobo, toDateInputValue, formatDate, formatDateTime, accountTypeLabel, clientStatusPillClass, hostingStatusPillClass, formatMb, catalogCategoryIcon, ISO_DATE_PATTERN } from "./format";
@@ -109,43 +110,16 @@ import { PublicPage, PublicBreadcrumbs, usePublicImage, MarketingHero, Marketing
 import { goToDomainCheckout, DomainPromoBadge, TldPriceCard, DomainFeatureItem, DomainSearchBar, DomainSearchSection, DomainGlobeIllustration } from "./domainWidgets";
 import type { DomainFeature, PublicTldPricingRow } from "./domainWidgets";
 
-export const navItems = [
-  { label: "Home", href: "/" },
-  { label: "Solutions", href: "/website-design" },
-];
+export const navItems = [{ label: "Home", href: "/" }];
 
+// Services and Domains are mega menus (src/shared/MegaMenu.tsx); these stay small dropdowns.
 export const staticNavGroups = [
-  {
-    label: "Hosting",
-    items: [
-      { label: "Web Hosting", href: "/web-hosting" },
-      { label: "Website Care Plans", href: "/website-care-plans" },
-      { label: "Business Email Hosting", href: "/business-email-hosting" },
-      { label: "Green Mail", href: "/green-mail" },
-      { label: "SSL Certificate", href: "/ssl-certificate" },
-    ],
-  },
-  {
-    label: "Domains",
-    items: [
-      { label: "Search Domain", href: "/domains" },
-      { label: "Domain Registration", href: "/domain-registration" },
-      { label: "Domain Transfer", href: "/domain-transfer" },
-      { label: "Domain Pricing", href: "/domain-pricing" },
-      { label: "Domain Renewal", href: "/domain-renewal" },
-    ],
-  },
-  {
-    label: "Website",
-    items: [
-      { label: "Website Design", href: "/website-design" },
-      { label: "Portfolio", href: "/portfolio" },
-    ],
-  },
   {
     label: "Company",
     items: [
       { label: "About", href: "/about" },
+      { label: "Portfolio", href: "/portfolio" },
+      { label: "Blog", href: "/blog" },
       { label: "Contact", href: "/contact" },
     ],
   },
@@ -273,6 +247,7 @@ export function Navbar({ logo }: { logo: LogoImage }) {
               {item.label}
             </a>
           ))}
+          <MegaMenuBar />
           {navGroups.map((group) => (
             <div key={group.label} className="group/nav relative">
               <button
@@ -351,6 +326,7 @@ export function Navbar({ logo }: { logo: LogoImage }) {
                   {item.label}
                 </a>
               ))}
+              <MegaMenuMobile onNavigate={() => setIsOpen(false)} />
               {navGroups.map((group) => (
                 <div key={group.label} className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
                   <div className="px-1 text-[10px] font-black uppercase text-primary">{group.label}</div>
