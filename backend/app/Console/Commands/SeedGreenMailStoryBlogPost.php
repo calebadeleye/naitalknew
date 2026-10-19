@@ -32,7 +32,7 @@ class SeedGreenMailStoryBlogPost extends Command
                     'source_id' => '10375901',
                     'metadata' => ['source' => 'pexels'],
                 ],
-                'author_name' => 'NAI TALK',
+                'author_name' => 'Admin',
                 'status' => 'published',
                 'published_at' => now(),
                 'seo_title' => 'Green Mail: Standalone Business Email in Nigeria | NAI TALK',

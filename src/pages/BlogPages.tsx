@@ -307,7 +307,27 @@ function renderInlineMarkdown(text: string): React.ReactNode[] {
   });
 }
 
+type PostCta = { title: string; text: string; primary: { label: string; href: string }; secondary: { label: string; href: string } };
+
+const DEFAULT_POST_CTA: PostCta = {
+  title: "Ready to get started?",
+  text: "Search a domain or explore our Website Care Plans.",
+  primary: { label: "View Website Care Plans", href: "/website-care-plans" },
+  secondary: { label: "Search Domain", href: "/domains" },
+};
+
+/** Posts about something specific end with a call to action for it, not the generic website one. */
+const POST_CTAS: Record<string, PostCta> = {
+  "from-webmail-to-green-mail-professional-business-email": {
+    title: "Ready for business email that looks the part?",
+    text: "Get Green Mail on your own domain from ₦12,000 a year. No website or hosting package needed.",
+    primary: { label: "See Green Mail Plans", href: "/green-mail#email-plans" },
+    secondary: { label: "About Green Mail", href: "/green-mail" },
+  },
+};
+
 export function BlogDetailPage({ slug }: { slug: string }) {
+  const cta = POST_CTAS[slug] ?? DEFAULT_POST_CTA;
   const toast = useToast();
   const [post, setPost] = useState<(PublicBlogSummary & { content: string; seo_title: string; seo_description: string; og_image: string | null }) | null>(null);
   const canonicalUrl = `${SITE_URL}/blog/${slug}`;
@@ -450,12 +470,12 @@ export function BlogDetailPage({ slug }: { slug: string }) {
 
           <div className="mt-10 grid gap-4 rounded-2xl border border-primary/25 bg-primary/5 p-6 sm:grid-cols-2">
             <div>
-              <h3 className="text-base font-black text-[#07111f]">Ready to get started?</h3>
-              <p className="mt-1 text-sm text-[#596273]">Search a domain or explore our Website Care Plans.</p>
+              <h3 className="text-base font-black text-[#07111f]">{cta.title}</h3>
+              <p className="mt-1 text-sm text-[#596273]">{cta.text}</p>
             </div>
             <div className="flex flex-wrap gap-3 sm:justify-end">
-              <a href="/domains" className="btn-outline-light !min-h-10 !text-[11px]">Search Domain</a>
-              <a href="/website-care-plans" className="btn-primary !min-h-10 !text-[11px]">View Website Care Plans</a>
+              <a href={cta.secondary.href} className="btn-outline-light !min-h-10 !text-[11px]">{cta.secondary.label}</a>
+              <a href={cta.primary.href} className="btn-primary !min-h-10 !text-[11px]">{cta.primary.label}</a>
             </div>
           </div>
         </div>
