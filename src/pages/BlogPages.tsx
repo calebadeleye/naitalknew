@@ -275,9 +275,19 @@ export function BlogIndexPage() {
  * to make internal/external links inside article prose actually clickable.
  */
 function renderInlineMarkdown(text: string): React.ReactNode[] {
-  const parts = text.split(/(\[[^\]]+\]\([^)]+\))/g);
+  // **bold** and [label](url)
+  const parts = text.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g);
 
   return parts.map((part, index) => {
+    const bold = part.match(/^\*\*([^*]+)\*\*$/);
+    if (bold) {
+      return (
+        <strong key={index} className="font-black text-[#07111f]">
+          {bold[1]}
+        </strong>
+      );
+    }
+
     const match = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
     if (!match) return part;
 
@@ -398,6 +408,14 @@ export function BlogDetailPage({ slug }: { slug: string }) {
                     loading="lazy"
                     className="aspect-[16/9] w-full rounded-2xl object-cover"
                   />
+                );
+              }
+              // "> text" is a pull-quote
+              if (/^>\s+/.test(trimmed)) {
+                return (
+                  <blockquote key={index} className="border-l-4 border-primary bg-primary/5 px-5 py-4 text-lg font-bold italic leading-8 text-[#07111f]">
+                    {renderInlineMarkdown(trimmed.replace(/^>\s+/gm, "").replace(/\n/g, " "))}
+                  </blockquote>
                 );
               }
               const h3 = trimmed.match(/^###\s+(.+)$/);
