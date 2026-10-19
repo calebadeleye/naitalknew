@@ -88,6 +88,7 @@ import { useClientRoute, navigateClient, type ClientRouteName } from "../routing
 import { useAdminRoute, adminPath, adminClientDetailPath, adminServiceDetailPath, type AdminSectionId } from "../routing/useAdminRoute";
 import {
   consumePendingOrder,
+  pendingOrderPath,
   hasClientToken,
   savePendingOrder,
   startHostingOrder,
@@ -2891,6 +2892,10 @@ export function DomainSearchPage({
   const [isSearching, setIsSearching] = useState(false);
   const [result, setResult] = useState<DomainSearchResult | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+  // Opened from the order form ("Don't have a domain yet?"): send the domain back to that order.
+  const orderParams = new URLSearchParams(window.location.search);
+  const forPlan = orderParams.get("plan");
+  const forEmail = orderParams.get("type") === "email";
 
   const search = async () => {
     const domain = domainInput.trim().toLowerCase();
@@ -2984,9 +2989,13 @@ export function DomainSearchPage({
                   <button
                     type="button"
                     className="btn-outline justify-center !text-[11px]"
-                    onClick={() => navigate(`/client/order/hosting?domain=${encodeURIComponent(result.domain)}&register_domain=1`)}
+                    onClick={() =>
+                      navigate(
+                        `/client/order/hosting?${forEmail ? "type=email&" : ""}${forPlan ? `plan=${encodeURIComponent(forPlan)}&` : ""}domain=${encodeURIComponent(result.domain)}&register_domain=1`,
+                      )
+                    }
                   >
-                    Buy Domain + Hosting
+                    {forPlan ? "Use with my order" : forEmail ? "Buy Domain + Email" : "Buy Domain + Hosting"}
                   </button>
                 </div>
                 <button
@@ -4739,14 +4748,10 @@ export function ClientPortal() {
       trackEvent("login", { method: "email" });
 
       const pending = consumePendingOrder();
-      if (pending?.service) {
-        navigate(`/client/order/service?offering=${encodeURIComponent(pending.service)}`);
-      } else if (pending?.email) {
-        // Email plans need the client's domain first.
-        navigate(`/client/order/hosting?type=email&plan=${encodeURIComponent(pending.plan)}`);
-      } else if (pending) {
-        setOrderDraft((current) => ({ ...current, plan_slug: pending.plan, billing_cycle: pending.billing_cycle }));
-        navigate("/client/order/review");
+      if (pending) {
+        // Back to the order form with the plan chosen — the domain still has to be entered there.
+        if (!pending.service) setOrderDraft((current) => ({ ...current, plan_slug: pending.plan, billing_cycle: pending.billing_cycle }));
+        navigate(pendingOrderPath(pending));
       } else {
         navigate("/client/dashboard");
       }
@@ -4885,14 +4890,10 @@ export function ClientPortal() {
       setIsVerified(true);
 
       const pending = consumePendingOrder();
-      if (pending?.service) {
-        navigate(`/client/order/service?offering=${encodeURIComponent(pending.service)}`);
-      } else if (pending?.email) {
-        // Email plans need the client's domain first.
-        navigate(`/client/order/hosting?type=email&plan=${encodeURIComponent(pending.plan)}`);
-      } else if (pending) {
-        setOrderDraft((current) => ({ ...current, plan_slug: pending.plan, billing_cycle: pending.billing_cycle }));
-        navigate("/client/order/review");
+      if (pending) {
+        // Back to the order form with the plan chosen — the domain still has to be entered there.
+        if (!pending.service) setOrderDraft((current) => ({ ...current, plan_slug: pending.plan, billing_cycle: pending.billing_cycle }));
+        navigate(pendingOrderPath(pending));
       } else {
         navigate("/client/dashboard");
       }
@@ -5437,6 +5438,13 @@ export function ClientPortal() {
     );
   }
 
+  if (route === "order-review" && !orderDraft.plan_slug) {
+    // Nothing chosen yet (e.g. the page was reloaded): start at the order form.
+    navigate("/client/order/hosting");
+
+    return null;
+  }
+
   if (route === "checkout" && !checkoutResult && !orderDraft.plan_slug) {
     // Nothing is being checked out here (e.g. the page was reloaded after an order was placed): the cart is the place to start.
     navigate("/client/cart");
@@ -5467,6 +5475,15 @@ export function ClientPortal() {
     }
 
     const selectedPlan = hostingPlans.find((plan) => plan.slug === orderDraft.plan_slug);
+    // Both are needed to place the order (the server requires the domain).
+    const orderIsComplete = Boolean(selectedPlan && orderDraft.primary_domain.trim());
+    const editOrderPath = `/client/order/hosting?${orderingEmail ? "type=email&" : ""}${orderDraft.plan_slug ? `plan=${encodeURIComponent(orderDraft.plan_slug)}` : ""}`;
+    const incompleteOrderNotice = !orderIsComplete && (
+      <p className="mt-5 rounded-lg border border-yellow-400/30 bg-yellow-400/10 p-3 text-sm text-yellow-100">
+        {!selectedPlan ? "Choose a plan" : "Enter the domain this is for"} before you continue.
+        {!orderDraft.primary_domain.trim() && " Use a domain you already own, or search for a new one to register with this order."}
+      </p>
+    );
     const selectedAddOns = addOns.filter((addOn) => orderDraft.add_ons.includes(addOn.slug));
     const planAmount = selectedPlan ? parseNairaAmount(selectedPlan.annual) : 0;
     const addOnsAmount = selectedAddOns.reduce(
@@ -5492,7 +5509,7 @@ export function ClientPortal() {
         onLogout={() => void handleClientLogout()}
         onProfileClick={() => navigate("/client/profile")}
       >
-          <section className="grid gap-5 lg:grid-cols-[1fr_320px]">
+          <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
             <div className="portal-card">
               {orderingEmail && (
                 <div className="mb-5 rounded-lg border border-primary/25 bg-primary/10 p-4 text-sm text-white/75">
@@ -5504,7 +5521,7 @@ export function ClientPortal() {
                 </div>
               )}
               <label className="admin-field">
-                <span>{orderingEmail ? "Your domain (for addresses like you@yourbusiness.com)" : "Primary domain (optional)"}</span>
+                <span>{orderingEmail ? "Your domain (for addresses like you@yourbusiness.com)" : "Your website's domain"}</span>
                 <input
                   value={orderDraft.primary_domain}
                   onChange={(event) => setOrderDraft((current) => ({ ...current, primary_domain: event.target.value, register_domain: false }))}
@@ -5512,9 +5529,21 @@ export function ClientPortal() {
                   disabled={orderDraft.register_domain}
                 />
               </label>
+              {!orderDraft.register_domain && !orderDraft.primary_domain.trim() && (
+                <button
+                  type="button"
+                  className="mt-2 text-xs font-bold text-primary hover:underline"
+                  onClick={() => navigate(`/client/domains/search?${orderingEmail ? "type=email&" : ""}${orderDraft.plan_slug ? `plan=${encodeURIComponent(orderDraft.plan_slug)}` : ""}`)}
+                >
+                  Don't have a domain yet? Find one to register with this order →
+                </button>
+              )}
               {orderDraft.register_domain ? (
                 <p className="mt-2 text-xs font-bold text-primary">
-                  This domain will be registered for you as part of this order.
+                  This domain will be registered for you as part of this order.{" "}
+                  <button type="button" className="underline" onClick={() => setOrderDraft((current) => ({ ...current, primary_domain: "", register_domain: false }))}>
+                    Change
+                  </button>
                 </p>
               ) : (
                 orderDraft.primary_domain && (
@@ -5626,12 +5655,15 @@ export function ClientPortal() {
               <button
                 type="button"
                 className="btn-primary mt-6 w-full justify-center"
-                disabled={!orderDraft.plan_slug}
+                disabled={!orderIsComplete}
                 onClick={() => navigate("/client/order/review")}
               >
                 Review order
                 <ArrowRight className="h-4 w-4" />
               </button>
+              {selectedPlan && !orderDraft.primary_domain.trim() && (
+                <p className="mt-2 text-center text-xs text-white/50">Enter your domain above to continue.</p>
+              )}
               <button
                 type="button"
                 className="btn-outline mt-2 w-full justify-center"
@@ -5672,7 +5704,7 @@ export function ClientPortal() {
                   <strong className="text-white">Add-ons:</strong>{" "}
                   {selectedAddOns.length ? selectedAddOns.map((addOn) => addOn.name).join(", ") : "None"}
                 </p>
-                <p><strong className="text-white">Auto-renew:</strong> Enabled by default — you can turn this off anytime from your service's Manage Hosting page.</p>
+                <p><strong className="text-white">Auto-renew:</strong> Enabled by default — you can turn this off anytime from your service's {orderingEmail ? "Manage Email" : "Manage Hosting"} page.</p>
                 {orderDraft.register_domain && orderDraft.primary_domain && (
                   <p>
                     <strong className="text-white">Domain Registration — {orderDraft.primary_domain}:</strong>{" "}
@@ -5688,11 +5720,12 @@ export function ClientPortal() {
                 <p className="mt-2">{dashboard.client.name} — {dashboard.client.email}</p>
                 <p className="mt-1 text-xs text-white/45">Edit your profile details from Account Settings before checkout if needed.</p>
               </div>
+              {incompleteOrderNotice}
               <div className="mt-6 flex flex-wrap gap-3">
-                <button type="button" className="btn-outline justify-center" onClick={() => navigate(`/client/order/hosting${orderingEmail ? "?type=email" : ""}`)}>
+                <button type="button" className="btn-outline justify-center" onClick={() => navigate(editOrderPath)}>
                   Back to edit
                 </button>
-                <button type="button" className="btn-primary justify-center" disabled={!orderDraft.plan_slug} onClick={() => navigate("/client/checkout")}>
+                <button type="button" className="btn-primary justify-center" disabled={!orderIsComplete} onClick={() => navigate("/client/checkout")}>
                   Proceed to checkout
                   <ArrowRight className="h-4 w-4" />
                 </button>
@@ -5719,11 +5752,23 @@ export function ClientPortal() {
               <p className="mt-3 text-sm text-white/60">
                 Create your order for {selectedPlan?.name || (orderingEmail ? "your email plan" : "your hosting plan")} — {formatNaira(orderTotal)}. An invoice will be created and emailed to you, and you can pay now or later.
               </p>
-              <TermsAgreement className="mt-5" checked={orderTermsAccepted} onChange={setOrderTermsAccepted} />
-              <button type="button" className="btn-primary mt-5 w-full justify-center" disabled={isSubmittingOrder || !orderTermsAccepted} onClick={() => void handleSubmitOrder()}>
-                {isSubmittingOrder ? "Creating order..." : "Create order"}
-                <ArrowRight className="h-4 w-4" />
-              </button>
+              {orderIsComplete ? (
+                <>
+                  <TermsAgreement className="mt-5" checked={orderTermsAccepted} onChange={setOrderTermsAccepted} />
+                  <button type="button" className="btn-primary mt-5 w-full justify-center" disabled={isSubmittingOrder || !orderTermsAccepted} onClick={() => void handleSubmitOrder()}>
+                    {isSubmittingOrder ? "Creating order..." : "Create order"}
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  {incompleteOrderNotice}
+                  <button type="button" className="btn-primary mt-5 w-full justify-center" onClick={() => navigate(editOrderPath)}>
+                    Back to your order
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </>
+              )}
             </>
           )}
 

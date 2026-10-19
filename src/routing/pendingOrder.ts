@@ -66,7 +66,7 @@ export function consumePendingOrder(): PendingOrder | null {
       return { plan: "", billing_cycle: "annual", service: parsed.service };
     }
     if (typeof parsed?.plan === "string") {
-      return { plan: parsed.plan, billing_cycle: "annual" };
+      return { plan: parsed.plan, billing_cycle: "annual", email: parsed.email === true };
     }
   } catch {
     // ignore malformed session data
@@ -108,4 +108,10 @@ export function startEmailOrder(slug: string) {
 
   savePendingOrder({ plan: slug, billing_cycle: "annual", email: true });
   window.location.href = "/client/register";
+}
+
+/** Where to continue a plan picked before signing in: the order form, with the plan already chosen (the domain is entered there). */
+export function pendingOrderPath(order: PendingOrder): string {
+  if (order.service) return `/client/order/service?offering=${encodeURIComponent(order.service)}`;
+  return `/client/order/hosting?${order.email ? "type=email&" : ""}plan=${encodeURIComponent(order.plan)}`;
 }
