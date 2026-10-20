@@ -47,7 +47,7 @@ export const pageSeoConfig = {
   },
   "/business-email-hosting": {
     title: "Professional Business Email Hosting | NAI TALK",
-    description: "A professional info@yourbusiness.com address builds trust that free Gmail or Yahoo addresses can't. Included in every Website Care Plan.",
+    description: "Business email on your own domain from ₦12,000 a year — no website needed. info@yourbusiness.com builds trust free Gmail or Yahoo can't.",
   },
   "/ssl-certificate": {
     title: "SSL Certificate for Your Website — ₦15,000 | NAI TALK",

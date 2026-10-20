@@ -115,6 +115,7 @@ import type { DomainFeature, PublicTldPricingRow } from "../shared/domainWidgets
 import { Portfolio } from "../App";
 import { ResponsiveImage, buildDataAssetSrcSet } from "../components/ResponsiveImage";
 import { WEBSITE_CARE_HEADLINE, WEBSITE_CARE_SUBTEXT, PlanBadge, PlanHighlights, PlanFeatureList, WebsiteCareComparisonTable, toHostingPlanCard } from "../shared/websiteCare";
+import { EmailOnlyPlans } from "../shared/emailPlans";
 
 export function WebHostingPage() {
   return (
@@ -382,11 +383,11 @@ export function BusinessEmailHostingPage() {
       <MarketingHero
         eyebrow="Business Email"
         title="Professional Business Email Hosting"
-        subtitle="info@yourbusiness.com builds trust that a free Gmail or Yahoo address never can. Included with every NAI TALK Website Care Plan."
-        ctaLabel="Get Business Email"
-        ctaHref="/website-care-plans"
-        secondaryLabel="Register a Domain First"
-        secondaryHref="/domain-registration"
+        subtitle="info@yourbusiness.com builds trust that a free Gmail or Yahoo address never can. Get it on its own from ₦12,000 a year — or free with every NAI TALK Website Care Plan."
+        ctaLabel="See Email Plans"
+        ctaHref="#email-plans"
+        secondaryLabel="Website Care Plans"
+        secondaryHref="/website-care-plans"
         imageQuery="professional email office laptop"
         dark
       />
@@ -419,15 +420,15 @@ export function BusinessEmailHostingPage() {
               <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
                 <PackageCheck className="h-5 w-5" />
               </div>
-              <h3 className="mt-4 text-base font-black text-white">Included in Website Care</h3>
-              <p className="mt-2 text-sm leading-6 text-white/62">Every plan includes unlimited professional business email accounts on your domain.</p>
+              <h3 className="mt-4 text-base font-black text-white">On its own, or with your website</h3>
+              <p className="mt-2 text-sm leading-6 text-white/62">Buy email alone from ₦12,000 a year, or get unlimited mailboxes free with any Website Care Plan.</p>
             </div>
             <div className="pub-card-dark">
               <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
                 <Globe2 className="h-5 w-5" />
               </div>
               <h3 className="mt-4 text-base font-black text-white">Works with your domain</h3>
-              <p className="mt-2 text-sm leading-6 text-white/62">Business email is tied to your domain name — register or transfer yours to get started.</p>
+              <p className="mt-2 text-sm leading-6 text-white/62">Keep your domain where it is, or register a new one with us — your email works either way.</p>
             </div>
           </div>
 
@@ -442,9 +443,15 @@ export function BusinessEmailHostingPage() {
         </div>
       </section>
 
+      <EmailOnlyPlans
+        section="business_email_plans"
+        eyebrow="Business email plans"
+        title="Professional email on your domain — no website needed"
+      />
+
       <MarketingCtaBand
-        title="Get a professional email address"
-        subtitle="Business email comes included in every Website Care Plan — no separate setup needed."
+        title="Building a website too?"
+        subtitle="Every Website Care Plan includes unlimited business email accounts — no separate email plan needed."
         ctaLabel="View Website Care Plans"
         ctaHref="/website-care-plans"
         dark
