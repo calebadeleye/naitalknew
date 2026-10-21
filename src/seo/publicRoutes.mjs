@@ -38,7 +38,7 @@ export const KNOWN_PREFIXES = [
 ];
 
 // Exact-matched only, like `path === "..."` in App.tsx.
-export const KNOWN_EXACT_PATHS = ["/", "/get-a-website", "/get-a-website/thank-you"];
+export const KNOWN_EXACT_PATHS = ["/", "/get-a-website", "/get-a-website/thank-you", "/get-business-email"];
 
 // Auth-gated SPA zones: always 200 (validity is client-side/auth-dependent,
 // not something the server can or should judge), never prerendered, never
@@ -52,7 +52,10 @@ export const DYNAMIC_SLUG_PREFIXES = ["/blog", "/knowledge-base"];
 // Known routes that intentionally aren't promoted in the sitemap/prerender
 // pass -- a post-submission thank-you page has nothing for search/social to
 // index and no stable content worth freezing into a snapshot.
-const EXCLUDED_FROM_INDEXING = new Set(["/get-a-website/thank-you"]);
+// The advert landing pages are also kept out of search (noindex): they're
+// for paid traffic, and the same offer has its own indexable page.
+const EXCLUDED_FROM_INDEXING = new Set(["/get-a-website/thank-you", "/get-business-email"]);
+const NOINDEX_PATHS = new Set(["/get-business-email"]);
 
 function normalize(pathname) {
   return pathname.replace(/\/$/, "") || "/";
@@ -62,6 +65,10 @@ export function isKnownPublicPath(pathname) {
   const normalized = normalize(pathname);
   if (KNOWN_EXACT_PATHS.includes(normalized)) return true;
   return KNOWN_PREFIXES.some((prefix) => normalized.startsWith(prefix));
+}
+
+export function isNoindexPath(pathname) {
+  return NOINDEX_PATHS.has(normalize(pathname));
 }
 
 export function isPrivatePath(pathname) {

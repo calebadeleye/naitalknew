@@ -1215,6 +1215,7 @@ const LazyTermsOfServicePage = React.lazy(() => import("./pages/MarketingPages")
 const LazyRefundPolicyPage = React.lazy(() => import("./pages/MarketingPages").then((m) => ({ default: m.RefundPolicyPage })));
 const LazyBlogRouter = React.lazy(() => import("./pages/BlogPages").then((m) => ({ default: m.BlogRouter })));
 const LazyKnowledgeBaseRouter = React.lazy(() => import("./pages/KnowledgeBasePages").then((m) => ({ default: m.KnowledgeBaseRouter })));
+const LazyBusinessEmailLandingPage = React.lazy(() => import("./pages/BusinessEmailLandingPage").then((m) => ({ default: m.BusinessEmailLandingPage })));
 const LazyWebsiteQuoteLandingPage = React.lazy(() => import("./pages/WebsiteQuotePages").then((m) => ({ default: m.WebsiteQuoteLandingPage })));
 const LazyWebsiteQuoteThankYouPage = React.lazy(() => import("./pages/WebsiteQuotePages").then((m) => ({ default: m.WebsiteQuoteThankYouPage })));
 
@@ -1291,6 +1292,7 @@ export default function App() {
   if (path.startsWith("/refund-policy")) return <RoutedPage><LazyRefundPolicyPage /></RoutedPage>;
   if (path === "/get-a-website/thank-you") return <RoutedPage><LazyWebsiteQuoteThankYouPage /></RoutedPage>;
   if (path === "/get-a-website") return <RoutedPage><LazyWebsiteQuoteLandingPage /></RoutedPage>;
+  if (path === "/get-business-email") return <RoutedPage><LazyBusinessEmailLandingPage /></RoutedPage>;
   if (path === "/") return <PublicSite />;
   // Every valid route has an explicit branch above (kept in sync with
   // src/seo/publicRoutes.mjs, which server.js uses to resolve the same

@@ -8,7 +8,7 @@ import axios from "axios";
 import dotenv from "dotenv";
 import sharp from "sharp";
 import { getPageSeo, DEFAULT_OG_IMAGE, SITE_URL } from "./src/seo/pageSeoConfig.mjs";
-import { isKnownPublicPath, isPrivatePath, isDynamicSlugPath, prerenderedRelativeFilePath, INDEXABLE_STATIC_PATHS } from "./src/seo/publicRoutes.mjs";
+import { isKnownPublicPath, isPrivatePath, isNoindexPath, isDynamicSlugPath, prerenderedRelativeFilePath, INDEXABLE_STATIC_PATHS } from "./src/seo/publicRoutes.mjs";
 
 dotenv.config();
 
@@ -815,7 +815,7 @@ async function startServer() {
       const template = fs.readFileSync(templatePath, "utf-8");
 
       let html = await injectSeoTags(template, pathname);
-      if (isPrivatePath(pathname) || status === 503) {
+      if (isPrivatePath(pathname) || isNoindexPath(pathname) || status === 503) {
         html = applyPrivateNoindex(html);
       }
       if (pathname === "/greenmail" || pathname.startsWith("/greenmail/")) {

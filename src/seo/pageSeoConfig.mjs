@@ -97,6 +97,10 @@ export const pageSeoConfig = {
     title: "Professional Website Design in Nigeria | NAITALK",
     description: "Get a professional website designed, hosted and managed by NAITALK. Website design, domain, hosting, SSL and ongoing support for Nigerian businesses.",
   },
+  "/get-business-email": {
+    title: "Business Email on Your Own Domain — from ₦12,000/yr | NAI TALK",
+    description: "Get you@yourbusiness.com with Green Mail. Keep your domain, no website needed. Choose a plan and order in minutes.",
+  },
   "/get-a-website/thank-you": {
     title: "Request Received | NAITALK",
     description: "Thank you for requesting a website quote from NAITALK. Our team will be in touch shortly.",
