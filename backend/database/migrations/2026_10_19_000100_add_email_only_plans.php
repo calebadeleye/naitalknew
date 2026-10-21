@@ -57,7 +57,7 @@ return new class extends Migration
                 'public_features' => json_encode([
                     "{$mailboxes} mailboxes on your own domain",
                     "{$storageGb} GB of email storage, shared by your mailboxes",
-                    'Green Mail webmail: calendar, tasks, notes, templates and an AI assistant',
+                    'Green Mail: AI assistant, calendar, tasks, notes and templates',
                     'Works with phone and desktop mail apps (IMAP and SMTP)',
                     'Keep your domain where it is — or register one with us',
                     'Spam and virus filtering, DKIM signing',

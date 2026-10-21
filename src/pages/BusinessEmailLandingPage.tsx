@@ -36,6 +36,14 @@ const STEPS = [
   },
 ];
 
+// Real Green Mail screens (demo mailbox), in public/images/greenmail/.
+const SCREENS = [
+  { src: "/images/greenmail/greenmail-ai-summary.webp", width: 1200, height: 907, focus: "object-right-top", title: "AI reads it for you", text: "One tap summarises a long email, pulls out the action items, or translates it to Yoruba." },
+  { src: "/images/greenmail/greenmail-ai-reply.webp", width: 1200, height: 1060, focus: "object-[0%_88%]", title: "Replies written in seconds", text: "The AI drafts a professional reply with your signature — check it, then send." },
+  { src: "/images/greenmail/greenmail-calendar.webp", width: 1400, height: 909, focus: "object-left-top", title: "Calendar, tasks and contacts", text: "Plan your week, keep your to-dos and your customers next to your email." },
+  { src: "/images/greenmail/greenmail-phone.webp", width: 600, height: 1179, focus: "object-top", title: "On your phone too", text: "Install it like an app, or use your phone's own mail app — your email is everywhere." },
+];
+
 const PERKS = [
   { icon: Smartphone, label: "Phone & computer" },
   { icon: Sparkles, label: "AI writing help" },
@@ -115,6 +123,36 @@ export function BusinessEmailLandingPage() {
           </div>
         </section>
 
+        {/* The app itself — swipe on a phone, a grid on a computer. */}
+        <section className="border-t border-white/8">
+          <div className="mx-auto max-w-6xl py-14">
+            <h2 className="px-4 text-center text-2xl font-black sm:px-6 sm:text-3xl">See Green Mail in action</h2>
+            <p className="mx-auto mt-2 max-w-xl px-4 text-center text-sm text-white/60 sm:px-6">Your business email, with smart tools built in.</p>
+            <div className="mt-8 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-4 sm:px-6 md:grid md:grid-cols-2 md:overflow-visible md:pb-0 lg:grid-cols-4">
+              {SCREENS.map((screen) => (
+                <figure key={screen.src} className="w-[82%] shrink-0 snap-center md:w-auto">
+                  <div className="flex aspect-[4/5] items-start justify-center overflow-hidden rounded-2xl border border-white/10 bg-white md:aspect-[4/3]">
+                    <img
+                      src={screen.src}
+                      alt={`Green Mail: ${screen.title}`}
+                      width={screen.width}
+                      height={screen.height}
+                      loading="lazy"
+                      decoding="async"
+                      className={`h-full w-full object-cover ${screen.focus} md:object-left-top`}
+                    />
+                  </div>
+                  <figcaption className="mt-3">
+                    <p className="text-base font-black">{screen.title}</p>
+                    <p className="mt-1 text-sm leading-6 text-white/60">{screen.text}</p>
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
+            <p className="mt-2 px-4 text-center text-xs text-white/40 md:hidden">Swipe to see more →</p>
+          </div>
+        </section>
+
         {/* How it works */}
         <section className="border-t border-white/8">
           <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6">
@@ -139,7 +177,7 @@ export function BusinessEmailLandingPage() {
           section="ad_email_landing_plans"
           eyebrow="Choose your plan"
           title="Pick the plan that fits your team"
-          intro="Every plan includes Green Mail webmail, works with your phone's mail app, and comes with our team's help to set it up."
+          intro="Every plan includes Green Mail — email, calendar, tasks and an AI assistant in one place — works with your phone's mail app, and comes with our team's help to set it up."
           footnote={false}
         />
 

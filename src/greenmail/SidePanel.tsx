@@ -31,7 +31,7 @@ export function SidePanel({
   onOpenTasks: () => void;
 }) {
   return (
-    <div className="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-3">
+    <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] content-start gap-3 overflow-y-auto p-3">
       <AssistantCard token={token} message={message} folder={folder} onUseDraft={onUseDraft} onSessionError={onSessionError} />
       <CalendarCard token={token} onSessionError={onSessionError} onOpen={onOpenCalendar} />
       <TasksCard token={token} onSessionError={onSessionError} onOpen={onOpenTasks} />
