@@ -200,25 +200,28 @@ class EmailBrandingTest extends TestCase
                 );
             }
 
-            // Branding: logo, no old plain-text wordmark link, brand slogan, green notice strip with a category title.
-            $this->assertStringContainsString('assets/email/naitalk-logo.png', $html, "[$label] NAITALK logo missing from header.");
-            $this->assertStringContainsString('we build', $html, "[$label] brand slogan missing.");
-            $this->assertStringContainsString('notice-strip', $html, "[$label] compact notice strip missing.");
-            $this->assertStringContainsString($expectedNoticeTitle, $html, "[$label] notice strip title incorrect.");
+            // Branding (the 2026-10 template): hosted logo, slogan, hero, and the email's own title as the section heading.
+            $assets = config('mail.brand.asset_url');
+            $this->assertStringContainsString($assets.'/logo.png', $html, "[$label] NAITALK logo missing from header.");
+            $this->assertStringContainsString('We build', $html, "[$label] brand slogan missing.");
+            $this->assertStringContainsString('for your <span class="hero-accent"', $html, "[$label] hero missing.");
+            $this->assertStringContainsString('section-title', $html, "[$label] section heading missing.");
+            $this->assertStringContainsString($expectedNoticeTitle, $html, "[$label] section title incorrect.");
             $this->assertStringNotContainsString('laravel.com/img/notification-logo', $html, "[$label] default Laravel logo leaked into header.");
 
-            // Support section + branded footer with the approved contact details.
+            // Feature row, support band + branded footer with the approved contact details.
+            $this->assertStringContainsString('Expert Support', $html, "[$label] feature row missing.");
             $this->assertStringContainsString('Contact Support', $html, "[$label] support section missing.");
+            $this->assertStringContainsString($assets.'/logo-light.png', $html, "[$label] footer logo missing.");
             $this->assertStringContainsString('info@naitalk.com', $html, "[$label] footer support email missing.");
             $this->assertStringContainsString('07087057654', $html, "[$label] footer phone missing.");
             $this->assertStringContainsString('www.naitalk.com', $html, "[$label] footer website missing.");
             $this->assertStringContainsString('7 Unity Rd, Off Command Rd, Ikola, Lagos', $html, "[$label] footer address missing.");
-            $this->assertStringContainsString('This is an automated message, please do not reply.', $html, "[$label] automated-message notice missing.");
             $this->assertStringContainsString((string) date('Y'), $html, "[$label] footer copyright year missing.");
 
             // Green CTA buttons must use the brand green, not Laravel's default black/blue.
             if (str_contains($html, 'class="button')) {
-                $this->assertStringContainsString('#159a34', $html, "[$label] CTA button is not using the brand green.");
+                $this->assertStringContainsString('#3f8f1c', $html, "[$label] CTA button is not using the brand green.");
             }
         }
     }

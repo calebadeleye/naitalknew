@@ -1,7 +1,8 @@
+@php($brand = config('mail.brand'))
 <x-mail::layout>
 {{-- Header --}}
 <x-slot:header>
-<x-mail::header :url="config('app.url')">
+<x-mail::header :url="config('mail.brand.site_url')">
 {{ config('app.name') }}
 </x-mail::header>
 </x-slot:header>
@@ -9,13 +10,51 @@
 {{-- Body --}}
 {!! $slot !!}
 
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="support-section">
+<table class="features" width="100%" cellpadding="0" cellspacing="0" role="presentation">
 <tr>
-<td align="center">
+<td class="pad">
+<table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+<tr>
+<td class="feature" width="33%" valign="top">
+<table cellpadding="0" cellspacing="0" role="presentation"><tr>
+<td valign="top" width="52"><img src="{{ $brand['asset_url'] }}/icon-shield.png" width="44" height="44" alt="" style="display: block; border: 0;"></td>
+<td valign="top"><p class="feature-title">Secure</p><p class="feature-text">Your data is safe with us.</p></td>
+</tr></table>
+</td>
+<td class="feature feature-divided" width="34%" valign="top">
+<table cellpadding="0" cellspacing="0" role="presentation"><tr>
+<td valign="top" width="52"><img src="{{ $brand['asset_url'] }}/icon-support.png" width="44" height="44" alt="" style="display: block; border: 0;"></td>
+<td valign="top"><p class="feature-title">Expert Support</p><p class="feature-text">Our team is always ready to help.</p></td>
+</tr></table>
+</td>
+<td class="feature feature-divided" width="33%" valign="top">
+<table cellpadding="0" cellspacing="0" role="presentation"><tr>
+<td valign="top" width="52"><img src="{{ $brand['asset_url'] }}/icon-gear.png" width="44" height="44" alt="" style="display: block; border: 0;"></td>
+<td valign="top"><p class="feature-title">Reliable Services</p><p class="feature-text">Built to support your business growth.</p></td>
+</tr></table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
 
-<p>Need help? Our support team is ready to assist you.</p>
-<p><a href="mailto:info@naitalk.com">Contact Support &rarr;</a></p>
-
+<table class="help" width="100%" cellpadding="0" cellspacing="0" role="presentation">
+<tr>
+<td class="help-box">
+<table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+<tr>
+<td class="help-text" valign="middle">
+<table cellpadding="0" cellspacing="0" role="presentation"><tr>
+<td valign="middle" width="66"><img src="{{ $brand['asset_url'] }}/icon-chat.png" width="52" height="52" alt="" style="display: block; border: 0;"></td>
+<td valign="middle"><p class="help-title">Need Help?</p><p class="help-sub">Our support team is available to assist you.</p></td>
+</tr></table>
+</td>
+<td class="help-action" align="right" valign="middle">
+<a href="{{ $brand['site_url'] }}/contact" class="button-outline" target="_blank" rel="noopener">Contact Support&nbsp;&nbsp;&rarr;</a>
+</td>
+</tr>
+</table>
 </td>
 </tr>
 </table>
@@ -32,23 +71,6 @@
 {{-- Footer --}}
 <x-slot:footer>
 <x-mail::footer>
-
-<img src="{{ asset('assets/email/naitalk-logo.png') }}" width="110" alt="NAITALK" style="max-width: 110px; width: 110px; height: auto;">
-
-<p class="brand-slogan-footer">Let&rsquo;s talk&nbsp;&nbsp;|&nbsp;&nbsp;we build&nbsp;&nbsp;|&nbsp;&nbsp;you grow.</p>
-
-<p class="footer-brand-line">Reliable hosting, powerful solutions, and expert support to help your business grow online.</p>
-
-<div class="footer-contact">
-<p>info@naitalk.com</p>
-<p>07087057654</p>
-<p>www.naitalk.com</p>
-<p>7 Unity Rd, Off Command Rd, Ikola, Lagos</p>
-</div>
-
-<p class="footer-copyright">&copy; {{ date('Y') }} NAI TALK. All rights reserved.</p>
-<p class="footer-automated">This is an automated message, please do not reply.</p>
-
 </x-mail::footer>
 </x-slot:footer>
 </x-mail::layout>

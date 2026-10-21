@@ -17,32 +17,25 @@
         'NaiTalkInvoiceCreated' => 'Invoice Notification',
         'NaiTalkPaymentProofUploaded' => 'Payment Proof Received',
         'NaiTalkVerificationCode' => 'Verification Code',
+        'NaiTalkPasswordReset' => 'Password Reset',
+        'GreenmailCode' => 'Your Green Mail Code',
+        'GreenmailResetRequestedForOwner' => 'Password Reset Request',
         'ServiceAnnouncement' => 'Scheduled Maintenance',
         'WebsiteHostingDeactivated' => 'Website Deactivated',
         'WebsiteHostingReactivated' => 'Website Reactivated',
     ];
     $naitalkNotificationClass = isset($__laravel_notification) ? class_basename($__laravel_notification) : null;
-    $naitalkNoticeTitle = $naitalkNoticeTitles[$naitalkNotificationClass]
+    $naitalkNoticeTitle = $noticeTitle ?? $naitalkNoticeTitles[$naitalkNotificationClass]
         ?? ($naitalkNotificationClass ? \Illuminate\Support\Str::title(\Illuminate\Support\Str::snake($naitalkNotificationClass, ' ')) : 'Service Update');
 @endphp
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="notice-strip">
-<tr>
-<td class="notice-strip-cell">
-<span class="notice-strip-icon">&#128276;</span> <span class="notice-strip-title">{{ $naitalkNoticeTitle }}</span>
-</td>
-</tr>
-</table>
+{{-- Hero: the greeting, then the brand line --}}
+<x-mail::hero :eyebrow="! empty($greeting) ? $greeting : ($level === 'error' ? __('Whoops!') : __('Hello,'))" />
 
-{{-- Greeting --}}
-@if (! empty($greeting))
-# {{ $greeting }}
-@else
-@if ($level === 'error')
-# @lang('Whoops!')
-@else
-# @lang('Hello!')
-@endif
-@endif
+<table class="section" width="100%" cellpadding="0" cellspacing="0" role="presentation">
+<tr>
+<td class="pad section-cell">
+
+<h2 class="section-title">{{ $naitalkNoticeTitle }}</h2>
 
 {{-- Intro Lines --}}
 @foreach ($introLines as $line)
@@ -74,8 +67,12 @@
 {{ $salutation }}
 @else
 @lang('Regards,')<br>
-{{ config('app.name') }}
+The NAI TALK Team
 @endif
+
+</td>
+</tr>
+</table>
 
 {{-- Subcopy --}}
 @isset($actionText)

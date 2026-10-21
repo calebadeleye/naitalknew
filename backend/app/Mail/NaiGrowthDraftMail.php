@@ -30,6 +30,7 @@ class NaiGrowthDraftMail extends Mailable
 
     public function content(): Content
     {
-        return new Content(view: 'emails.naigrowth-draft', with: ['bodyText' => $this->bodyText]);
+        // The branded template (resources/views/vendor/mail), like every other email.
+        return new Content(markdown: 'emails.naigrowth-draft', with: ['bodyText' => $this->bodyText]);
     }
 }

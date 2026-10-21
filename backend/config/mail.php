@@ -110,6 +110,14 @@ return [
     |
     */
 
+    // Images and links used by the branded email template
+    // (resources/views/vendor/mail/html). The images live in the website's
+    // public/email/ folder, so they must be absolute URLs on the live site.
+    'brand' => [
+        'asset_url' => rtrim(env('MAIL_ASSET_URL', 'https://www.naitalk.com/email'), '/'),
+        'site_url' => rtrim(env('MAIL_SITE_URL', 'https://www.naitalk.com'), '/'),
+    ],
+
     'from' => [
         'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),

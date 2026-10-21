@@ -20,6 +20,7 @@ class ServiceAnnouncement extends Notification
         public readonly string $subject,
         public readonly array $lines,
         public readonly string $name = '',
+        public readonly string $title = 'Scheduled Maintenance',
     ) {
     }
 
@@ -31,6 +32,7 @@ class ServiceAnnouncement extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         $mail = (new MailMessage)
+            ->markdown('notifications::email', ['noticeTitle' => $this->title])
             ->subject($this->subject)
             ->greeting($this->name !== '' ? "Hi {$this->name}," : 'Hello,');
 

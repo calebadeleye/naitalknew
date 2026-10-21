@@ -7,20 +7,20 @@
 <meta name="color-scheme" content="light">
 <meta name="supported-color-schemes" content="light">
 <style>
-@media only screen and (max-width: 600px) {
-.inner-body {
-width: 100% !important;
-}
-
-.footer {
-width: 100% !important;
-}
-}
-
-@media only screen and (max-width: 500px) {
-.button {
-width: 100% !important;
-}
+@media only screen and (max-width: 620px) {
+.inner-body, .footer { width: 100% !important; }
+.pad { padding-left: 22px !important; padding-right: 22px !important; }
+.header-tagline { display: none !important; }
+.hero-text, .hero-art { display: block !important; width: 100% !important; }
+.hero-art { padding: 0 22px 22px !important; text-align: center !important; }
+.hero-art img { width: 200px !important; }
+.hero-title { font-size: 32px !important; line-height: 36px !important; }
+.feature { display: block !important; width: 100% !important; border-left: 0 !important; padding: 10px 0 !important; }
+.help-text, .help-action { display: block !important; width: 100% !important; text-align: left !important; }
+.help-action { padding-top: 14px !important; }
+.footer-col { display: block !important; width: 100% !important; text-align: left !important; padding-bottom: 14px !important; }
+.footer-links { text-align: left !important; }
+.button { width: 100% !important; box-sizing: border-box; }
 }
 </style>
 {!! $head ?? '' !!}
@@ -30,22 +30,15 @@ width: 100% !important;
 <table class="wrapper" width="100%" cellpadding="0" cellspacing="0" role="presentation">
 <tr>
 <td align="center">
-<table class="content" width="100%" cellpadding="0" cellspacing="0" role="presentation">
+<table class="inner-body" align="center" width="640" cellpadding="0" cellspacing="0" role="presentation">
 {!! $header ?? '' !!}
 
 <!-- Email Body -->
 <tr>
-<td class="body" width="100%" cellpadding="0" cellspacing="0" style="border: hidden !important;">
-<table class="inner-body" align="center" width="600" cellpadding="0" cellspacing="0" role="presentation">
-<!-- Body content -->
-<tr>
-<td class="content-cell">
+<td class="body">
 {!! Illuminate\Mail\Markdown::parse($slot) !!}
 
 {!! $subcopy ?? '' !!}
-</td>
-</tr>
-</table>
 </td>
 </tr>
 
