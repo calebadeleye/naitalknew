@@ -1,33 +1,38 @@
 import React from "react";
-import { ArrowDown, CheckCircle2, CreditCard, Globe2, MailCheck, MessageCircle, ShieldCheck, Smartphone, Sparkles } from "lucide-react";
+import { ArrowDown, CheckCircle2, CreditCard, MailCheck, MousePointerClick, ShieldCheck, Smartphone, Sparkles, UserCheck } from "lucide-react";
 import { useSeo } from "../seo/useSeo";
 import { EmailOnlyPlans } from "../shared/emailPlans";
 import { trackCtaClick } from "../lib/analytics";
 
 /*
  * Advert landing page for business email (/get-business-email) — for
- * Instagram ads. Deliberately no site menu or footer: the visitor sees what
- * they get, three steps, and the plans to order. Not linked from the site,
+ * Instagram ads. Deliberately no site menu, footer or other links: the
+ * visitor sees what they get, the steps, and the plans. A plan's button
+ * takes them to sign up and verify their email, then back to the email
+ * order form with that plan chosen. Not linked from the site,
  * not in the sitemap, and noindex (see src/seo/publicRoutes.mjs).
  */
 
-const WHATSAPP_HREF = `https://wa.me/2347087057654?text=${encodeURIComponent("Hello NAI TALK, I want business email for my domain.")}`;
-
 const STEPS = [
   {
-    icon: Globe2,
-    title: "Choose a plan and your domain",
-    text: "Use the domain you already have (e.g. yourbusiness.com), wherever it's registered — or get a new one in the same order.",
+    icon: MousePointerClick,
+    title: "Choose your plan below",
+    text: "Pick the plan that fits your team and tap its button.",
+  },
+  {
+    icon: UserCheck,
+    title: "Create your account",
+    text: "Register on our website and verify your email with the code we send you.",
   },
   {
     icon: CreditCard,
-    title: "Pay securely",
-    text: "Pay by card or bank transfer. Your invoice is emailed to you straight away.",
+    title: "Complete your order",
+    text: "Enter your domain (the one you already have, or get a new one), then pay by card or bank transfer.",
   },
   {
     icon: MailCheck,
     title: "We set it up",
-    text: "We send you the few DNS settings to add (if your domain is with us, we add them for you). Then create your mailboxes and start sending.",
+    text: "We send you the few DNS settings to add — if your domain is with us, we add them for you. Then create your mailboxes and start sending.",
   },
 ];
 
@@ -114,7 +119,7 @@ export function BusinessEmailLandingPage() {
         <section className="border-t border-white/8">
           <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6">
             <h2 className="text-center text-2xl font-black sm:text-3xl">How it works</h2>
-            <ol className="mt-8 grid gap-4 md:grid-cols-3">
+            <ol className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {STEPS.map((step, index) => (
                 <li key={step.title} className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
                   <div className="flex items-center gap-3">
@@ -146,15 +151,6 @@ export function BusinessEmailLandingPage() {
               </li>
             ))}
           </ul>
-          <a
-            href={WHATSAPP_HREF}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => trackCtaClick({ button_text: "WhatsApp", page_section: "ad_email_landing_help", destination_url: "whatsapp" })}
-            className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-white/70 hover:text-primary"
-          >
-            <MessageCircle className="h-4 w-4 text-[#25D366]" /> Questions? Chat with us on WhatsApp
-          </a>
           <p className="mt-8 text-xs text-white/35">© {new Date().getFullYear()} NAI TALK · Green Mail business email</p>
         </section>
       </main>
