@@ -17,6 +17,7 @@
         'NaiTalkInvoiceCreated' => 'Invoice Notification',
         'NaiTalkPaymentProofUploaded' => 'Payment Proof Received',
         'NaiTalkVerificationCode' => 'Verification Code',
+        'ServiceAnnouncement' => 'Scheduled Maintenance',
         'WebsiteHostingDeactivated' => 'Website Deactivated',
         'WebsiteHostingReactivated' => 'Website Reactivated',
     ];
