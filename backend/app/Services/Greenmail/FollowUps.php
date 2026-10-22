@@ -30,7 +30,7 @@ class FollowUps
     {
         $message = $mail->message($folder, $uid, markSeen: false);
         abort_unless($message, 404, 'That email no longer exists.');
-        abort_if(trim((string) $message['message_id']) === '', 422, 'This email can’t be snoozed.');
+        abort_if(trim((string) $message['message_id']) === '', 422, 'This email is missing the ID needed to bring it back later, so it can’t be snoozed.');
         abort_if($folder === self::SNOOZED_FOLDER, 422, 'This email is already snoozed.');
 
         $mail->ensureFolder(self::SNOOZED_FOLDER);

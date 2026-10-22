@@ -131,7 +131,9 @@ class MailController extends Controller
         // Inline (cid:) images become data: URIs; capped so a huge one can't bloat the page.
         $inline = [];
         foreach ($message['attachments'] as $attachment) {
-            if ($attachment['content_id'] && str_starts_with($attachment['mime'], 'image/') && $attachment['size'] <= 2 * 1048576) {
+            // Only images the email actually shows (cid:…): the mail library gives every part a content ID.
+            if ($attachment['content_id'] && str_starts_with($attachment['mime'], 'image/') && $attachment['size'] <= 2 * 1048576
+                && str_contains((string) $message['html'], 'cid:'.$attachment['content_id'])) {
                 $file = $this->mail()->attachment($folder, $uid, $attachment['index']);
                 if ($file) {
                     $inline[$attachment['content_id']] = 'data:'.$attachment['mime'].';base64,'.base64_encode($file['content']);

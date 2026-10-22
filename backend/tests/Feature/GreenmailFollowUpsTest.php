@@ -232,6 +232,25 @@ class GreenmailFollowUpsTest extends TestCase
         $gm->getJson('/api/v1/greenmail/attachments')->assertJsonPath('total', 1);
     }
 
+    public function test_an_email_without_a_date_is_still_indexed(): void
+    {
+        $this->mail->deliver(self::OWNER, ['date' => '1970-01-01T00:00:00+00:00', 'attachments' => [['name' => 'old.pdf', 'mime' => 'application/pdf', 'content' => 'x']]]);
+        $this->mail->deliver(self::OWNER, ['attachments' => [['name' => 'new.pdf', 'mime' => 'application/pdf', 'content' => 'x']]]);
+
+        $this->gm()->getJson('/api/v1/greenmail/attachments')->assertJsonPath('total', 2);
+        $this->assertNull(GreenmailAttachment::query()->where('name', 'old.pdf')->value('sent_at'));
+    }
+
+    public function test_an_image_attachment_with_a_content_id_is_listed_unless_the_email_shows_it(): void
+    {
+        $listed = $this->mail->deliver(self::OWNER, ['html' => '<p>See attached</p>', 'attachments' => [['name' => 'photo.png', 'mime' => 'image/png', 'content' => 'png', 'content_id' => 'e4c4d6cd']]]);
+        $shown = $this->mail->deliver(self::OWNER, ['html' => '<img src="cid:logo1">', 'attachments' => [['name' => 'logo.png', 'mime' => 'image/png', 'content' => 'png', 'content_id' => 'logo1']]]);
+        $gm = $this->gm();
+
+        $gm->getJson("/api/v1/greenmail/messages/{$listed}?folder=INBOX")->assertJsonPath('attachments.0.name', 'photo.png');
+        $gm->getJson("/api/v1/greenmail/messages/{$shown}?folder=INBOX")->assertJsonCount(0, 'attachments');
+    }
+
     public function test_share_links_work_until_they_expire_run_out_or_are_revoked(): void
     {
         $uid = $this->mail->deliver(self::OWNER, ['attachments' => [['name' => 'report.pdf', 'mime' => 'application/pdf', 'content' => '%PDF-report'], ['name' => 'tool.exe', 'mime' => 'application/octet-stream', 'content' => 'MZ']]]);

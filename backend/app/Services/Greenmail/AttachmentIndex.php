@@ -6,6 +6,7 @@ use App\Models\Greenmail\GreenmailAttachment;
 use App\Models\Greenmail\GreenmailAttachmentScan;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
+use Throwable;
 
 /**
  * The attachment manager's index: every file attached to the mailbox's mail,
@@ -145,26 +146,43 @@ class AttachmentIndex
         $count = 0;
 
         foreach ($messages as $message) {
-            foreach ($message['attachments'] as $attachment) {
-                $class = self::classify($attachment['name'], $attachment['mime']);
-                GreenmailAttachment::query()->updateOrCreate(
-                    ['owner_email' => $owner, 'folder' => $folder, 'uid' => $message['uid'], 'part_index' => $attachment['index']],
-                    [
-                        'message_id' => Str::limit((string) $message['message_id'], 495, ''),
-                        'name' => Str::limit($attachment['name'], 250, ''),
-                        'extension' => $class['extension'] ? Str::limit($class['extension'], 20, '') : null,
-                        'kind' => $class['kind'],
-                        'mime' => Str::limit($attachment['mime'], 150, ''),
-                        'size' => $attachment['size'],
-                        'from_name' => Str::limit((string) ($message['from']['name'] ?? ''), 250, '') ?: null,
-                        'from_email' => $message['from']['email'] ?? null,
-                        'subject' => Str::limit((string) $message['subject'], 250, ''),
-                        'sent_at' => $message['date'] ? Carbon::parse($message['date'])->utc() : null,
-                        'warning' => $class['warning'],
-                    ],
-                );
-                $count++;
+            // One odd email must not stop the rest of the mailbox being indexed.
+            try {
+                $count += $this->storeMessage($owner, $folder, $message);
+            } catch (Throwable $exception) {
+                report($exception);
             }
+        }
+
+        return $count;
+    }
+
+    private function storeMessage(string $owner, string $folder, array $message): int
+    {
+        $count = 0;
+        // No Date header comes back as 1970, which isn't a real date (and MySQL refuses it).
+        $sentAt = rescue(fn () => $message['date'] ? Carbon::parse($message['date'])->utc() : null, null, report: false);
+        $sentAt = $sentAt && $sentAt->year >= 1980 ? $sentAt : null;
+
+        foreach ($message['attachments'] as $attachment) {
+            $class = self::classify($attachment['name'], $attachment['mime']);
+            GreenmailAttachment::query()->updateOrCreate(
+                ['owner_email' => $owner, 'folder' => $folder, 'uid' => $message['uid'], 'part_index' => $attachment['index']],
+                [
+                    'message_id' => Str::limit((string) $message['message_id'], 495, ''),
+                    'name' => Str::limit($attachment['name'], 250, ''),
+                    'extension' => $class['extension'] ? Str::limit($class['extension'], 20, '') : null,
+                    'kind' => $class['kind'],
+                    'mime' => Str::limit($attachment['mime'], 150, ''),
+                    'size' => $attachment['size'],
+                    'from_name' => Str::limit((string) ($message['from']['name'] ?? ''), 250, '') ?: null,
+                    'from_email' => $message['from']['email'] ?? null,
+                    'subject' => Str::limit((string) $message['subject'], 250, ''),
+                    'sent_at' => $sentAt,
+                    'warning' => $class['warning'],
+                ],
+            );
+            $count++;
         }
 
         return $count;
