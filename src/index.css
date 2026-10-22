@@ -1820,22 +1820,6 @@
     @apply border-b-0;
   }
 
-  .hosting-summary-list {
-    @apply mt-4 grid gap-3 text-sm;
-  }
-
-  .hosting-summary-row {
-    @apply flex items-center justify-between border-b border-white/6 pb-3 text-white/54;
-  }
-
-  .hosting-summary-row:last-child {
-    @apply border-b-0 pb-0;
-  }
-
-  .hosting-summary-row strong {
-    @apply font-black text-white;
-  }
-
   .hosting-modal-backdrop {
     @apply fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4;
   }

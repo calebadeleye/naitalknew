@@ -1039,7 +1039,7 @@ export function HostingManagePanel({
         ))}
       </div>
 
-      <div className={emailOnly ? "hosting-panel lg:!grid-cols-1" : "hosting-panel"}>
+      <div className="hosting-panel lg:!grid-cols-1">
         <section className="portal-card min-w-0">
           {tab === "overview" && (
             <div>
@@ -1809,23 +1809,6 @@ export function HostingManagePanel({
           )}
 
         </section>
-
-        {/* Email-only plans: the stat cards above already say it all (no web space, bandwidth or databases). */}
-        {!emailOnly && (
-        <aside className="portal-card">
-          <h2>Hosting Summary</h2>
-          <div className="hosting-summary-list">
-            <div className="hosting-summary-row"><span>Package</span><strong>{overview.plan}</strong></div>
-            <div className="hosting-summary-row"><span>Primary Domain</span><strong>{overview.primary_domain}</strong></div>
-            <div className="hosting-summary-row"><span>Web Space</span><strong>{formatMb(usage?.disk_quota_mb ?? 0)}</strong></div>
-            <div className="hosting-summary-row"><span>Bandwidth</span><strong>{formatMb(usage?.bandwidth_quota_mb ?? 0)} / month</strong></div>
-            <div className="hosting-summary-row"><span>Email Accounts</span><strong>{usage?.email_accounts_used ?? 0} / {(usage?.email_accounts_limit ?? 0) >= UNLIMITED_EMAIL_ACCOUNTS ? "Unlimited" : usage?.email_accounts_limit ?? 0}</strong></div>
-            <div className="hosting-summary-row"><span>Databases</span><strong>{usage?.databases_used ?? 0} / {usage?.databases_limit ?? 0}</strong></div>
-            <div className="hosting-summary-row"><span>SSH/SFTP Accounts</span><strong>{usage?.ftp_accounts_used ?? 0} / {usage?.ftp_accounts_limit ?? 0}</strong></div>
-            <div className="hosting-summary-row"><span>Last Synced</span><strong>{overview.last_synced_at ? formatDateTime(overview.last_synced_at) : "Never"}</strong></div>
-          </div>
-        </aside>
-        )}
       </div>
 
       <AnimatePresence>
