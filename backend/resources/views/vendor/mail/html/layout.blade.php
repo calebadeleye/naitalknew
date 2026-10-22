@@ -11,10 +11,6 @@
 .inner-body, .footer { width: 100% !important; }
 .pad { padding-left: 22px !important; padding-right: 22px !important; }
 .header-tagline { display: none !important; }
-.hero-text, .hero-art { display: block !important; width: 100% !important; }
-.hero-art { padding: 0 22px 22px !important; text-align: center !important; }
-.hero-art img { width: 200px !important; }
-.hero-title { font-size: 32px !important; line-height: 36px !important; }
 .feature { display: block !important; width: 100% !important; border-left: 0 !important; padding: 10px 0 !important; }
 .help-text, .help-action { display: block !important; width: 100% !important; text-align: left !important; }
 .help-action { padding-top: 14px !important; }

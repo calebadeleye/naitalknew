@@ -200,11 +200,11 @@ class EmailBrandingTest extends TestCase
                 );
             }
 
-            // Branding (the 2026-10 template): hosted logo, slogan, hero, and the email's own title as the section heading.
+            // Branding (the 2026-10 template): hosted logo, slogan, greeting, and the email's own title as the section heading.
             $assets = config('mail.brand.asset_url');
             $this->assertStringContainsString($assets.'/logo.png', $html, "[$label] NAITALK logo missing from header.");
             $this->assertStringContainsString('We build', $html, "[$label] brand slogan missing.");
-            $this->assertStringContainsString('for your <span class="hero-accent"', $html, "[$label] hero missing.");
+            $this->assertStringNotContainsString('hero-title', $html, "[$label] the removed brand headline came back.");
             $this->assertStringContainsString('section-title', $html, "[$label] section heading missing.");
             $this->assertStringContainsString($expectedNoticeTitle, $html, "[$label] section title incorrect.");
             $this->assertStringNotContainsString('laravel.com/img/notification-logo', $html, "[$label] default Laravel logo leaked into header.");

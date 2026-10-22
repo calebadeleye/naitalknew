@@ -50,31 +50,6 @@ async function socialX(file) {
   await sharp(Buffer.from(svg)).png().toFile(path.join(out, file));
 }
 
-// Hero illustration: open envelope with a ticked card and soft green shapes.
-async function hero(file) {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="560" height="460" viewBox="0 0 560 460">
-    <defs>
-      <linearGradient id="card" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#eef1f4"/></linearGradient>
-      <linearGradient id="env" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e6eaee"/></linearGradient>
-      <linearGradient id="flap" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4f6f8"/><stop offset="1" stop-color="#dfe4e9"/></linearGradient>
-      <filter id="sh" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#2f5e1a" flood-opacity="0.18"/></filter>
-    </defs>
-    <path d="M120 140 C 150 40, 330 20, 430 90 C 520 150, 540 300, 450 370 C 360 440, 170 430, 110 350 C 60 290, 90 220, 120 140 Z" fill="#cdeebb" opacity="0.9"/>
-    <path d="M330 30 C 400 10, 520 40, 540 120 C 555 175, 500 190, 470 150 C 440 110, 380 90, 330 30 Z" fill="#b8e6a0" opacity="0.55"/>
-    <g stroke="${GREEN}" stroke-width="9" stroke-linecap="round"><path d="M118 168 L 148 182"/><path d="M146 108 L 168 140"/><path d="M210 76 L 216 112"/></g>
-    <g filter="url(#sh)">
-      <path d="M150 230 L 280 330 L 410 230 L 410 395 Q 410 410 395 410 L 165 410 Q 150 410 150 395 Z" fill="url(#env)"/>
-      <rect x="190" y="110" width="180" height="230" rx="18" fill="url(#card)" stroke="#e3e7eb" stroke-width="2"/>
-      <circle cx="280" cy="190" r="38" fill="${GREEN_DARK}"/>
-      <path d="M263 191 l12 12 l23 -25" fill="none" stroke="#ffffff" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
-      <rect x="225" y="252" width="110" height="11" rx="5.5" fill="#d3d9df"/>
-      <rect x="240" y="276" width="80" height="11" rx="5.5" fill="#dde2e7"/>
-      <path d="M150 230 L 280 330 L 410 230 L 410 238 L 280 342 L 150 238 Z" fill="#d6dce2" opacity="0.6"/>
-      <path d="M150 395 L 260 312 Q 280 298 300 312 L 410 395 Q 410 410 395 410 L 165 410 Q 150 410 150 395 Z" fill="url(#flap)"/>
-    </g></svg>`;
-  await sharp(Buffer.from(svg)).png().toFile(path.join(out, file));
-}
-
 // Logo for light backgrounds = the site logo; light variant for the dark footer: grey text -> white.
 async function logos() {
   const src = path.join(root, "public/logo.png");
@@ -90,7 +65,6 @@ async function logos() {
 }
 
 await logos();
-await hero("hero.png");
 await badge("icon-lock.png", "lock");
 await badge("icon-shield.png", "shield-check");
 await badge("icon-support.png", "headphones");
