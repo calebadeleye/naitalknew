@@ -1081,7 +1081,7 @@ function Mailbox({
           }}
         >
           {compose && compose.variant === "inline" && message && (
-            <div className="mx-4 mb-6 overflow-hidden rounded-xl border border-slate-200 shadow-sm">
+            <div className="mx-4 mb-4 overflow-hidden rounded-xl border border-[#1f9d4c]/40 shadow-md">
               <React.Fragment key={compose.key}>
                 <Composer
                   token={token}

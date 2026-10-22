@@ -39,6 +39,7 @@ export function MessageReader({
   isLoading: boolean;
   onAction: (action: ReaderAction) => void;
   extras: ReaderExtras;
+  /** The inline reply/forward box, shown under the header (above the email). */
   children?: React.ReactNode;
 }) {
   const [showImages, setShowImages] = useState(false);
@@ -174,6 +175,9 @@ export function MessageReader({
           )}
         </div>
 
+        {/* The reply/forward box sits right under the header, not after a long email. */}
+        {children}
+
         {message.has_remote_images && !showImages && (
           <div className="mx-6 mb-3 flex flex-wrap items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
             <ImageOff className="h-4 w-4" /> Images from the internet are hidden to protect your privacy.
@@ -225,8 +229,6 @@ export function MessageReader({
             </div>
           </div>
         )}
-
-        {children}
       </div>
       {preview && <FilePreview file={preview} token={token} onClose={() => setPreview(null)} onShare={() => setShare(preview)} onSessionError={extras.onSessionError} />}
       {share && <ShareDialog file={share} token={token} onClose={() => setShare(null)} onSessionError={extras.onSessionError} />}

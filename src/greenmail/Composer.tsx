@@ -73,6 +73,7 @@ export function Composer({
   const { toast } = useFeedback();
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -93,8 +94,9 @@ export function Composer({
       const selection = window.getSelection();
       selection?.removeAllRanges();
       selection?.addRange(range);
-      editor.scrollIntoView({ block: "nearest", behavior: "smooth" });
     }
+    // A reply or forward opens above the email: bring the whole box (its top too) into view.
+    if (variant === "inline") rootRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
     // Only on open — after that the editor owns its content.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -277,7 +279,7 @@ export function Composer({
   );
 
   return (
-    <div className={variant === "window" ? "flex h-full min-h-0 flex-col" : "flex flex-col"}>
+    <div ref={rootRef} className={variant === "window" ? "flex h-full min-h-0 flex-col" : "flex flex-col scroll-mt-2"}>
       {variant === "window" && (
         <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
           <h2 className="mr-auto text-lg font-black text-slate-900">{title}</h2>
