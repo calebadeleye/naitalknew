@@ -266,14 +266,40 @@ function EmailBody({ html, allowRemoteImages }: { html: string; allowRemoteImage
   const srcDoc = `<!doctype html><html><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src ${imageSources}; font-src data:">
 <base target="_blank">
-<style>html{background:#fff}body{margin:0;padding:12px 24px 16px;background:#fff;font:14px/1.6 Manrope,system-ui,sans-serif;color:#1e293b;word-wrap:break-word}img{max-width:100%;height:auto}${allowRemoteImages ? "" : "img[src^='http']{display:none}"}blockquote{margin:0 0 0 8px;padding-left:12px;border-left:3px solid #e2e8f0;color:#475569}table{max-width:100%}a{color:#1a7f3f}</style>
+<style>html,body{height:auto!important;min-height:0!important;max-height:none!important;overflow-y:visible!important}html{background:#fff}body{margin:0;padding:12px 24px 16px;background:#fff;font:14px/1.6 Manrope,system-ui,sans-serif;color:#1e293b;word-wrap:break-word}img{max-width:100%;height:auto}${allowRemoteImages ? "" : "img[src^='http']{display:none}"}blockquote{margin:0 0 0 8px;padding-left:12px;border-left:3px solid #e2e8f0;color:#475569}table{max-width:100%}a{color:#1a7f3f}</style>
 </head><body>${html}</body></html>`;
 
   // Same-origin (but no scripts) only so the frame can be sized to its content.
+  // Kept in step as the email changes size (pictures, fonts and tables that
+  // finish loading after it opens) — measured once, the bottom got cut off.
+  const watch = useRef<() => void>(() => undefined);
   const resize = () => {
-    const body = frameRef.current?.contentDocument?.body;
-    if (body) setHeight(Math.max(120, body.scrollHeight + 8));
+    const doc = frameRef.current?.contentDocument;
+    if (!doc?.body) return;
+    const content = Math.max(doc.body.scrollHeight, doc.body.offsetHeight, doc.documentElement.scrollHeight, doc.documentElement.offsetHeight);
+    setHeight(Math.max(120, Math.ceil(content) + 16));
   };
+
+  const startWatching = () => {
+    watch.current();
+    const doc = frameRef.current?.contentDocument;
+    if (!doc?.body) return;
+    resize();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(resize);
+    observer?.observe(doc.body);
+    // Each picture (and font) that finishes loading can make it taller.
+    const onLoaded = () => resize();
+    doc.addEventListener("load", onLoaded, true);
+    doc.fonts?.ready.then(onLoaded).catch(() => undefined);
+    const timers = [300, 1000, 2500, 5000].map((ms) => window.setTimeout(resize, ms));
+    watch.current = () => {
+      observer?.disconnect();
+      doc.removeEventListener("load", onLoaded, true);
+      timers.forEach((t) => window.clearTimeout(t));
+    };
+  };
+
+  useEffect(() => () => watch.current(), []);
 
   return (
     <iframe
@@ -281,10 +307,7 @@ function EmailBody({ html, allowRemoteImages }: { html: string; allowRemoteImage
       title="Email message"
       sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
       srcDoc={srcDoc}
-      onLoad={() => {
-        resize();
-        window.setTimeout(resize, 400);
-      }}
+      onLoad={startWatching}
       className="block w-full border-0"
       style={{ height }}
     />
