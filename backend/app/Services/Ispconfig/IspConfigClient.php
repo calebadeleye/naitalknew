@@ -117,6 +117,12 @@ interface IspConfigClient
      */
     public function mailDomainGet(string $sessionId, int $mailDomainId): ?array;
 
+    /** Removes a mail domain (its mailboxes must be deleted first). */
+    public function mailDomainDelete(string $sessionId, int $mailDomainId): int;
+
+    /** Removes an ISPConfig client account (and its login); it must own nothing else by then. */
+    public function clientDelete(string $sessionId, int $clientId): int;
+
     /**
      * @param  array<string, mixed>  $params
      */

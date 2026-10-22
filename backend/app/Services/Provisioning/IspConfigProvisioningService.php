@@ -188,7 +188,7 @@ class IspConfigProvisioningService
             }
         }
 
-        DB::transaction(function () use ($service, $serviceMapping, $serverId, $configuration): void {
+        DB::transaction(function () use ($service, $serviceMapping, $serverId, $configuration, $emailOnly): void {
             $service->forceFill([
                 'status' => 'active',
                 'provisioning_status' => 'provisioned',
@@ -197,8 +197,16 @@ class IspConfigProvisioningService
                 'ispconfig_site_id' => $serviceMapping->ispconfig_website_id,
             ])->save();
 
+            // Email-only customers are "email clients"; anyone with a website service
+            // with us is a hosting client (and stays one).
+            $hasWebsiteService = HostingService::query()
+                ->where('client_id', $service->client_id)
+                ->where('service_type', '!=', 'email')
+                ->where('provisioning_status', 'provisioned')
+                ->exists();
+
             $service->client->forceFill([
-                'account_type' => 'hosting_client',
+                'account_type' => $emailOnly && ! $hasWebsiteService && $service->client->account_type !== 'hosting_client' ? 'email_client' : 'hosting_client',
                 'client_status' => 'active',
                 'last_activity_at' => now(),
             ])->save();

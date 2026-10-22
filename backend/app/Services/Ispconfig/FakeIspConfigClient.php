@@ -211,6 +211,22 @@ class FakeIspConfigClient implements IspConfigClient
         return $id;
     }
 
+    public function mailDomainDelete(string $sessionId, int $mailDomainId): int
+    {
+        $this->maybeFail('mailDomainDelete', ['mail_domain_id' => $mailDomainId]);
+
+        unset($this->mailDomains[(string) $mailDomainId]);
+
+        return $mailDomainId;
+    }
+
+    public function clientDelete(string $sessionId, int $clientId): int
+    {
+        $this->maybeFail('clientDelete', ['client_id' => $clientId]);
+
+        return $clientId;
+    }
+
     public function mailDomainGet(string $sessionId, int $mailDomainId): ?array
     {
         $this->maybeFail('mailDomainGet', ['mail_domain_id' => $mailDomainId]);

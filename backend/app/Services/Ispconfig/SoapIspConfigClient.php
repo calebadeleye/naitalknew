@@ -219,6 +219,16 @@ class SoapIspConfigClient implements IspConfigClient
         return (int) $this->call('sites_web_domain_update', [$sessionId, $clientId, $domainId, $params]);
     }
 
+    public function mailDomainDelete(string $sessionId, int $mailDomainId): int
+    {
+        return (int) $this->call('mail_domain_delete', [$sessionId, $mailDomainId]);
+    }
+
+    public function clientDelete(string $sessionId, int $clientId): int
+    {
+        return (int) $this->call('client_delete', [$sessionId, $clientId]);
+    }
+
     public function mailDomainAdd(string $sessionId, int $clientId, array $params): int
     {
         return (int) $this->call('mail_domain_add', [$sessionId, $clientId, $params]);

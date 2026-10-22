@@ -172,6 +172,7 @@ export const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   registered_user: "Registered User",
   billing_client: "Billing Client",
   hosting_client: "Hosting Client",
+  email_client: "Email Client",
   prospect: "Prospect",
   new_customer: "New Customer",
   manual_admin_created: "Manually Added",

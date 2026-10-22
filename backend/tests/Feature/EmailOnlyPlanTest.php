@@ -104,6 +104,7 @@ class EmailOnlyPlanTest extends TestCase
         $this->assertSame('active', $service->status);
         $this->assertSame('provisioned', $service->provisioning_status);
         $this->assertSame(0, collect($fake->calls)->where('method', 'sitesWebDomainAdd')->count(), 'no website for email-only');
+        $this->assertSame('email_client', $service->client->fresh()->account_type, 'an email-only customer is an email client, not a hosting client');
         $this->assertSame(1, collect($fake->calls)->where('method', 'mailDomainAdd')->count());
 
         $mailDomain = collect($fake->calls)->firstWhere('method', 'mailDomainAdd')['params'];
@@ -197,5 +198,19 @@ class EmailOnlyPlanTest extends TestCase
 
         $this->postJson("/api/v1/client/services/{$service->id}/mailboxes", ['username' => 'b', 'password' => 'a-long-password-1'])->assertStatus(202);
         $this->assertSame(1024, MailboxRecord::query()->where('email_address', 'b@'.$service->primary_domain)->value('quota_mb'));
+    }
+
+    public function test_a_client_with_a_website_service_stays_a_hosting_client_when_adding_email(): void
+    {
+        $this->fakeIspConfig();
+        $website = $this->createProvisionableHostingService();
+        ProvisionHostingServiceJob::dispatch($website->id);
+        $this->assertSame('hosting_client', $website->client->fresh()->account_type);
+
+        $email = $this->emailOnlyService();
+        $email->forceFill(['client_id' => $website->client_id, 'primary_domain' => 'other-'.$website->primary_domain])->save();
+        ProvisionHostingServiceJob::dispatch($email->id);
+
+        $this->assertSame('hosting_client', $website->client->fresh()->account_type);
     }
 }
