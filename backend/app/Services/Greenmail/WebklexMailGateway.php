@@ -23,13 +23,17 @@ class WebklexMailGateway implements MailGateway
     {
         $config = config('greenmail.imap');
 
-        $manager = new ClientManager(['options' => [
-            'fetch' => IMAP::FT_PEEK,
-            'fetch_order' => 'desc',
-            'soft_fail' => true,
-            'rfc822' => true,
-            'debug' => false,
-        ]]);
+        $manager = new ClientManager([
+            'options' => [
+                'fetch' => IMAP::FT_PEEK,
+                'fetch_order' => 'desc',
+                'soft_fail' => true,
+                'rfc822' => true,
+                'debug' => false,
+            ],
+            // webklex drops flags it doesn't know; keep the business labels (IMAP keywords).
+            'flags' => array_merge(['recent', 'flagged', 'answered', 'deleted', 'seen', 'draft'], Labels::imapFlagNames()),
+        ]);
 
         $this->client = $manager->make([
             'host' => $config['host'],
@@ -98,7 +102,14 @@ class WebklexMailGateway implements MailGateway
     {
         $query = $this->folder($folder)->query()->leaveUnread()->setFetchOrderDesc();
 
+        if (str_starts_with($filter, 'label:')) {
+            $keyword = Labels::keyword(substr($filter, 6)) ?? throw new \InvalidArgumentException('Unknown label.');
+            $query->where("CUSTOM KEYWORD {$keyword}");
+            $filter = 'label';
+        }
+
         match ($filter) {
+            'label' => null,
             'unread' => $query->unseen(),
             // webklex's flagged()/whereFlagged() wrongly require an argument; IMAP FLAGGED takes none.
             'flagged' => $query->where('FLAGGED'),
@@ -244,6 +255,103 @@ class WebklexMailGateway implements MailGateway
         return null;
     }
 
+    public function setLabels(string $folder, int $uid, array $add = [], array $remove = []): void
+    {
+        $this->folder($folder);
+        $this->client()->openFolder($folder);
+        $connection = $this->client()->getConnection();
+
+        foreach (['+' => $add, '-' => $remove] as $mode => $keys) {
+            $keywords = array_values(array_filter(array_map(fn ($key) => Labels::keyword((string) $key), $keys)));
+            if ($keywords !== []) {
+                // Not Message::setFlag(): that prefixes "\", which only system flags have.
+                $connection->store($keywords, $uid, $uid, $mode, true, IMAP::ST_UID)->validatedData();
+            }
+        }
+    }
+
+    public function findUidByMessageId(string $folder, string $messageId): ?int
+    {
+        $message = rescue(fn () => $this->folder($folder)->query()->leaveUnread()->setFetchBody(false)
+            ->where('CUSTOM HEADER Message-ID '.$this->quoted($messageId))->limit(1)->get()->first(), null, report: false);
+
+        return $message ? (int) $message->getUid() : null;
+    }
+
+    public function hasReplyTo(string $folder, string $messageId): bool
+    {
+        foreach (['In-Reply-To', 'References'] as $header) {
+            $count = rescue(fn () => $this->folder($folder)->query()->leaveUnread()->setFetchBody(false)
+                ->where("CUSTOM HEADER {$header} ".$this->quoted($messageId))->count(), 0, report: false);
+
+            if ($count > 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function messagesWithAttachments(string $folder, ?int $aboveUid, ?int $belowUid, int $limit): array
+    {
+        $newMail = $belowUid === null && $aboveUid !== null;
+        $query = $this->folder($folder)->query()->leaveUnread()
+            ->where('CUSTOM HEADER Content-Type multipart/mixed');
+        $newMail ? $query->setFetchOrderAsc() : $query->setFetchOrderDesc();
+
+        if ($belowUid !== null) {
+            if ($belowUid <= 1) {
+                return [];
+            }
+            $query->where('CUSTOM UID 1:'.($belowUid - 1));
+        } else {
+            $query->where('CUSTOM UID '.(($aboveUid ?? 0) + 1).':*');
+        }
+
+        $messages = rescue(fn () => $query->limit($limit, 1)->get(), collect(), report: true);
+
+        return collect($messages)
+            // "UID n:*" still matches the last message when n is past the end.
+            ->filter(fn (Message $message) => ! $newMail || (int) $message->getUid() > $aboveUid)
+            ->values()
+            ->map(function (Message $message) {
+                $attachments = [];
+                foreach ($message->getAttachments()->values() as $index => $attachment) {
+                    // Images shown inside the email (cid:) aren't files the reader thinks of as attachments.
+                    if ($attachment->id && strtolower((string) $attachment->disposition) === 'inline') {
+                        continue;
+                    }
+                    $attachments[] = [
+                        'index' => $index,
+                        'name' => (string) ($attachment->name ?: 'attachment-'.($index + 1)),
+                        'size' => (int) $attachment->size,
+                        'mime' => (string) ($attachment->content_type ?: 'application/octet-stream'),
+                    ];
+                }
+                $date = rescue(fn () => $message->getDate()->toDate(), null, report: false);
+
+                return [
+                    'uid' => (int) $message->getUid(),
+                    'message_id' => (string) $message->getMessageId(),
+                    'subject' => trim((string) $message->getSubject()) ?: '(no subject)',
+                    'from' => $this->addresses($message->getFrom())[0] ?? ['name' => null, 'email' => null],
+                    'date' => $date?->toIso8601String(),
+                    'attachments' => $attachments,
+                ];
+            })
+            // "UID n:*" also returns the newest email when n is past the end.
+            ->filter(fn (array $m) => ($aboveUid === null || $m['uid'] > $aboveUid) && ($belowUid === null || $m['uid'] < $belowUid))
+            ->sortBy('uid', descending: ! $newMail)
+            ->values()
+            ->all();
+    }
+
+    /** An IMAP quoted string. */
+    private function quoted(string $value): string
+    {
+        return '"'.addcslashes($value, '"\\').'"';
+    }
+
     private function client(): Client
     {
         if (! $this->client) {
@@ -293,6 +401,7 @@ class WebklexMailGateway implements MailGateway
             'answered' => $this->hasFlag($message, 'answered'),
             'has_attachments' => $message->hasAttachments(),
             'snippet' => Str::limit(trim((string) preg_replace('/\s+/', ' ', html_entity_decode($text))), 140),
+            'labels' => Labels::fromFlags($message->getFlags()->keys()->all()),
         ];
     }
 

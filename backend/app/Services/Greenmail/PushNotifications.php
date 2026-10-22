@@ -20,9 +20,7 @@ use Throwable;
  */
 class PushNotifications
 {
-    public function __construct(private readonly MailGateway $mail)
-    {
-    }
+    public function __construct(private readonly MailGateway $mail) {}
 
     public static function configured(): bool
     {
@@ -83,6 +81,43 @@ class PushNotifications
         }
 
         return $outcome;
+    }
+
+    /**
+     * One notification to every device of a mailbox (e.g. "No reply yet").
+     *
+     * @return int how many devices it reached
+     */
+    public function notifyOwner(string $owner, string $title, string $body, string $tag): int
+    {
+        if (! self::configured()) {
+            return 0;
+        }
+
+        $subscriptions = GreenmailPushSubscription::query()->where('owner_email', $owner)->get();
+        if ($subscriptions->isEmpty()) {
+            return 0;
+        }
+
+        $outgoing = $subscriptions->map(fn (GreenmailPushSubscription $s) => ['subscription' => $s, 'payload' => [
+            'title' => $title,
+            'body' => Str::limit($body, 160),
+            'mailbox' => $owner,
+            'uid' => 0,
+            'url' => '/greenmail?domain='.rawurlencode($s->domain ?: Str::after($owner, '@')).'&source=push',
+            'tag' => $tag,
+        ]])->all();
+
+        $sent = 0;
+        foreach ($this->deliver($outgoing) as $endpoint => $outcome) {
+            if ($outcome === 'sent') {
+                $sent++;
+            } elseif ($outcome === 'expired') {
+                $subscriptions->first(fn ($s) => $s->endpoint === $endpoint)?->delete();
+            }
+        }
+
+        return $sent;
     }
 
     public function unsubscribe(string $owner, string $endpoint): void

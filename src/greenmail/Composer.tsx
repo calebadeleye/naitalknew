@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Bold, CalendarClock, ChevronDown, FileText, Italic, Link2, List, ListOrdered, Loader2, Paperclip, Quote, Send, Trash2, Underline, UserPlus, X } from "lucide-react";
+import { BellRing, Bold, CalendarClock, ChevronDown, FileText, Italic, Link2, List, ListOrdered, Loader2, Paperclip, Quote, Send, Trash2, Underline, UserPlus, X } from "lucide-react";
 import { gm, type Attachment, type Contact, type Template } from "./api";
 import { useFeedback } from "./feedback";
+import { isOfflineError, queue } from "./offline";
 import { announceChange } from "./sync";
 import { useTemplates } from "./TemplatesView";
 import { formatBytes } from "./ui";
@@ -32,6 +33,7 @@ export type ComposeDraft = {
  */
 export function Composer({
   token,
+  email,
   draft,
   variant,
   onSent,
@@ -41,6 +43,8 @@ export function Composer({
   title = "New message",
 }: {
   token: string;
+  /** The mailbox it's sent from (for the offline Outbox). */
+  email: string;
   draft: ComposeDraft;
   variant: "inline" | "window";
   onSent: (message: string) => void;
@@ -63,6 +67,8 @@ export function Composer({
   const [busy, setBusy] = useState<"send" | "draft" | "later" | null>(null);
   const [menu, setMenu] = useState<"templates" | "later" | null>(null);
   const [laterAt, setLaterAt] = useState("");
+  // "Remind me if nobody replies" after this many days (0 = off).
+  const [remindDays, setRemindDays] = useState(0);
   const templates = useTemplates(token, onSessionError);
   const { toast } = useFeedback();
   const [error, setError] = useState<string | null>(null);
@@ -129,13 +135,35 @@ export function Composer({
     return data;
   };
 
+  /** Offline: keep it in the Outbox; it goes when the connection returns. */
+  const toOutbox = async (kind: "send" | "draft", data: FormData) => {
+    try {
+      await queue(email, kind, data);
+      if (kind === "send") onSent("You're offline. The email is in your Outbox and will be sent when you're back online.");
+      else {
+        setSavedAt("on this device");
+        toast("You're offline. The draft is saved on this device and will be saved to your mailbox when you're back online.", "info");
+      }
+    } catch {
+      setError("You're offline and this browser can't keep the email. Copy your text before closing.");
+    }
+  };
+
   const send = async () => {
     setBusy("send");
     setError(null);
+    const data = form();
+    if (remindDays > 0) {
+      const at = new Date();
+      at.setDate(at.getDate() + remindDays);
+      data.append("remind_at", at.toISOString());
+    }
     try {
-      const result = await gm<{ message: string }>("/send", token, { method: "POST", body: form() });
+      if (!navigator.onLine) return await toOutbox("send", data);
+      const result = await gm<{ message: string }>("/send", token, { method: "POST", body: data });
       onSent(result.message);
     } catch (err) {
+      if (isOfflineError(err)) return await toOutbox("send", data);
       onSessionError(err);
       setError(err instanceof Error ? err.message : "Could not send.");
     } finally {
@@ -208,11 +236,14 @@ export function Composer({
   const saveDraft = async () => {
     setBusy("draft");
     setError(null);
+    const data = form();
     try {
-      await gm("/drafts", token, { method: "POST", body: form() });
+      if (!navigator.onLine) return await toOutbox("draft", data);
+      await gm("/drafts", token, { method: "POST", body: data });
       setSavedAt(new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }));
       onDraftSaved?.();
     } catch (err) {
+      if (isOfflineError(err)) return await toOutbox("draft", data);
       onSessionError(err);
       setError(err instanceof Error ? err.message : "Could not save the draft.");
     } finally {
@@ -431,6 +462,16 @@ export function Composer({
             event.target.value = "";
           }}
         />
+        <label className={`relative inline-flex items-center gap-1 rounded-lg p-2 ${remindDays ? "bg-[#eef8f1] text-[#14632f]" : "text-slate-600 hover:bg-slate-100"}`} title="Remind me if nobody replies">
+          <BellRing className="h-4 w-4" />
+          {remindDays > 0 && <span className="text-xs font-bold">{remindDays === 7 ? "1 wk" : `${remindDays}d`}</span>}
+          <select aria-label="Remind me if nobody replies" value={remindDays} onChange={(event) => setRemindDays(Number(event.target.value))} className="absolute inset-0 cursor-pointer opacity-0">
+            <option value={0}>Don't remind me</option>
+            <option value={1}>Remind me in 1 day if nobody replies</option>
+            <option value={3}>Remind me in 3 days if nobody replies</option>
+            <option value={7}>Remind me in 1 week if nobody replies</option>
+          </select>
+        </label>
         <button type="button" className="rounded-lg px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-60" disabled={busy !== null} onClick={() => void saveDraft()}>
           {busy === "draft" ? "Saving…" : "Save draft"}
         </button>

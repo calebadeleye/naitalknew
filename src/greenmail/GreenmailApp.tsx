@@ -1,13 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  AlarmClock,
   Archive,
   ArrowLeft,
+  BellRing,
   Bot,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  CloudOff,
   Download,
   FileText,
   Filter as FilterIcon,
@@ -28,13 +31,20 @@ import {
   Settings,
   Star,
   StickyNote,
+  Tag,
   Trash2,
+  Upload,
   Workflow,
   X,
 } from "lucide-react";
 import { AccountMenu, useOtherAccounts } from "./Accounts";
-import { clearToken, gm, readAccounts, readToken, rememberAccountEmail, SessionExpired, setActiveToken, type StoredAccount, type Folder, type FullMessage, type Me, type MessageSummary, type Template } from "./api";
+import { clearToken, gm, LABELS, readAccounts, readToken, rememberAccountEmail, SessionExpired, setActiveToken, type StoredAccount, type Folder, type FullMessage, type LabelKey, type Me, type MessageSummary, type Template } from "./api";
+import { AttachmentsView } from "./AttachmentsView";
 import { CampaignsView } from "./CampaignsView";
+import { FollowUpsView, useDueFollowUps } from "./FollowUpsView";
+import { cachedList, cachedMessage, flushOutbox, forgetAccount, isOfflineError, saveList, saveMessage, searchCached, useOnline, useOutbox } from "./offline";
+import { OutboxView } from "./OutboxView";
+import { announceChange } from "./sync";
 import { Composer, type ComposeDraft } from "./Composer";
 import { FeedbackProvider, useFeedback } from "./feedback";
 import { GreenmailThemeProvider, useVisibleViewport } from "./theme";
@@ -53,10 +63,10 @@ import { TasksView } from "./TasksView";
 import { TemplatesView } from "./TemplatesView";
 import { Avatar, Brand, displayName, escapeHtml, formatBytes, fullDate, listDate, withoutRemoteImages } from "./ui";
 
-type Filter = "all" | "unread" | "flagged" | "attachments";
+type Filter = "all" | "unread" | "flagged" | "attachments" | `label:${LabelKey}`;
 type ListPage = { messages: MessageSummary[]; total: number; page: number; last_page: number };
 type Compose = { draft: ComposeDraft; variant: "inline" | "window"; key: number };
-type View = "mail" | "calendar" | "tasks" | "notes" | "templates" | "campaigns" | "filters" | "automation";
+type View = "mail" | "calendar" | "tasks" | "attachments" | "followups" | "outbox" | "notes" | "templates" | "campaigns" | "filters" | "automation";
 
 /** How often Green Mail looks for new mail while it's open. */
 const NEW_MAIL_CHECK_MS = 30000;
@@ -70,9 +80,11 @@ const ROLE_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   archive: Archive,
 };
 
-const TOOLS: Array<[Exclude<View, "mail">, string, React.ComponentType<{ className?: string }>]> = [
+const TOOLS: Array<[Exclude<View, "mail" | "outbox">, string, React.ComponentType<{ className?: string }>]> = [
   ["calendar", "Calendar", CalendarDays],
   ["tasks", "Tasks", ListTodo],
+  ["followups", "Follow-ups", BellRing],
+  ["attachments", "Attachments", Paperclip],
   ["notes", "Notes", StickyNote],
   ["templates", "Templates", FileText],
   ["campaigns", "Campaigns", Megaphone],
@@ -148,6 +160,8 @@ function AccountsShell({ domain, onInstall }: { domain: string; onInstall: (() =
   const leave = useCallback(
     (gone: string, message: string | null) => {
       const goneEmail = readAccounts().find((a) => a.token === gone)?.email;
+      // Signing out (not a session that ran out) removes the mail kept on this device.
+      if (message === null && goneEmail) void forgetAccount(goneEmail);
       clearToken(gone);
       const rest = readAccounts();
       refresh();
@@ -182,6 +196,7 @@ function AccountsShell({ domain, onInstall }: { domain: string; onInstall: (() =
 
   const signOutAll = async () => {
     await Promise.all(readAccounts().map((a) => gm("/session", a.token, { method: "DELETE" }).catch(() => undefined)));
+    await Promise.all(readAccounts().map((a) => forgetAccount(a.email)));
     readAccounts().forEach((a) => clearToken(a.token));
     refresh();
     setNotice("You've signed out of all accounts.");
@@ -272,6 +287,15 @@ function Mailbox({
   const [view, setView] = useState<View>("mail");
   const { toast, confirm } = useFeedback();
   const visible = useVisibleViewport();
+  // Offline: when the list on screen is the copy kept on this device, when it was saved.
+  const [offlineCopy, setOfflineCopy] = useState<number | null>(null);
+  const online = useOnline();
+  // Known before /session answers (and while offline, when it can't).
+  const accountEmail = me?.email || accounts.find((a) => a.token === token)?.email || "";
+  const accountEmailRef = useRef(accountEmail);
+  accountEmailRef.current = accountEmail;
+  const outbox = useOutbox(accountEmail);
+  const dueFollowUps = useDueFollowUps(token);
 
   // The shell's callbacks change on every render of the shell; reading them
   // through a ref keeps handleError (and every loader that depends on it)
@@ -302,10 +326,33 @@ function Mailbox({
       if (!quiet) setIsLoadingList(true);
       const params = new URLSearchParams({ folder, page: String(page), filter });
       if (search) params.set("q", search);
+      const email = accountEmailRef.current;
       return gm<ListPage>(`/messages?${params.toString()}`, token)
-        .then(setList)
-        .catch((error) => {
+        .then((result) => {
+          setList(result);
+          setOfflineCopy(null);
+          if (!search) void saveList(email, folder, filter, page, result);
+        })
+        .catch(async (error) => {
           handleError(error);
+          // No connection: show (and search) the mail kept on this device.
+          if (isOfflineError(error)) {
+            if (search) {
+              const found = await searchCached(email, folder, search);
+              setList({ messages: found, total: found.length, page: 1, last_page: 1 });
+              setOfflineCopy(Date.now());
+              return;
+            }
+            const kept = await cachedList(email, folder, filter, page);
+            if (kept) {
+              setList(kept.page);
+              setOfflineCopy(kept.savedAt);
+              return;
+            }
+            setOfflineCopy(Date.now());
+            if (!quiet) setList((current) => current ?? { messages: [], total: 0, page: 1, last_page: 1 });
+            return;
+          }
           if (!quiet) flash(error instanceof Error ? error.message : "Could not load messages.", "error");
         })
         .finally(() => setIsLoadingList(false));
@@ -365,11 +412,26 @@ function Mailbox({
       }
     };
 
+    const sendWaiting = () =>
+      void flushOutbox().then(({ sent, failed }) => {
+        if (sent) toast(sent === 1 ? "An email from your Outbox was sent." : `${sent} emails from your Outbox were sent.`);
+        if (failed) toast("An email in your Outbox couldn't be sent. Open the Outbox to see why.", "error");
+        if (sent || failed) refreshRef.current();
+      });
+
     void check();
+    sendWaiting();
     const timer = window.setInterval(() => {
       void check();
+      sendWaiting();
       refreshRef.current();
     }, NEW_MAIL_CHECK_MS);
+    const onOnline = () => {
+      sendWaiting();
+      void check();
+      refreshRef.current();
+    };
+    window.addEventListener("online", onOnline);
     const onVisible = () => {
       if (document.visibilityState === "visible") {
         void check();
@@ -383,6 +445,7 @@ function Mailbox({
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
+      window.removeEventListener("online", onOnline);
     };
   }, [token, toast, handleError]);
 
@@ -417,6 +480,7 @@ function Mailbox({
     gm<FullMessage>(`/messages/${uid}?folder=${encodeURIComponent(folderPath)}`, token)
       .then((full) => {
         setMessage(full);
+        void saveMessage(accountEmail, folderPath, full);
         setList((current) => current && { ...current, messages: current.messages.map((m) => (m.uid === uid ? { ...m, seen: true } : m)) });
         void loadFolders();
       })
@@ -452,16 +516,92 @@ function Mailbox({
     try {
       const full = await gm<FullMessage>(`/messages/${summary.uid}?folder=${encodeURIComponent(folder)}`, token);
       setMessage(full);
+      void saveMessage(accountEmail, folder, full);
       if (!summary.seen) {
         setList((current) => current && { ...current, messages: current.messages.map((m) => (m.uid === summary.uid ? { ...m, seen: true } : m)) });
         void loadFolders();
       }
     } catch (error) {
       handleError(error);
-      flash(error instanceof Error ? error.message : "Could not open that message.", "error");
-      setSelectedUid(null);
+      const kept = isOfflineError(error) ? await cachedMessage(accountEmail, folder, summary.uid) : null;
+      if (kept) {
+        setMessage(kept);
+      } else {
+        flash(isOfflineError(error) ? "You're offline, and this email hasn't been saved on this device yet." : error instanceof Error ? error.message : "Could not open that message.", "error");
+        setSelectedUid(null);
+      }
     } finally {
       setIsLoadingMessage(false);
+    }
+  };
+
+  /** Open an email by its Message-ID (from a task, reminder or snooze) — wherever it is now. */
+  const openByMessageId = async (messageId: string, hint?: string | null) => {
+    try {
+      const params = new URLSearchParams({ message_id: messageId });
+      let found: { folder: string; uid: number } | null = null;
+      if (hint) found = await gm<{ folder: string; uid: number }>(`/messages/locate?${params.toString()}&folder=${encodeURIComponent(hint)}`, token).catch(() => null);
+      found ??= await gm<{ folder: string; uid: number }>(`/messages/locate?${params.toString()}`, token);
+      openFromNoticeRef.current(found.folder, found.uid);
+    } catch (error) {
+      handleError(error);
+      flash(error instanceof Error ? error.message : "That email could not be found.", "error");
+    }
+  };
+
+  const failed = (error: unknown) => {
+    handleError(error);
+    flash(isOfflineError(error) ? "You're offline. Try again when you're back online." : error instanceof Error ? error.message : "That did not work.", "error");
+  };
+
+  const snooze = async (until: Date) => {
+    if (!message) return;
+    try {
+      const result = await gm<{ message: string }>("/snoozes", token, { method: "POST", body: JSON.stringify({ folder, uid: message.uid, until: until.toISOString() }) });
+      announceChange("followups");
+      afterRemoval(message.uid, result.message);
+    } catch (error) {
+      failed(error);
+    }
+  };
+
+  const remindIfNoReply = async (at: Date) => {
+    if (!message) return;
+    try {
+      const result = await gm<{ message: string }>("/followups", token, { method: "POST", body: JSON.stringify({ folder, uid: message.uid, remind_at: at.toISOString() }) });
+      announceChange("followups");
+      flash(result.message);
+    } catch (error) {
+      failed(error);
+    }
+  };
+
+  const setLabel = async (label: LabelKey, on: boolean) => {
+    if (!message) return;
+    const uid = message.uid;
+    const labels = on ? [...new Set([...message.labels, label])] : message.labels.filter((l) => l !== label);
+    setMessage({ ...message, labels, suggested_label: null });
+    setList((current) => current && { ...current, messages: current.messages.map((m) => (m.uid === uid ? { ...m, labels } : m)) });
+    try {
+      await gm(`/messages/${uid}`, token, { method: "PATCH", body: JSON.stringify({ folder, [on ? "labels_add" : "labels_remove"]: [label] }) });
+      flash(on ? `Labelled ${LABELS[label].name}.` : "Label removed.");
+      if (!on && filter === `label:${label}`) void loadList(true);
+    } catch (error) {
+      failed(error);
+    }
+  };
+
+  const createTask = async () => {
+    if (!message) return;
+    try {
+      await gm("/tasks", token, {
+        method: "POST",
+        body: JSON.stringify({ title: message.subject === "(no subject)" ? `Follow up with ${displayName(message.from)}` : message.subject, source_folder: folder, source_message_id: message.message_id || null, source_subject: message.subject }),
+      });
+      announceChange("tasks");
+      toast("Task added.", "success", { label: "View tasks", run: () => setView("tasks") });
+    } catch (error) {
+      failed(error);
     }
   };
 
@@ -556,6 +696,9 @@ function Mailbox({
         case "reply_all":
         case "forward":
           startReply(action);
+          return;
+        case "task":
+          await createTask();
           return;
         case "star": {
           const flagged = !message.flagged;
@@ -735,11 +878,13 @@ function Mailbox({
         {otherFolders.length > 0 && (
           <>
             {!collapsed && <p className="mt-5 px-3 pb-1 text-sm font-semibold text-white/60">Folders</p>}
-            {otherFolders.map((f) => folderButton(f.path, f.role === "archive" ? "Archive" : f.name, f.role === "archive" ? Archive : FolderIcon, folder === f.path, () => openFolder(f.path), f.unread))}
+            {otherFolders.map((f) => folderButton(f.path, f.role === "archive" ? "Archive" : f.name, f.role === "archive" ? Archive : f.path === "Snoozed" ? AlarmClock : FolderIcon, folder === f.path, () => openFolder(f.path), f.path === "Snoozed" ? f.total : f.unread))}
           </>
         )}
         {!collapsed && <p className="mt-5 px-3 pb-1 text-sm font-semibold text-white/60">Tools</p>}
-        {TOOLS.map(([key, label, Icon]) => folderButton(`tool-${key}`, label, Icon, view === key, () => { setView(key); setMobileNav(false); }))}
+        {outbox.items.length > 0 &&
+          folderButton("tool-outbox", "Outbox", Upload, view === "outbox", () => { setView("outbox"); setMobileNav(false); }, outbox.items.length, outbox.items.some((i) => i.status === "failed"))}
+        {TOOLS.map(([key, label, Icon]) => folderButton(`tool-${key}`, label, Icon, view === key, () => { setView(key); setMobileNav(false); }, key === "followups" ? dueFollowUps : undefined, key === "followups"))}
       </nav>
       {quota && !collapsed && (
         <div className="mx-3 mb-3 mt-auto rounded-xl border border-white/10 p-3 text-xs text-white/70">
@@ -799,7 +944,22 @@ function Mailbox({
               {option === "all" ? "All" : option === "unread" ? "Unread" : option === "flagged" ? "Flagged" : "Attachments"}
             </button>
           ))}
-          <button type="button" aria-label="Refresh" title="Refresh" className="mb-1 ml-auto rounded p-1.5 text-slate-500 hover:bg-slate-100" onClick={() => { void loadFolders(); void loadList(); }}>
+          <label className={`relative mb-1 ml-auto inline-flex items-center gap-1 rounded px-1.5 py-1 text-sm ${filter.startsWith("label:") ? "bg-[#e3f4e9] font-bold text-[#14632f]" : "text-slate-500 hover:bg-slate-100"}`} title="Show emails with a label">
+            <Tag className="h-4 w-4" />
+            {filter.startsWith("label:") && <span className="max-w-[90px] truncate text-xs">{LABELS[filter.slice(6) as LabelKey].name}</span>}
+            <select
+              aria-label="Show emails with a label"
+              value={filter.startsWith("label:") ? filter : ""}
+              onChange={(event) => { setFilter((event.target.value || "all") as Filter); setPage(1); }}
+              className="absolute inset-0 cursor-pointer opacity-0"
+            >
+              <option value="">All labels</option>
+              {(Object.keys(LABELS) as LabelKey[]).map((key) => (
+                <option key={key} value={`label:${key}`}>{LABELS[key].name}</option>
+              ))}
+            </select>
+          </label>
+          <button type="button" aria-label="Refresh" title="Refresh" className="mb-1 rounded p-1.5 text-slate-500 hover:bg-slate-100" onClick={() => { void loadFolders(); void loadList(); }}>
             <RefreshCw className={`h-4 w-4 ${isLoadingList ? "animate-spin" : ""}`} />
           </button>
         </div>
@@ -810,6 +970,18 @@ function Mailbox({
           <button type="button" className="rounded-md border border-red-200 bg-white px-3 py-1 font-bold text-red-600 hover:bg-red-50" onClick={() => void emptyFolder()}>
             Empty {roleOf(folder) === "junk" ? "Spam" : "Trash"}
           </button>
+        </div>
+      )}
+      {(offlineCopy !== null || !online) && (
+        <div className="flex items-start gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900" role="status">
+          <CloudOff className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            {online ? "Can't reach the mail server." : "You're offline."}{" "}
+            {offlineCopy !== null && list && list.messages.length > 0
+              ? `Showing mail saved on this device${search ? "" : ` (from ${listDate(new Date(offlineCopy).toISOString())})`}.`
+              : "Mail you've opened recently on this device can still be read."}{" "}
+            Emails you send wait in the Outbox.
+          </span>
         </div>
       )}
       <p className="px-4 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-slate-400">{currentName}{search ? ` · “${search}”` : ""}</p>
@@ -841,6 +1013,9 @@ function Mailbox({
                     <span className={`flex items-center gap-1.5 truncate text-sm ${summary.seen ? "text-slate-600" : "font-semibold text-slate-800"}`}>
                       <span className="truncate">{summary.subject}</span>
                       {summary.has_attachments && <Paperclip className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
+                      {summary.labels?.map((key) => (
+                        <span key={key} className={`shrink-0 rounded px-1 text-[10px] font-bold leading-4 ${LABELS[key].className}`}>{LABELS[key].name}</span>
+                      ))}
                     </span>
                     <span className="block truncate text-sm text-slate-500">{summary.snippet}</span>
                   </span>
@@ -880,6 +1055,7 @@ function Mailbox({
           <React.Fragment key={compose.key}>
             <Composer
               token={token}
+              email={accountEmail}
               draft={compose.draft}
               variant="window"
               onSessionError={handleError}
@@ -890,12 +1066,26 @@ function Mailbox({
           </React.Fragment>
         </div>
       ) : (
-        <MessageReader message={message} token={token} folder={folder} isJunk={roleOf(folder) === "junk"} isLoading={isLoadingMessage} onAction={(action) => void act(action)}>
+        <MessageReader
+          message={message}
+          token={token}
+          folder={folder}
+          isJunk={roleOf(folder) === "junk"}
+          isLoading={isLoadingMessage}
+          onAction={(action) => void act(action)}
+          extras={{
+            onSnooze: ["sent", "drafts", "trash"].includes(roleOf(folder) ?? "") || folder === "Snoozed" ? undefined : (until) => void snooze(until),
+            onRemind: roleOf(folder) === "sent" ? (at) => void remindIfNoReply(at) : undefined,
+            onLabel: (label, on) => void setLabel(label, on),
+            onSessionError: handleError,
+          }}
+        >
           {compose && compose.variant === "inline" && message && (
             <div className="mx-4 mb-6 overflow-hidden rounded-xl border border-slate-200 shadow-sm">
               <React.Fragment key={compose.key}>
                 <Composer
                   token={token}
+                  email={accountEmail}
                   draft={compose.draft}
                   variant="inline"
                   onSessionError={handleError}
@@ -980,7 +1170,10 @@ function Mailbox({
 
         <div className="flex min-h-0 flex-1">
           {view === "calendar" && <CalendarView token={token} onSessionError={handleError} flash={flash} />}
-          {view === "tasks" && <TasksView token={token} onSessionError={handleError} />}
+          {view === "tasks" && <TasksView token={token} onSessionError={handleError} onOpenEmail={(id, hint) => void openByMessageId(id, hint)} />}
+          {view === "followups" && <FollowUpsView token={token} onSessionError={handleError} onOpenEmail={(id, hint) => void openByMessageId(id, hint)} />}
+          {view === "attachments" && <AttachmentsView token={token} onSessionError={handleError} onOpenEmail={(path, uid) => openFromNoticeRef.current(path, uid)} />}
+          {view === "outbox" && <OutboxView items={outbox.items} online={online} onSendNow={() => void flushOutbox().then(() => refresh())} />}
           {view === "notes" && <NotesView token={token} onSessionError={handleError} />}
           {view === "templates" && <TemplatesView token={token} onSessionError={handleError} onUse={(template) => newMessage("", template)} />}
           {view === "campaigns" && <CampaignsView token={token} onSessionError={handleError} />}

@@ -6,9 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\Greenmail\GreenmailContact;
 use App\Models\Greenmail\GreenmailScheduledMessage;
 use App\Models\Greenmail\GreenmailSetting;
+use App\Services\Greenmail\AttachmentIndex;
 use App\Services\Greenmail\Campaigns;
 use App\Services\Greenmail\FolderRoles;
+use App\Services\Greenmail\FollowUps;
 use App\Services\Greenmail\HtmlSanitizer;
+use App\Services\Greenmail\Labels;
 use App\Services\Greenmail\MailGateway;
 use App\Services\Greenmail\MailSender;
 use Illuminate\Http\Request;
@@ -108,7 +111,7 @@ class MailController extends Controller
         $data = $request->validate([
             'folder' => ['required', 'string', 'max:200'],
             'page' => ['nullable', 'integer', 'min:1'],
-            'filter' => ['nullable', Rule::in(['all', 'unread', 'flagged', 'attachments'])],
+            'filter' => ['nullable', Rule::in(array_merge(['all', 'unread', 'flagged', 'attachments'], array_map(fn ($key) => 'label:'.$key, array_keys(Labels::KEYWORDS))))],
             'q' => ['nullable', 'string', 'max:200'],
         ]);
         $perPage = (int) config('greenmail.per_page');
@@ -140,11 +143,23 @@ class MailController extends Controller
             ? $sanitizer->clean($message['html'], $inline)
             : '<div style="white-space:pre-wrap">'.e((string) $message['text']).'</div>';
 
+        $attachments = collect($message['attachments'])
+            // Images already shown inline aren't listed again as attachments.
+            ->reject(fn ($a) => $a['content_id'] && isset($inline[$a['content_id']]))
+            ->map(fn ($a) => $a + [
+                'warning' => AttachmentIndex::classify($a['name'], $a['mime'])['warning'],
+                'previewable' => in_array(strtolower($a['mime']), AttachmentIndex::PREVIEWABLE_MIME, true),
+            ])
+            ->values();
+
         return response()->json(array_merge($message, [
             'html' => $html,
             'has_remote_images' => (bool) preg_match('/<img[^>]+src=["\']https?:/i', $html),
-            // Images already shown inline aren't listed again as attachments.
-            'attachments' => collect($message['attachments'])->reject(fn ($a) => $a['content_id'] && isset($inline[$a['content_id']]))->values()->all(),
+            'attachments' => $attachments->all(),
+            'labels' => $message['labels'] ?? [],
+            'suggested_label' => ($message['labels'] ?? []) === []
+                ? Labels::suggest((string) $message['subject'], (string) ($message['text'] ?? strip_tags((string) $message['html'])), $attachments->pluck('name')->all())
+                : null,
         ]));
     }
 
@@ -154,22 +169,39 @@ class MailController extends Controller
         $file = $this->inFolder(fn () => $this->mail()->attachment($folder, $uid, $index));
         abort_unless($file, 404, 'That attachment no longer exists.');
 
+        // Preview (?inline=1) only for types the browser shows safely — never HTML or SVG.
+        $inline = $request->boolean('inline') && in_array(strtolower($file['mime']), AttachmentIndex::PREVIEWABLE_MIME, true);
+
         return response($file['content'], 200, [
             'Content-Type' => $file['mime'],
-            'Content-Disposition' => 'attachment; filename="'.str_replace('"', '', $file['name']).'"',
+            'Content-Disposition' => ($inline ? 'inline' : 'attachment').'; filename="'.str_replace(['"', "\r", "\n"], '', $file['name']).'"',
             'X-Content-Type-Options' => 'nosniff',
+            'Content-Security-Policy' => "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox",
+            'Cache-Control' => 'private, no-store',
         ]);
     }
 
     public function update(Request $request, int $uid)
     {
+        $labels = array_keys(Labels::KEYWORDS);
         $data = $request->validate([
             'folder' => ['required', 'string', 'max:200'],
             'seen' => ['nullable', 'boolean'],
             'flagged' => ['nullable', 'boolean'],
+            'labels_add' => ['nullable', 'array', 'max:3'],
+            'labels_add.*' => [Rule::in($labels)],
+            'labels_remove' => ['nullable', 'array', 'max:3'],
+            'labels_remove.*' => [Rule::in($labels)],
         ]);
 
-        $this->inFolder(fn () => $this->mail()->setFlags($data['folder'], $uid, $data['seen'] ?? null, $data['flagged'] ?? null));
+        $this->inFolder(function () use ($data, $uid) {
+            if (isset($data['seen']) || isset($data['flagged'])) {
+                $this->mail()->setFlags($data['folder'], $uid, $data['seen'] ?? null, $data['flagged'] ?? null);
+            }
+            if (! empty($data['labels_add']) || ! empty($data['labels_remove'])) {
+                $this->mail()->setLabels($data['folder'], $uid, $data['labels_add'] ?? [], $data['labels_remove'] ?? []);
+            }
+        });
 
         return response()->json(['message' => 'Updated.']);
     }
@@ -206,6 +238,8 @@ class MailController extends Controller
         $data = $this->personalise($this->validateCompose($request, requireRecipient: true), $session->email);
         $settings = GreenmailSetting::query()->where('owner_email', $session->email)->first();
 
+        $remindAt = $request->validate(['remind_at' => ['nullable', 'date', 'after:now', 'before:+1 year']], ['remind_at.after' => 'Pick a reminder time in the future.'])['remind_at'] ?? null;
+
         try {
             $raw = $sender->send($session->email, $settings?->display_name, $session->password(), $data, $request->file('attachments', []), $this->forwardedAttachments($data));
         } catch (TransportExceptionInterface $exception) {
@@ -226,6 +260,13 @@ class MailController extends Controller
         }
 
         $this->rememberRecipients($session->email, array_merge($data['to'], $data['cc'] ?? [], $data['bcc'] ?? []));
+
+        // "Remind me if nobody replies" — keyed on the Message-ID just sent.
+        if ($remindAt && preg_match('/^Message-ID:\s*(<[^>\r\n]+>)/mi', $raw, $match)) {
+            app(FollowUps::class)->remindIfNoReply($session, $match[1], (string) $data['subject'], array_merge($data['to'], $data['cc'] ?? []), $this->folderForRole('sent'), Carbon::parse($remindAt));
+
+            return response()->json(['message' => 'Sent. We’ll remind you if nobody replies.'], 201);
+        }
 
         return response()->json(['message' => 'Sent.'], 201);
     }
@@ -289,6 +330,28 @@ class MailController extends Controller
                 'from' => $m['from'],
             ])->all() : [],
         ]);
+    }
+
+    /** Find an email by its Message-ID (e.g. the one a task was made from), in a folder or anywhere. */
+    public function locate(Request $request)
+    {
+        $data = $request->validate([
+            'message_id' => ['required', 'string', 'max:500'],
+            'folder' => ['nullable', 'string', 'max:200'],
+        ]);
+
+        $folders = $data['folder'] ?? null
+            ? [$data['folder']]
+            : collect($this->mail()->folders())->reject(fn ($f) => in_array($f['role'], ['trash'], true))->pluck('path')->all();
+
+        foreach ($folders as $folder) {
+            $uid = rescue(fn () => $this->mail()->findUidByMessageId($folder, $data['message_id']), null, report: false);
+            if ($uid !== null) {
+                return response()->json(['folder' => $folder, 'uid' => $uid]);
+            }
+        }
+
+        abort(404, 'That email is no longer in your mailbox.');
     }
 
     public function saveDraft(Request $request, MailSender $sender)

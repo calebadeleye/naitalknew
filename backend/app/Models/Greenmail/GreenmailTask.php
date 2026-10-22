@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class GreenmailTask extends Model
 {
-    protected $fillable = ['owner_email', 'title', 'due_date', 'done', 'completed_at', 'notes'];
+    protected $fillable = ['owner_email', 'title', 'due_date', 'done', 'completed_at', 'notes', 'source_folder', 'source_message_id', 'source_subject'];
 
     protected $hidden = ['owner_email'];
 

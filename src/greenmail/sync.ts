@@ -6,7 +6,7 @@ import { useEffect, useRef } from "react";
  * everything showing tasks reloads. Same for events, contacts, notes,
  * templates, rules and campaigns.
  */
-export type DataKind = "tasks" | "events" | "contacts" | "notes" | "templates" | "rules" | "scheduled" | "campaigns";
+export type DataKind = "tasks" | "events" | "contacts" | "notes" | "templates" | "rules" | "scheduled" | "campaigns" | "followups" | "outbox";
 
 const EVENT = "greenmail:changed";
 

@@ -125,7 +125,23 @@ export async function gmDownload(path: string, token: string, filename: string):
   URL.revokeObjectURL(url);
 }
 
+/** The file itself (for previews), as a blob URL the caller must revoke. */
+export async function gmBlobUrl(path: string, token: string): Promise<string> {
+  const response = await fetch(`${LARAVEL_API_BASE_URL}/api/v1/greenmail${path}`, { headers: { "X-Greenmail-Token": token } });
+  if (response.status === 401) throw new SessionExpired("Please sign in again.");
+  if (!response.ok) throw new Error(response.status === 404 ? "That file is no longer in your mailbox." : "The file could not be opened.");
+  return URL.createObjectURL(await response.blob());
+}
+
 export type Address = { name: string | null; email: string };
+
+/** Labels kept on the mail server as IMAP keywords, so other apps keep them too. */
+export type LabelKey = "invoice" | "quotation" | "request";
+export const LABELS: Record<LabelKey, { name: string; className: string }> = {
+  invoice: { name: "Invoice", className: "bg-amber-100 text-amber-800" },
+  quotation: { name: "Quotation", className: "bg-sky-100 text-sky-800" },
+  request: { name: "Customer request", className: "bg-violet-100 text-violet-800" },
+};
 
 export type Folder = { path: string; name: string; role: "inbox" | "sent" | "drafts" | "junk" | "trash" | "archive" | null; unread: number; total: number };
 
@@ -140,9 +156,10 @@ export type MessageSummary = {
   answered: boolean;
   has_attachments: boolean;
   snippet: string;
+  labels?: LabelKey[];
 };
 
-export type Attachment = { index: number; name: string; size: number; mime: string; content_id: string | null; inline: boolean };
+export type Attachment = { index: number; name: string; size: number; mime: string; content_id: string | null; inline: boolean; warning?: string | null; previewable?: boolean };
 
 export type FullMessage = MessageSummary & {
   cc: Address[];
@@ -153,6 +170,8 @@ export type FullMessage = MessageSummary & {
   text: string | null;
   has_remote_images: boolean;
   attachments: Attachment[];
+  labels: LabelKey[];
+  suggested_label: LabelKey | null;
 };
 
 export type Contact = { id: number; name: string | null; email: string; phone: string | null; company: string | null; notes: string | null };
@@ -161,7 +180,45 @@ export type Me = { email: string; display_name: string | null; signature_html: s
 
 export type CalendarEvent = { id: number; title: string; starts_at: string; ends_at: string | null; all_day: boolean; location: string | null; notes: string | null };
 
-export type Task = { id: number; title: string; due_date: string | null; done: boolean; completed_at: string | null; notes: string | null };
+export type Task = {
+  id: number;
+  title: string;
+  due_date: string | null;
+  done: boolean;
+  completed_at: string | null;
+  notes: string | null;
+  /** Made from an email: opens it again (found by Message-ID, wherever it was moved). */
+  source_folder?: string | null;
+  source_message_id?: string | null;
+  source_subject?: string | null;
+};
+
+export type AttachmentKind = "pdf" | "image" | "document" | "spreadsheet" | "presentation" | "archive" | "other";
+
+/** One file in the attachment manager's index. */
+export type IndexedAttachment = {
+  id: number;
+  folder: string;
+  uid: number;
+  part_index: number;
+  name: string;
+  extension: string | null;
+  kind: AttachmentKind;
+  mime: string | null;
+  size: number;
+  from_name: string | null;
+  from_email: string | null;
+  subject: string | null;
+  sent_at: string | null;
+  warning: string | null;
+  previewable: boolean;
+};
+
+export type SharedLink = { id: number; name: string; size: number; downloads: number; max_downloads: number | null; expires_at: string; revoked_at: string | null; url: string; available: boolean };
+
+export type Snooze = { id: number; message_id: string; subject: string | null; from_email: string | null; return_folder: string; until: string; status: "snoozed" | "returning" | "failed"; error: string | null };
+
+export type FollowUp = { id: number; message_id: string; subject: string | null; recipients: string[] | null; sent_folder: string | null; remind_at: string; status: "waiting" | "checking" | "due" | "failed"; checked_at: string | null; error: string | null };
 
 export type Note = { id: number; title: string | null; body: string | null; color: "yellow" | "green" | "blue" | "pink" | "gray" | null; pinned: boolean; updated_at: string };
 

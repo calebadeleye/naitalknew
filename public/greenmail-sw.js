@@ -1,7 +1,8 @@
 /*
  * Green Mail service worker (scope /greenmail). Makes the installed app open
- * even with a poor connection: the app shell and its built files are cached;
- * mail itself (the API) is never cached — it always comes from the server.
+ * even with no connection: the app shell and its built files are cached.
+ * The API is never cached here — offline mail (recent lists and emails, the
+ * Outbox) is kept by the app itself in IndexedDB (src/greenmail/offline.ts).
  * It also shows "new email" notifications pushed by the server, and opens
  * Green Mail when one is tapped.
  */

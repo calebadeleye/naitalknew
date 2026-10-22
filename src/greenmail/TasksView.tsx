@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { CalendarDays, Loader2, Plus, Trash2 } from "lucide-react";
+import { CalendarDays, Loader2, Mail, Plus, Trash2 } from "lucide-react";
 import { gm, type Task } from "./api";
 import { useFeedback } from "./feedback";
 import { dueLabel } from "./planner";
@@ -73,12 +73,31 @@ export function useTasks(token: string, status: "open" | "done", onSessionError:
   return { tasks, add, update, remove };
 }
 
-export function TaskRow({ task, onToggle, onDue, onRemove, compact = false }: { task: Task; onToggle: () => void; onDue?: (due: string | null) => void; onRemove?: () => void; compact?: boolean }) {
+export function TaskRow({
+  task,
+  onToggle,
+  onDue,
+  onRemove,
+  onOpenEmail,
+  compact = false,
+}: {
+  task: Task;
+  onToggle: () => void;
+  onDue?: (due: string | null) => void;
+  onRemove?: () => void;
+  onOpenEmail?: () => void;
+  compact?: boolean;
+}) {
   const due = dueLabel(task.due_date);
   return (
     <li className="group flex items-center gap-3 py-1.5">
       <input type="checkbox" checked={task.done} onChange={onToggle} aria-label={`${task.done ? "Reopen" : "Complete"} ${task.title}`} className="h-4 w-4 shrink-0 accent-[#1f9d4c]" />
       <span className={`min-w-0 flex-1 truncate text-sm ${task.done ? "text-slate-400 line-through" : "text-slate-800"}`}>{task.title}</span>
+      {task.source_message_id && onOpenEmail && (
+        <button type="button" title={`Open the email: ${task.source_subject ?? ""}`} aria-label={`Open the email for ${task.title}`} className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs text-slate-500 hover:bg-slate-100 hover:text-slate-800" onClick={onOpenEmail}>
+          <Mail className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Email</span>
+        </button>
+      )}
       {due && !task.done && <span className={`shrink-0 text-xs font-semibold ${TONE[due.tone]}`}>{due.text}</span>}
       {!compact && onDue && (
         <label className="relative shrink-0 cursor-pointer rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="Set due date">
@@ -96,7 +115,7 @@ export function TaskRow({ task, onToggle, onDue, onRemove, compact = false }: { 
 }
 
 /** The Tasks page: add, tick off, date and delete. */
-export function TasksView({ token, onSessionError }: { token: string; onSessionError: (error: unknown) => void }) {
+export function TasksView({ token, onSessionError, onOpenEmail }: { token: string; onSessionError: (error: unknown) => void; onOpenEmail?: (messageId: string, folder?: string | null) => void }) {
   const [status, setStatus] = useState<"open" | "done">("open");
   const { tasks, add, update, remove } = useTasks(token, status, onSessionError);
   const [title, setTitle] = useState("");
@@ -142,7 +161,13 @@ export function TasksView({ token, onSessionError }: { token: string; onSessionE
           <ul className="mt-4 divide-y divide-slate-100">
             {tasks.map((task) => (
               <React.Fragment key={task.id}>
-                <TaskRow task={task} onToggle={() => void update(task, { done: !task.done })} onDue={(value) => void update(task, { due_date: value })} onRemove={() => void remove(task)} />
+                <TaskRow
+                  task={task}
+                  onToggle={() => void update(task, { done: !task.done })}
+                  onDue={(value) => void update(task, { due_date: value })}
+                  onRemove={() => void remove(task)}
+                  onOpenEmail={onOpenEmail && task.source_message_id ? () => onOpenEmail(task.source_message_id as string, task.source_folder) : undefined}
+                />
               </React.Fragment>
             ))}
           </ul>

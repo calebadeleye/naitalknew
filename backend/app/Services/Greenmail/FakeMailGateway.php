@@ -49,6 +49,8 @@ class FakeMailGateway implements MailGateway
             'answered' => false,
             'message_id' => '<'.Str::uuid().'@example.test>',
             'references' => '',
+            'in_reply_to' => '',
+            'labels' => [],
             'html' => null,
             'text' => '',
             'attachments' => [],
@@ -88,6 +90,7 @@ class FakeMailGateway implements MailGateway
             ->when($filter === 'unread', fn ($c) => $c->where('seen', false))
             ->when($filter === 'flagged', fn ($c) => $c->where('flagged', true))
             ->when($filter === 'attachments', fn ($c) => $c->filter(fn ($m) => $m['attachments'] !== []))
+            ->when(str_starts_with($filter, 'label:'), fn ($c) => $c->filter(fn ($m) => in_array(substr($filter, 6), $m['labels'] ?? [], true)))
             ->when($search, fn ($c) => $c->filter(fn ($m) => Str::contains(strtolower($m['subject'].' '.$m['text'].' '.$m['from']['email']), strtolower((string) $search))))
             ->sortByDesc('uid');
 
@@ -187,6 +190,47 @@ class FakeMailGateway implements MailGateway
         return $this->quotaFor;
     }
 
+    public function setLabels(string $folder, int $uid, array $add = [], array $remove = []): void
+    {
+        if (! isset($this->box()[$folder][$uid])) {
+            return;
+        }
+        $labels = $this->mailboxes[$this->email][$folder][$uid]['labels'] ?? [];
+        $labels = array_values(array_diff(array_unique(array_merge($labels, array_filter($add, fn ($k) => Labels::keyword($k) !== null))), $remove));
+        $this->mailboxes[$this->email][$folder][$uid]['labels'] = $labels;
+    }
+
+    public function findUidByMessageId(string $folder, string $messageId): ?int
+    {
+        foreach ($this->box()[$folder] ?? [] as $uid => $message) {
+            if (($message['message_id'] ?? null) === $messageId) {
+                return (int) $uid;
+            }
+        }
+
+        return null;
+    }
+
+    public function hasReplyTo(string $folder, string $messageId): bool
+    {
+        return collect($this->box()[$folder] ?? [])->contains(fn ($m) => ($m['in_reply_to'] ?? '') === $messageId || str_contains((string) ($m['references'] ?? ''), $messageId));
+    }
+
+    public function messagesWithAttachments(string $folder, ?int $aboveUid, ?int $belowUid, int $limit): array
+    {
+        return collect($this->box()[$folder] ?? [])
+            ->filter(fn ($m) => $m['attachments'] !== [])
+            ->filter(fn ($m) => $belowUid !== null ? $m['uid'] < $belowUid : $m['uid'] > ($aboveUid ?? 0))
+            ->sortBy('uid', descending: ! ($belowUid === null && $aboveUid !== null))
+            ->take($limit)
+            ->map(fn ($m) => [
+                'uid' => $m['uid'], 'message_id' => $m['message_id'], 'subject' => $m['subject'], 'from' => $m['from'], 'date' => $m['date'],
+                'attachments' => collect($m['attachments'])->values()->map(fn ($a, $i) => ['index' => $i, 'name' => $a['name'], 'size' => strlen($a['content']), 'mime' => $a['mime']])->all(),
+            ])
+            ->values()
+            ->all();
+    }
+
     private function box(): array
     {
         return $this->mailboxes[$this->email] ?? [];
@@ -198,6 +242,7 @@ class FakeMailGateway implements MailGateway
             'uid' => $m['uid'], 'subject' => $m['subject'], 'from' => $m['from'], 'to' => $m['to'], 'date' => $m['date'],
             'seen' => $m['seen'], 'flagged' => $m['flagged'], 'answered' => $m['answered'],
             'has_attachments' => $m['attachments'] !== [], 'snippet' => Str::limit(strip_tags((string) ($m['text'] ?: $m['html'])), 140),
+            'labels' => array_values($m['labels'] ?? []),
         ];
     }
 }

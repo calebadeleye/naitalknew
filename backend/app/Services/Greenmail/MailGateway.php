@@ -10,13 +10,13 @@ use App\Services\Greenmail\Exceptions\MailServerUnavailable;
  * talks to Dovecot; tests use FakeMailGateway.
  *
  * Message summary shape:
- *   {uid, subject, from: {name, email}, to: [{name, email}], date, seen, flagged, answered, has_attachments, snippet}
+ *   {uid, subject, from: {name, email}, to: [{name, email}], date, seen, flagged, answered, has_attachments, snippet, labels: string[]}
  */
 interface MailGateway
 {
     /**
      * @throws MailAuthenticationFailed wrong email/password
-     * @throws MailServerUnavailable    mail server unreachable
+     * @throws MailServerUnavailable mail server unreachable
      */
     public function open(string $email, string $password): void;
 
@@ -26,7 +26,7 @@ interface MailGateway
     public function folders(): array;
 
     /**
-     * @param  string  $filter  all | unread | flagged | attachments
+     * @param  string  $filter  all | unread | flagged | attachments | label:<key> (see Labels)
      * @return array{messages: array<int, array<string, mixed>>, total: int}
      */
     public function messages(string $folder, int $page, int $perPage, string $filter = 'all', ?string $search = null): array;
@@ -61,4 +61,23 @@ interface MailGateway
 
     /** @return array{used_bytes: int, limit_bytes: int}|null  null when the mailbox has no quota */
     public function quota(): ?array;
+
+    /** Adds / removes business labels (Labels keys) on an email. */
+    public function setLabels(string $folder, int $uid, array $add = [], array $remove = []): void;
+
+    /** The UID of the email with this Message-ID in the folder, if it is there. */
+    public function findUidByMessageId(string $folder, string $messageId): ?int;
+
+    /** Whether the folder holds a reply to this Message-ID (In-Reply-To or References). */
+    public function hasReplyTo(string $folder, string $messageId): bool;
+
+    /**
+     * Emails with attachments, for the attachment index, $limit at a time:
+     * - $belowUid given: the newest ones below it (filling in older mail);
+     * - $aboveUid given (0 too): the OLDEST ones above it (new mail, so none are skipped);
+     * - neither: the newest in the folder (first scan).
+     *
+     * @return array<int, array{uid: int, message_id: string, subject: string, from: array, date: ?string, attachments: array<int, array{index: int, name: string, size: int, mime: string}>}>
+     */
+    public function messagesWithAttachments(string $folder, ?int $aboveUid, ?int $belowUid, int $limit): array;
 }

@@ -61,6 +61,10 @@ class TaskController extends Controller
             'due_date' => ['nullable', 'date_format:Y-m-d'],
             'done' => ['nullable', 'boolean'],
             'notes' => ['nullable', 'string', 'max:5000'],
+            // A task made from an email keeps a link back to it.
+            'source_folder' => ['nullable', 'string', 'max:200'],
+            'source_message_id' => ['nullable', 'string', 'max:500'],
+            'source_subject' => ['nullable', 'string', 'max:255'],
         ]);
 
         if (array_key_exists('done', $data)) {
