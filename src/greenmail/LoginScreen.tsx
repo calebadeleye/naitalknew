@@ -64,7 +64,6 @@ export function LoginScreen({
     }
   };
 
-  const webmailHost = email.includes("@") ? email.split("@")[1] : domain;
 
   if (mode === "forgot") {
     return (
@@ -160,17 +159,6 @@ export function LoginScreen({
               Cancel
             </button>
           )}
-          <p className="mt-5 text-center text-xs text-slate-500">
-            {webmailHost && /\./.test(webmailHost) && (
-              <>
-                Prefer the classic webmail?{" "}
-                <a className="font-semibold text-[#1a7f3f] hover:underline" href={`https://${webmailHost}/webmail`}>
-                  Open it here
-                </a>
-                .
-              </>
-            )}
-          </p>
         </form>
         {onInstall && (
           <button type="button" onClick={onInstall} className="mx-auto mt-4 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-[#15803d] hover:bg-white">
