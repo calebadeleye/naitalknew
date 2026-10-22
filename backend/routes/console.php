@@ -51,6 +51,7 @@ Schedule::call(fn () => app(\App\Services\Greenmail\GreenmailSessions::class)->p
 Schedule::command('greenmail:dispatch')->everyMinute()->withoutOverlapping(10);
 // Greenmail: phone/desktop notifications for new mail.
 Schedule::command('greenmail:push-check')->everyMinute()->withoutOverlapping(5);
+Schedule::command('greenmail:expo-push-check')->everyMinute()->withoutOverlapping(5);
 Schedule::job(new SyncMailboxesJob)->everySixHours();
 Schedule::job(new SyncDatabasesJob)->everySixHours();
 Schedule::job(new SyncFtpAccountsJob)->everySixHours();

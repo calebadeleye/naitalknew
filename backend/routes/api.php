@@ -35,6 +35,7 @@ use App\Http\Controllers\Api\Client\PaymentOptionsController;
 use App\Http\Controllers\Api\Greenmail\AccountController as GreenmailAccountController;
 use App\Http\Controllers\Api\Greenmail\AssistantController as GreenmailAssistantController;
 use App\Http\Controllers\Api\Greenmail\CalendarController as GreenmailCalendarController;
+use App\Http\Controllers\Api\Greenmail\ExpoPushController as GreenmailExpoPushController;
 use App\Http\Controllers\Api\Greenmail\CampaignController as GreenmailCampaignController;
 use App\Http\Controllers\Api\Greenmail\ContactController as GreenmailContactController;
 use App\Http\Controllers\Api\Greenmail\MailController as GreenmailMailController;
@@ -142,6 +143,10 @@ Route::prefix('v1')->group(function (): void {
             Route::delete('/push', [GreenmailPushController::class, 'destroy']);
             Route::post('/push/test', [GreenmailPushController::class, 'test'])->middleware('throttle:greenmail-settings');
             Route::post('/push/problem', [GreenmailPushController::class, 'problem'])->middleware('throttle:greenmail-settings');
+            // The phone app (Expo push tokens).
+            Route::post('/push/expo', [GreenmailExpoPushController::class, 'store'])->middleware('throttle:greenmail-settings');
+            Route::delete('/push/expo', [GreenmailExpoPushController::class, 'destroy']);
+            Route::post('/push/expo/test', [GreenmailExpoPushController::class, 'test'])->middleware('throttle:greenmail-settings');
             Route::post('/password', [GreenmailAccountController::class, 'changePassword'])->middleware('throttle:greenmail-recovery');
             Route::put('/recovery-email', [GreenmailAccountController::class, 'setRecoveryEmail'])->middleware('throttle:greenmail-recovery');
             Route::post('/recovery-email/confirm', [GreenmailAccountController::class, 'confirmRecoveryEmail'])->middleware('throttle:greenmail-recovery');
