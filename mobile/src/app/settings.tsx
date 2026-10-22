@@ -9,7 +9,7 @@ import { Avatar, Button, Card, Divider, Field, Header, IconButton, Row, SectionT
 import { api, API_BASE_URL } from "../lib/config";
 import { htmlToText } from "../lib/db";
 import { escapeHtml } from "../lib/format";
-import { projectId, pushToken, registerForPush } from "../lib/push";
+import { pushSupported, pushToken, registerForPush } from "../lib/push";
 import { useSession } from "../state/session";
 import { useTheme, type ThemePreference } from "../state/theme";
 
@@ -24,7 +24,7 @@ export default function Settings() {
   const [push, setPush] = useState<"checking" | "on" | "off" | "unavailable">("checking");
 
   useEffect(() => {
-    pushToken(false).then((t) => setPush(t ? "on" : projectId() ? "off" : "unavailable"));
+    pushToken(false).then((t) => setPush(t ? "on" : pushSupported() ? "off" : "unavailable"));
   }, []);
 
   const confirmSignOut = (email: string) =>

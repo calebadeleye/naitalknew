@@ -1,27 +1,26 @@
 import { Pacifico_400Regular, useFonts } from "@expo-google-fonts/pacifico";
-import * as Notifications from "expo-notifications";
 import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import { Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { DrawerProvider } from "../components/Drawer";
 import { ToastProvider } from "../components/toast";
-import type { MailNotificationData } from "../lib/push";
+import { useNotificationTaps, type MailNotificationData } from "../lib/push";
 import { SessionProvider, useSession } from "../state/session";
 import { ThemeProvider, useTheme } from "../state/theme";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({ Pacifico_400Regular });
+  // If the wordmark font can't load, carry on with the system font.
+  const [fontsLoaded, fontError] = useFonts({ Pacifico_400Regular });
   return (
     <SafeAreaProvider>
       <ThemeProvider>
         <SessionProvider>
           <ToastProvider>
-            <DrawerProvider>{fontsLoaded ? <Navigator /> : null}</DrawerProvider>
+            <DrawerProvider>{fontsLoaded || fontError ? <Navigator /> : null}</DrawerProvider>
           </ToastProvider>
         </SessionProvider>
       </ThemeProvider>
@@ -56,17 +55,13 @@ function Navigator() {
 function useOpenFromNotification() {
   const router = useRouter();
   const { accounts, switchAccount, folders, ready } = useSession();
-  const last = Notifications.useLastNotificationResponse?.();
 
-  useEffect(() => {
-    if (!ready || Platform.OS === "web" || !last) return;
-    const data = last.notification.request.content.data as MailNotificationData;
-    if (!data?.mailbox || !accounts.some((a) => a.email === data.mailbox)) return;
+  useNotificationTaps((data: MailNotificationData) => {
+    if (!data.mailbox || !accounts.some((a) => a.email === data.mailbox)) return;
     void switchAccount(data.mailbox).then(() => {
       const inbox = folders.find((f) => f.role === "inbox")?.path ?? "INBOX";
       if (data.uid) router.push({ pathname: "/message", params: { folder: inbox, uid: String(data.uid) } });
       else router.navigate("/");
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [last, ready]);
+  }, ready);
 }
