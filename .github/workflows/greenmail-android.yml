@@ -43,13 +43,12 @@ jobs:
           cache: npm
           cache-dependency-path: mobile/package-lock.json
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
 
-      - uses: android-actions/setup-android@v3
-
+      # The runner image already has the Android SDK (ANDROID_HOME); Gradle fetches what's missing.
       - uses: gradle/actions/setup-gradle@v4
 
       - run: npm ci
