@@ -14,7 +14,8 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "Green Mail uses your photos when you attach an image to an email."
-      }
+      },
+      "buildNumber": "1"
     },
     "android": {
       "package": "com.naitalk.greenmail",
@@ -22,7 +23,8 @@
         "backgroundColor": "#ffffff",
         "foregroundImage": "./assets/android-icon-foreground.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -36,14 +38,23 @@
       "expo-font",
       [
         "expo-splash-screen",
-        { "image": "./assets/splash-icon.png", "imageWidth": 160, "backgroundColor": "#0b3d24" }
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "backgroundColor": "#0b3d24"
+        }
       ],
       "@react-native-community/datetimepicker",
       "expo-image",
       [
         "expo-notifications",
-        { "icon": "./assets/notification-icon.png", "color": "#16a34a", "defaultChannel": "mail" }
-      ]
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#16a34a",
+          "defaultChannel": "mail"
+        }
+      ],
+      "./plugins/withReleaseSigning.js"
     ],
     "experiments": {
       "typedRoutes": false

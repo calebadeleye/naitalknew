@@ -74,7 +74,24 @@ npm test            # Jest: API client and offline outbox (src/lib/__tests__)
 npx expo-doctor
 ```
 
-## Builds (EAS)
+## Builds on GitHub (what we use)
+
+- **Android APK**: `.github/workflows/greenmail-android.yml` runs on every push that
+  touches `mobile/` (on `main` and `greenmail-mobile`), or by hand from the Actions tab.
+  It type-checks, runs the tests, builds a release APK signed with the Green Mail key, and
+  publishes it as a **GitHub Release**. To install, open
+  <https://github.com/calebadeleye/naitalknew/releases> on the phone, tap the `.apk` in the
+  newest "Green Mail for Android" release, and allow installs from the browser. Later builds
+  install over it.
+  The signing key is `mobile/keystores/greenmail-release.p12`, with its password in
+  `mobile/keystores/release.env`. Both are gitignored, and CI gets them from the repo
+  secrets `GREENMAIL_ANDROID_KEYSTORE_BASE64` and `GREENMAIL_RELEASE_STORE_PASSWORD`.
+  **Back the key up**: if it is lost, phones can't update the app and must reinstall it,
+  and the Play Store would need the same key.
+- **iPhone (TestFlight)**: `.github/workflows/greenmail-ios.yml`; one-time setup in
+  [IOS-RELEASE.md](IOS-RELEASE.md).
+
+## Builds (EAS, alternative)
 
 One-time setup (an Expo account for NAI TALK):
 

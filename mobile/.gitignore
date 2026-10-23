@@ -39,3 +39,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# release signing key and its passwords (kept out of git; CI gets them as secrets)
+keystores/
