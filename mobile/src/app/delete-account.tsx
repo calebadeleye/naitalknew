@@ -1,5 +1,4 @@
 import { useRouter } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
 import { useState } from "react";
 import { Alert, KeyboardAvoidingView, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -7,6 +6,7 @@ import { Button, Field, Header, IconButton } from "../components/ui";
 import { api } from "../lib/config";
 import { useSession } from "../state/session";
 import { useTheme } from "../state/theme";
+import { openLink } from "../lib/links";
 
 /** Delete account and data: asks NAI TALK to delete the mailbox and its Green Mail data. Needs the password again. */
 export default function DeleteAccount() {
@@ -69,7 +69,7 @@ export default function DeleteAccount() {
                 <Field label="Enter your password to confirm" value={password} onChangeText={setPassword} secure autoCapitalize="none" error={error} />
               </View>
               <Button title="Request deletion" variant="danger" busy={busy} disabled={!password} onPress={confirm} />
-              <Button title="More about your data" variant="ghost" onPress={() => void WebBrowser.openBrowserAsync("https://www.naitalk.com/privacy-policy/green-mail/delete-account")} />
+              <Button title="More about your data" variant="ghost" onPress={() => openLink("https://www.naitalk.com/privacy-policy/green-mail/delete-account")} />
             </>
           )}
         </ScrollView>

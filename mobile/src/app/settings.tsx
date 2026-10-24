@@ -1,7 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
 import { useEffect, useState, type ReactNode } from "react";
 import { Alert, KeyboardAvoidingView, Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -13,6 +12,7 @@ import { escapeHtml } from "../lib/format";
 import { pushSupported, pushToken, registerForPush } from "../lib/push";
 import { useSession } from "../state/session";
 import { useTheme, type ThemePreference } from "../state/theme";
+import { openLink } from "../lib/links";
 
 type Panel = null | "profile" | "signature" | "password" | "recovery" | "theme";
 
@@ -125,11 +125,11 @@ export default function Settings() {
 
         <SectionTitle>About</SectionTitle>
         <Card>
-          <Row icon="shield-outline" title="Privacy policy" onPress={() => void WebBrowser.openBrowserAsync("https://www.naitalk.com/privacy-policy/green-mail")} />
+          <Row icon="shield-outline" title="Privacy policy" onPress={() => openLink("https://www.naitalk.com/privacy-policy/green-mail")} />
           <Divider />
           <Row icon="trash-outline" title="Delete account and data" subtitle="Ask NAI TALK to delete this mailbox and its data" danger onPress={() => router.push("/delete-account")} />
           <Divider />
-          <Row icon="help-circle-outline" title="Help and support" subtitle="Contact NAI TALK" onPress={() => void WebBrowser.openBrowserAsync("https://www.naitalk.com/contact")} />
+          <Row icon="help-circle-outline" title="Help and support" subtitle="Contact NAI TALK" onPress={() => openLink("https://www.naitalk.com/contact")} />
           <Divider />
           <Row icon="information-circle-outline" title={`Green Mail ${Constants.expoConfig?.version ?? ""}`} subtitle={API_BASE_URL.replace(/^https?:\/\//, "").replace(/\/api\/v1\/greenmail$/, "")} />
         </Card>

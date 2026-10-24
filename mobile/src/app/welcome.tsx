@@ -1,12 +1,12 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
 import { Redirect, useRouter } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
 import { Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "../components/ui";
 import { PLANS_URL } from "../lib/config";
 import { useSession } from "../state/session";
+import { openLink } from "../lib/links";
 
 export default function Welcome() {
   const router = useRouter();
@@ -27,7 +27,7 @@ export default function Welcome() {
         </View>
         <View style={{ gap: 14 }}>
           <Button title="Sign In" onPress={() => router.push("/sign-in")} />
-          <Button title="Create Account" variant="outlineLight" onPress={() => void WebBrowser.openBrowserAsync(PLANS_URL)} />
+          <Button title="Create Account" variant="outlineLight" onPress={() => openLink(PLANS_URL)} />
         </View>
       </SafeAreaView>
     </LinearGradient>

@@ -1,8 +1,8 @@
-import * as WebBrowser from "expo-web-browser";
 import { useMemo, useState } from "react";
 import { Linking, Platform, View } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { useTheme } from "../state/theme";
+import { openLink } from "../lib/links";
 
 /**
  * An email body, sandboxed: the server has already cleaned the HTML; here a
@@ -44,7 +44,7 @@ export function HtmlView({ html, allowRemoteImages }: { html: string; allowRemot
         }}
         onShouldStartLoadWithRequest={(request: { url: string }): boolean => {
           if (request.url.startsWith("about:") || request.url.startsWith("data:")) return true;
-          if (/^https?:/i.test(request.url)) void WebBrowser.openBrowserAsync(request.url);
+          if (/^https?:/i.test(request.url)) openLink(request.url);
           else if (/^(mailto|tel):/i.test(request.url)) void Linking.openURL(request.url);
           return false;
         }}

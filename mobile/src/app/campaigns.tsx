@@ -1,5 +1,4 @@
 import { useRouter } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
 import { FlatList, RefreshControl, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button, Empty, Header, IconButton } from "../components/ui";
@@ -9,6 +8,7 @@ import type { Campaign } from "../lib/types";
 import { useCached } from "../lib/useCached";
 import { useSession } from "../state/session";
 import { useTheme } from "../state/theme";
+import { openLink } from "../lib/links";
 
 const STATUS: Record<Campaign["status"], [string, string]> = {
   draft: ["Draft", "#64748b"],
@@ -57,7 +57,7 @@ export default function Campaigns() {
         }}
       />
       <View style={{ padding: 16 }}>
-        <Button title="Create a campaign on the web" variant="outline" icon="open-outline" onPress={() => void WebBrowser.openBrowserAsync(`https://www.naitalk.com/greenmail?domain=${encodeURIComponent(domain)}`)} />
+        <Button title="Create a campaign on the web" variant="outline" icon="open-outline" onPress={() => openLink(`https://www.naitalk.com/greenmail?domain=${encodeURIComponent(domain)}`)} />
       </View>
     </SafeAreaView>
   );
