@@ -109,6 +109,10 @@ export const pageSeoConfig = {
     title: "Privacy Policy | NAI TALK",
     description: "How NAI TALK collects, uses and protects your personal information across our websites, hosting and client account services.",
   },
+  "/privacy-policy/green-mail": {
+    title: "Green Mail Privacy Policy | NAI TALK",
+    description: "How the Green Mail apps for Android and iPhone handle your email, calendar, tasks, notes, notifications and sign-in details.",
+  },
   "/terms-of-service": {
     title: "Terms of Service | NAI TALK",
     description: "The terms that govern your use of NAI TALK's domains, hosting, website design and website care services.",

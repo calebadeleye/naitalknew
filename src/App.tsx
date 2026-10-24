@@ -1211,6 +1211,7 @@ const LazyAboutPage = React.lazy(() => import("./pages/MarketingPages").then((m)
 const LazyContactPage = React.lazy(() => import("./pages/MarketingPages").then((m) => ({ default: m.ContactPage })));
 const LazyPortfolioPage = React.lazy(() => import("./pages/MarketingPages").then((m) => ({ default: m.PortfolioPage })));
 const LazyPrivacyPolicyPage = React.lazy(() => import("./pages/MarketingPages").then((m) => ({ default: m.PrivacyPolicyPage })));
+const LazyGreenMailPrivacyPolicyPage = React.lazy(() => import("./pages/MarketingPages").then((m) => ({ default: m.GreenMailPrivacyPolicyPage })));
 const LazyTermsOfServicePage = React.lazy(() => import("./pages/MarketingPages").then((m) => ({ default: m.TermsOfServicePage })));
 const LazyRefundPolicyPage = React.lazy(() => import("./pages/MarketingPages").then((m) => ({ default: m.RefundPolicyPage })));
 const LazyBlogRouter = React.lazy(() => import("./pages/BlogPages").then((m) => ({ default: m.BlogRouter })));
@@ -1287,6 +1288,7 @@ export default function App() {
   if (path.startsWith("/about")) return <RoutedPage><LazyAboutPage /></RoutedPage>;
   if (path.startsWith("/contact")) return <RoutedPage><LazyContactPage /></RoutedPage>;
   if (path.startsWith("/portfolio")) return <RoutedPage><LazyPortfolioPage /></RoutedPage>;
+  if (path.startsWith("/privacy-policy/green-mail")) return <RoutedPage><LazyGreenMailPrivacyPolicyPage /></RoutedPage>;
   if (path.startsWith("/privacy-policy")) return <RoutedPage><LazyPrivacyPolicyPage /></RoutedPage>;
   if (path.startsWith("/terms-of-service")) return <RoutedPage><LazyTermsOfServicePage /></RoutedPage>;
   if (path.startsWith("/refund-policy")) return <RoutedPage><LazyRefundPolicyPage /></RoutedPage>;

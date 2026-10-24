@@ -1226,16 +1226,18 @@ export function LegalPage({
   sections,
   updated = "11 July 2026",
   intro,
+  description,
 }: {
   title: string;
   sections: LegalSection[];
   updated?: string;
   intro?: string;
+  description?: string;
 }) {
   const paragraphs = (body?: string | string[]) => (body === undefined ? [] : Array.isArray(body) ? body : [body]);
 
   return (
-    <PublicPage seoOverrides={{ title: `${title} | NAI TALK`, description: `${title} for NAI TALK's domains, hosting and website services.` }}>
+    <PublicPage seoOverrides={{ title: `${title} | NAI TALK`, description: description ?? `${title} for NAI TALK's domains, hosting and website services.` }}>
       <PublicBreadcrumbs items={[{ label: title }]} />
       <section className="pub-section">
         <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6 lg:px-8">
@@ -1281,6 +1283,102 @@ export function PrivacyPolicyPage() {
         { heading: "Data storage & security", body: "Your data is stored on secured servers with access restricted to authorised NAI TALK staff. Sensitive details such as domain transfer codes are encrypted at rest." },
         { heading: "Your rights", body: "You can request a copy of the personal information we hold about you, ask us to correct inaccuracies, or request account deletion by contacting info@naitalk.com." },
         { heading: "Contact us", body: "Questions about this policy can be sent to info@naitalk.com or via WhatsApp on 0708 705 7654." },
+      ]}
+    />
+  );
+}
+
+/** The privacy policy for the Green Mail phone apps (Google Play / App Store), at /privacy-policy/green-mail. */
+export function GreenMailPrivacyPolicyPage() {
+  return (
+    <LegalPage
+      title="Green Mail Privacy Policy"
+      updated="24 October 2026"
+      description="How the Green Mail apps for Android and iPhone handle your email, calendar, tasks, notes, notifications and sign-in details."
+      intro="This policy explains what the Green Mail app for Android and iPhone does with your information. Green Mail is the business email service of NAI TALK SERVICES (“NAI TALK”, “we”, “us”), 7 Unity Road, Ikola, Lagos, Nigeria. It applies to the Green Mail apps; our general Privacy Policy covers our websites, hosting and client accounts. We follow the Nigeria Data Protection Act 2023."
+      sections={[
+        {
+          heading: "What the app handles",
+          body: "You sign in with the email address and password of your NAI TALK mailbox. To give you your email, the app works with:",
+          list: [
+            "Your email address, your name and signature if you set them, and a recovery email if you add one.",
+            "Your email: messages, folders, drafts and attachments, which stay in your mailbox on our mail server. The app reads and sends them for you.",
+            "What you create in the app: calendar events, tasks, notes, templates, contacts you save, filters, automatic replies and emails scheduled to send later.",
+            "Photos and files, only when you choose to attach them to an email. They are uploaded when you send.",
+            "Your phone's notification token, if you allow notifications.",
+            "Technical details of your sign-in, such as your IP address and device type, which we keep for security and to find faults.",
+          ],
+        },
+        {
+          heading: "What the app does not do",
+          list: [
+            "It has no advertising, no analytics or tracking tools, and does not follow you across other apps or websites.",
+            "It does not read your phone's contacts, location, camera or microphone.",
+            "We do not sell your information.",
+          ],
+        },
+        {
+          heading: "How we use your information",
+          body: "Only to run Green Mail for you: to sign you in, show, search and send your email, keep your calendar, tasks and notes, send you new-mail notifications, protect your mailbox from misuse, and answer your support requests.",
+        },
+        {
+          heading: "The smart assistant",
+          body: "In an open email you can tap Summarise, Draft reply, Action items or Translate to Yoruba. Only then, the text of that one email (its sender, subject, date and up to the first 8,000 characters of the body) is sent through our server to Google's Gemini service to produce the answer. Nothing is sent to the assistant unless you tap one of these buttons. Google processes it under its own terms; we do not use your emails to train any model.",
+        },
+        {
+          heading: "Notifications",
+          body: "If you allow notifications, the app gives our server a notification token for your phone. Our server checks your Inbox about every minute for new mail and sends a short notification (the sender and the subject) through Expo's push service and then Apple's or Google's notification service to your phone. To check your Inbox while the app is closed, our server keeps your mailbox password encrypted for as long as notifications are on. You can turn notifications off in the phone's settings or by signing out of the account in the app, which deletes the token and the stored password.",
+        },
+        {
+          heading: "Who else sees your information",
+          list: [
+            "Our service providers, only as far as needed to run the service: Expo (notification delivery), Apple and Google (notification delivery to your phone), and Google (the assistant, only when you tap an assistant button).",
+            "Our mail and hosting servers, which are operated by NAI TALK.",
+            "Authorities, only where the law requires it.",
+          ],
+        },
+        {
+          heading: "What is kept on your phone",
+          body: "Your sign-in token is kept in the phone's secure storage (the iPhone Keychain or Android Keystore). To let you read mail offline, the app saves recent messages, your calendar, tasks, notes and templates, your drafts, and emails waiting to be sent in its own private storage on the phone. Phone backups of the app's data are turned off. Signing out of an account removes that account's saved data from the phone.",
+        },
+        {
+          heading: "Security",
+          list: [
+            "Everything between the app and our servers is sent over an encrypted (HTTPS) connection.",
+            "Your password is checked by our mail server. While you are signed in, our server keeps it encrypted so it can open your mailbox for you. Sign-ins expire after 8 hours without use and in any case after 7 days.",
+            "Pictures from the internet inside emails are hidden until you choose to show them, and emails open in a restricted viewer that cannot run scripts.",
+            "Access to our servers is limited to authorised NAI TALK staff.",
+          ],
+        },
+        {
+          heading: "How long we keep things, and deleting your data",
+          list: [
+            "Your email, calendar events, tasks, notes, templates and contacts stay until you delete them in the app or the mailbox is removed. You can delete each of these in the app.",
+            "Signing out deletes your phone's saved copy, your notification token and the stored password used for notifications.",
+            "Sign-in records are kept only as long as needed for security and fault-finding.",
+            "To have your data deleted, or the mailbox removed, write to info@naitalk.com from the mailbox's owner address. When a mailbox is deleted, its email and the data above are deleted from our servers.",
+          ],
+        },
+        {
+          heading: "Your rights",
+          body: "You can ask for a copy of the personal information we hold about you, ask us to correct it, to delete it, or to stop using it, and you can complain to the Nigeria Data Protection Commission. Contact us at info@naitalk.com.",
+        },
+        {
+          heading: "Children",
+          body: "Green Mail is a business email service and is not meant for children under 13. We do not knowingly collect information from them.",
+        },
+        {
+          heading: "Where your information is processed",
+          body: "Our mail and application servers are run by NAI TALK. Expo, Apple and Google, who deliver notifications and the assistant, may process information in other countries, including the United States.",
+        },
+        {
+          heading: "Changes to this policy",
+          body: "If we change what the app does with your information we will update this page and its date, and tell you in the app or by email if the change matters.",
+        },
+        {
+          heading: "Contact us",
+          body: "NAI TALK SERVICES, 7 Unity Road, Ikola, Lagos, Nigeria. Email info@naitalk.com or WhatsApp 0708 705 7654.",
+        },
       ]}
     />
   );

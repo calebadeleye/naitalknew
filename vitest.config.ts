@@ -13,6 +13,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     globals: true,
+    // The phone app (mobile/) has its own Jest tests and dependencies.
+    exclude: ['**/node_modules/**', 'mobile/**', 'backend/**', 'dist/**'],
     // Route-level code splitting means some tests wait on a lazy chunk's
     // dynamic import() to resolve before content appears -- under load this
     // can take longer than Vitest's 5s default, well before anything is
