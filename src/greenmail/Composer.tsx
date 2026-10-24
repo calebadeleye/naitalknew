@@ -486,7 +486,17 @@ export function Composer({
   );
 }
 
-/** Comma-separated recipients, suggesting contacts for the address being typed. */
+const looksLikeEmail = (address: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address);
+const splitRecipients = (text: string) => text.split(/[,;\s]+/).map((part) => part.trim()).filter(Boolean);
+
+/**
+ * Recipients as chips: an address becomes a chip (avatar, address, ✕) when a
+ * comma, space or Enter is typed or the field loses focus. Clicking anywhere in
+ * the row puts the cursor in it; Backspace on an empty field removes the last
+ * chip; an address that isn't valid shows red. `value` stays the comma-separated
+ * string the composer already uses (including text not yet turned into a chip,
+ * so Send never misses it). Contacts are suggested for the address being typed.
+ */
 function RecipientField({
   label,
   value,
@@ -502,10 +512,30 @@ function RecipientField({
   autoFocus?: boolean;
   children?: React.ReactNode;
 }) {
+  const [chips, setChips] = useState<string[]>(() => splitRecipients(value));
+  const [draft, setDraft] = useState("");
   const [suggestions, setSuggestions] = useState<Contact[]>([]);
   // Suggest only once the person types — not for addresses filled in for a reply.
   const [typed, setTyped] = useState(false);
-  const current = value.split(",").pop()?.trim() ?? "";
+  const inputRef = useRef<HTMLInputElement>(null);
+  const emitted = useRef(value);
+  const current = draft.trim();
+
+  const emit = (nextChips: string[], nextDraft: string) => {
+    setChips(nextChips);
+    setDraft(nextDraft);
+    const next = [...nextChips, ...splitRecipients(nextDraft)].join(", ");
+    emitted.current = next;
+    onChange(next);
+  };
+
+  // The composer filled the field itself (a draft opened, Edit on a reply): take it over.
+  useEffect(() => {
+    if (value === emitted.current) return;
+    emitted.current = value;
+    setChips(splitRecipients(value));
+    setDraft("");
+  }, [value]);
 
   useEffect(() => {
     if (!typed || current.length < 2) {
@@ -520,29 +550,84 @@ function RecipientField({
     return () => window.clearTimeout(timer);
   }, [current, token, typed]);
 
+  const commit = (text: string, rest = "") => {
+    const found = splitRecipients(text).filter((address) => !chips.includes(address));
+    emit(found.length ? [...chips, ...found] : chips, rest);
+  };
+
   const pick = (contact: Contact) => {
-    const parts = value.split(",").slice(0, -1).map((part) => part.trim()).filter(Boolean);
-    onChange([...parts, contact.email].join(", ") + ", ");
+    emit(chips.includes(contact.email) ? chips : [...chips, contact.email], "");
     setSuggestions([]);
     setTyped(false);
+    inputRef.current?.focus();
   };
 
   return (
-    <div className="relative flex items-center gap-3 border-b border-slate-100 px-4 py-2 last:border-b-0">
-      <span className="w-12 shrink-0 text-slate-500">{label}</span>
-      <input
-        value={value}
-        onChange={(event) => {
-          setTyped(true);
-          onChange(event.target.value);
-        }}
-        onBlur={() => window.setTimeout(() => setSuggestions([]), 150)}
-        className="min-w-0 flex-1 bg-transparent text-slate-900 outline-none"
-        placeholder={label === "To" ? "name@example.com, …" : ""}
-        autoFocus={autoFocus}
-        autoComplete="off"
-        aria-label={label}
-      />
+    <div className="relative flex items-start gap-3 border-b border-slate-100 px-4 py-2 last:border-b-0">
+      <span className="w-12 shrink-0 pt-1.5 text-slate-500">{label}</span>
+      <div className="flex min-w-0 flex-1 cursor-text flex-wrap items-center gap-1.5" onClick={() => inputRef.current?.focus()}>
+        {chips.map((address) => {
+          const bad = !looksLikeEmail(address);
+          return (
+            <span
+              key={address}
+              className={`inline-flex max-w-full items-center gap-1.5 rounded-full border py-0.5 pl-0.5 pr-1 text-sm ${bad ? "border-red-300 bg-red-50 text-red-700" : "border-[#22a04f]/60 bg-[#e8f6ee] text-slate-800"}`}
+            >
+              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${bad ? "bg-red-500" : "bg-[#22a04f]"}`}>
+                {bad ? "!" : address.slice(0, 2).toUpperCase()}
+              </span>
+              <span className="truncate">{address}</span>
+              <button
+                type="button"
+                aria-label={`Remove ${address}`}
+                title="Remove"
+                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${bad ? "hover:bg-red-200" : "hover:bg-[#22a04f]/25"}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  emit(chips.filter((a) => a !== address), draft);
+                }}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </span>
+          );
+        })}
+        <input
+          ref={inputRef}
+          value={draft}
+          onChange={(event) => {
+            setTyped(true);
+            const text = event.target.value;
+            const cut = Math.max(text.lastIndexOf(","), text.lastIndexOf(";"), text.lastIndexOf(" "));
+            if (cut === -1) emit(chips, text);
+            else commit(text.slice(0, cut), text.slice(cut + 1).trim());
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && draft.trim()) {
+              event.preventDefault();
+              commit(draft);
+            } else if (event.key === "Backspace" && draft === "" && chips.length > 0) {
+              emit(chips.slice(0, -1), "");
+            }
+          }}
+          onPaste={(event) => {
+            const text = event.clipboardData.getData("text");
+            if (/[,;\s]/.test(text.trim())) {
+              event.preventDefault();
+              commit(`${draft} ${text}`);
+            }
+          }}
+          onBlur={() => {
+            if (draft.trim()) commit(draft);
+            window.setTimeout(() => setSuggestions([]), 150);
+          }}
+          className="min-w-[8rem] flex-1 bg-transparent py-1 text-slate-900 outline-none"
+          placeholder={chips.length === 0 && label === "To" ? "name@example.com" : ""}
+          autoFocus={autoFocus}
+          autoComplete="off"
+          aria-label={label}
+        />
+      </div>
       {children}
       {suggestions.length > 0 && (
         <ul className="absolute left-16 top-full z-20 mt-1 w-72 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg" role="listbox">
