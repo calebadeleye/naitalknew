@@ -46,7 +46,7 @@ function DrawerContent({ close }: { close: () => void }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { accounts, account, me, folders, starred, folder, filter, setFolder, switchAccount, outbox, refreshFolders } = useSession();
+  const { accounts, account, expired, me, folders, starred, folder, filter, setFolder, switchAccount, outbox, refreshFolders } = useSession();
   const [switcher, setSwitcher] = useState(false);
 
   useEffect(() => {
@@ -108,7 +108,7 @@ function DrawerContent({ close }: { close: () => void }) {
             <Pressable key={a.email} onPress={() => { void switchAccount(a.email); setSwitcher(false); close(); router.navigate("/"); }} style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 12 }}>
               <Avatar name={a.email} size={30} />
               <Text style={{ flex: 1, color: "#fff" }} numberOfLines={1}>{a.email}</Text>
-              {a.email === account?.email ? <Ionicons name="checkmark" size={18} color={colors.green} /> : null}
+              {expired.includes(a.email) ? <Text style={{ color: "#fca5a5", fontSize: 12, fontWeight: "700" }}>Signed out</Text> : a.email === account?.email ? <Ionicons name="checkmark" size={18} color={colors.green} /> : null}
             </Pressable>
           ))}
           <Pressable onPress={() => go("/sign-in?adding=1")} style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 12 }}>

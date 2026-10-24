@@ -20,7 +20,7 @@ export default function Settings() {
   const { colors, preference } = useTheme();
   const router = useRouter();
   const toast = useToast();
-  const { account, accounts, me, switchAccount, signOut, refreshMe } = useSession();
+  const { account, accounts, expired, me, switchAccount, signOut, refreshMe } = useSession();
   const [panel, setPanel] = useState<Panel>(null);
   const [push, setPush] = useState<"checking" | "on" | "off" | "unavailable">("checking");
 
@@ -91,12 +91,18 @@ export default function Settings() {
             <View key={a.email}>
               {i ? <Divider /> : null}
               <Row
-                icon={a.email === account?.email ? "checkmark-circle" : "mail-outline"}
-                iconColor={a.email === account?.email ? colors.green : undefined}
+                icon={expired.includes(a.email) ? "alert-circle" : a.email === account?.email ? "checkmark-circle" : "mail-outline"}
+                iconColor={expired.includes(a.email) ? colors.danger : a.email === account?.email ? colors.green : undefined}
                 title={a.email}
-                subtitle={a.email === account?.email ? "Open now" : "Tap to switch"}
-                onPress={a.email === account?.email ? undefined : () => void switchAccount(a.email)}
-                right={<IconButton name="log-out-outline" label={`Sign out of ${a.email}`} color={colors.danger} size={20} onPress={() => confirmSignOut(a.email)} />}
+                subtitle={expired.includes(a.email) ? "Signed out — tap to sign in again" : a.email === account?.email ? "Open now" : "Tap to switch"}
+                onPress={
+                  expired.includes(a.email)
+                    ? () => router.push({ pathname: "/sign-in", params: { email: a.email } })
+                    : a.email === account?.email
+                      ? undefined
+                      : () => void switchAccount(a.email)
+                }
+                right={<IconButton name="log-out-outline" label={expired.includes(a.email) ? `Remove ${a.email} from this phone` : `Sign out of ${a.email}`} color={colors.danger} size={20} onPress={() => confirmSignOut(a.email)} />}
               />
             </View>
           ))}
@@ -207,7 +213,7 @@ function SignatureSheet({ visible, onClose, onSaved }: { visible: boolean; onClo
 }
 
 function PasswordSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  const { account } = useSession();
+  const { account, rememberPassword } = useSession();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const { busy, error, run } = useSaver(() => { setCurrent(""); setNext(""); onClose(); });
@@ -215,7 +221,7 @@ function PasswordSheet({ visible, onClose }: { visible: boolean; onClose: () => 
     <Sheet visible={visible} title="Change password" onClose={onClose}>
       <Field label="Current password" value={current} onChangeText={setCurrent} secure autoCapitalize="none" />
       <Field label="New password" value={next} onChangeText={setNext} secure autoCapitalize="none" placeholder="At least 8 characters" error={error} />
-      <Button title="Change password" busy={busy} disabled={!current || next.length < 8} onPress={() => void run(() => api.changePassword(account!.token, current, next), "Password changed.")} />
+      <Button title="Change password" busy={busy} disabled={!current || next.length < 8} onPress={() => void run(async () => { const result = await api.changePassword(account!.token, current, next); await rememberPassword(account!.email, next); return result; }, "Password changed.")} />
     </Sheet>
   );
 }

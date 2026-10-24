@@ -57,7 +57,17 @@ export type RequestOptions = {
 
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
-export type ClientConfig = { baseUrl: string; fetch?: FetchLike; timeoutMs?: number };
+export type ClientConfig = {
+  baseUrl: string;
+  fetch?: FetchLike;
+  timeoutMs?: number;
+  /**
+   * Called when the server says a token has expired (401). Returns a fresh token
+   * (signed in again from the saved password) or null. The request is then
+   * repeated once with the fresh token, so screens never notice a session ending.
+   */
+  onSessionExpired?: (expiredToken: string) => Promise<string | null>;
+};
 
 export function buildQuery(query: RequestOptions["query"]): string {
   if (!query) return "";
@@ -99,7 +109,7 @@ export function createClient(config: ClientConfig) {
   const timeoutMs = config.timeoutMs ?? 30000;
   const base = config.baseUrl.replace(/\/+$/, "");
 
-  async function request<T>(path: string, token: string | null, options: RequestOptions = {}): Promise<T> {
+  async function request<T>(path: string, token: string | null, options: RequestOptions = {}, retried = false): Promise<T> {
     const headers: Record<string, string> = { Accept: "application/json" };
     if (token) headers["X-Greenmail-Token"] = token;
 
@@ -124,7 +134,11 @@ export function createClient(config: ClientConfig) {
 
     const payload = (await response.json().catch(() => ({}))) as { message?: string; errors?: Record<string, string[]> };
 
-    if (response.status === 401 && token) throw new SessionExpired(payload.message || "Please sign in again.");
+    if (response.status === 401 && token) {
+      const fresh = !retried && config.onSessionExpired ? await config.onSessionExpired(token).catch(() => null) : null;
+      if (fresh && fresh !== token) return request<T>(path, fresh, options, true);
+      throw new SessionExpired(payload.message || "Please sign in again.");
+    }
     if (!response.ok) {
       throw new ApiError(firstError(payload) || payload.message || "Something went wrong. Please try again.", response.status, payload.errors ?? {});
     }

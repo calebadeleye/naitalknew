@@ -10,7 +10,9 @@ web app and `backend/routes/api.php`).
 - **Welcome / sign in** with a mailbox address and password (optional domain field fills in
   the part after `@`), show/hide password, **forgot password** (6-digit code to the recovery
   email), **several mailboxes** signed in at once with a switcher (drawer and Settings).
-  Tokens are kept in the phone's keychain/keystore (`expo-secure-store`).
+  The token and the password are kept in the phone's keychain/keystore (`expo-secure-store`); when the server's
+  session ends (8 h idle / 7 days) the app signs in again with the saved password and repeats the request,
+  and only shows "Signed out" if that password no longer works. Signing out deletes both.
 - **Mail**: folder list with unread counts (drawer), All / Unread / Flagged / Attachments tabs,
   search, pull to refresh, infinite scroll, star, long-press for read/unread, archive, spam,
   delete.

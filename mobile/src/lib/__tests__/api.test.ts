@@ -99,6 +99,54 @@ describe("Green Mail API client", () => {
     expect(appended[7][1]).toEqual({ uri: "file:///a.png", name: "a.png", type: "image/png" });
   });
 
+  describe("when the session has expired", () => {
+    const responder = (okToken: string) => {
+      const seen: string[] = [];
+      const fetch = jest.fn(async (_url: string, init: RequestInit = {}): Promise<Response> => {
+        const token = (init.headers as Record<string, string>)["X-Greenmail-Token"];
+        seen.push(token);
+        const ok = token === okToken;
+        return { ok, status: ok ? 200 : 401, json: async () => (ok ? { folders: [], starred: 0 } : { message: "Signed out." }) } as Response;
+      });
+      return { fetch, seen };
+    };
+
+    it("signs in again and repeats the request with the fresh token", async () => {
+      const r = responder("fresh");
+      const refresh = jest.fn(async (_old: string) => "fresh" as string | null);
+      const api = createClient({ baseUrl: "https://x.test", fetch: r.fetch, onSessionExpired: refresh });
+
+      await expect(api.folders("stale")).resolves.toEqual({ folders: [], starred: 0 });
+
+      expect(refresh).toHaveBeenCalledTimes(1);
+      expect(refresh).toHaveBeenCalledWith("stale");
+      expect(r.seen).toEqual(["stale", "fresh"]);
+    });
+
+    it("throws SessionExpired when it cannot sign in again", async () => {
+      const r = responder("never");
+      const api = createClient({ baseUrl: "https://x.test", fetch: r.fetch, onSessionExpired: async () => null });
+      await expect(api.folders("stale")).rejects.toBeInstanceOf(SessionExpired);
+      expect(r.seen).toEqual(["stale"]);
+    });
+
+    it("tries only once, even if the fresh token is refused too", async () => {
+      const r = responder("never");
+      const refresh = jest.fn(async (_old: string) => "also-bad" as string | null);
+      const api = createClient({ baseUrl: "https://x.test", fetch: r.fetch, onSessionExpired: refresh });
+      await expect(api.folders("stale")).rejects.toBeInstanceOf(SessionExpired);
+      expect(refresh).toHaveBeenCalledTimes(1);
+      expect(r.seen).toEqual(["stale", "also-bad"]);
+    });
+
+    it("does not try to sign in again when signing in itself fails", async () => {
+      const refresh = jest.fn(async (_old: string) => "x" as string | null);
+      const api = createClient({ baseUrl: "https://x.test", fetch: fakeFetch(422, { message: "Wrong", errors: { email: ["Wrong email address or password."] } }).fetch, onSessionExpired: refresh });
+      await expect(api.signIn("a@x.com", "bad")).rejects.toBeInstanceOf(ApiError);
+      expect(refresh).not.toHaveBeenCalled();
+    });
+  });
+
   it("buildQuery skips empty values", () => {
     expect(buildQuery({ a: 1, b: "", c: undefined, d: null, e: "x y" })).toBe("?a=1&e=x%20y");
     expect(buildQuery({})).toBe("");

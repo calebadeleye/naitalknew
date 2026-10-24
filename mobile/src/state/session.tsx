@@ -1,9 +1,9 @@
 import NetInfo from "@react-native-community/netinfo";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AppState } from "react-native";
-import { MAX_ACCOUNTS, readAccounts, readActive, withAccount, writeAccounts, writeActive, type StoredAccount } from "../lib/accounts";
-import { NetworkError, SessionExpired } from "../lib/api";
-import { api } from "../lib/config";
+import { MAX_ACCOUNTS, deletePassword, readAccounts, readActive, readPassword, withAccount, writeAccounts, writeActive, writePassword, type StoredAccount } from "../lib/accounts";
+import { ApiError, NetworkError, SessionExpired } from "../lib/api";
+import { api, sessionHooks } from "../lib/config";
 import { cachedFolders, forgetAccount, kvGet, kvSet, cacheKey, removeCachedMessage, saveFolders, sqliteOutbox, updateCachedFlags } from "../lib/db";
 import { enqueueItem, processOutbox, retryItem, type OutboxItem, type OutboxKind, type QueuedRequest } from "../lib/outbox";
 import type { ComposePayload, Folder, ListFilter, Me } from "../lib/types";
@@ -36,6 +36,8 @@ type SessionValue = {
   signIn: (email: string, password: string) => Promise<void>;
   switchAccount: (email: string) => Promise<void>;
   signOut: (email?: string) => Promise<void>;
+  /** After the password was changed in Settings: the app keeps signing in with the new one. */
+  rememberPassword: (email: string, password: string) => Promise<void>;
   refreshFolders: () => Promise<void>;
   refreshMe: () => Promise<void>;
   /** Handles SessionExpired from any call (marks the account); returns a message to show. */
@@ -241,9 +243,50 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     };
   }, [runOutbox]);
 
+  // ---- sessions that ended: sign in again from the saved password, unseen ----
+  const refreshing = useRef(new Map<string, Promise<string | null>>());
+  const refreshedTo = useRef(new Map<string, string>());
+
+  const reauth = useCallback(
+    (expiredToken: string): Promise<string | null> => {
+      const done = refreshedTo.current.get(expiredToken);
+      if (done) return Promise.resolve(done);
+      const running = refreshing.current.get(expiredToken);
+      if (running) return running;
+
+      const job = (async () => {
+        const owner = accountsRef.current.find((a) => a.token === expiredToken);
+        if (!owner) return null;
+        const password = await readPassword(owner.email);
+        if (!password) return null;
+        try {
+          const result = await api.signIn(owner.email, password);
+          const next = withAccount(await readAccounts(), { email: result.email, token: result.token });
+          await writeAccounts(next);
+          accountsRef.current = next;
+          setAccounts(next);
+          setExpired((list) => list.filter((e) => e !== owner.email));
+          refreshedTo.current.set(expiredToken, result.token);
+          return result.token;
+        } catch (error) {
+          // The password was changed elsewhere: forget it, the person signs in again.
+          if (error instanceof ApiError && error.status === 422) await deletePassword(owner.email);
+          return null;
+        } finally {
+          refreshing.current.delete(expiredToken);
+        }
+      })();
+      refreshing.current.set(expiredToken, job);
+      return job;
+    },
+    [],
+  );
+  sessionHooks.refresh = reauth;
+
   // ---- accounts ----
   const signIn = useCallback(async (email: string, password: string) => {
     const result = await api.signIn(email, password);
+    await writePassword(result.email, password);
     const current = await readAccounts();
     const next = withAccount(current, { email: result.email, token: result.token });
     if (next.length > MAX_ACCOUNTS) throw new Error(`You can sign in to up to ${MAX_ACCOUNTS} mailboxes on one phone.`);
@@ -266,6 +309,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const target = accountsRef.current.find((a) => a.email === (email ?? account?.email));
       if (!target) return;
       await unregisterPush(api, target.token).catch(() => {});
+      await deletePassword(target.email);
       await api.signOut(target.token).catch(() => {});
       await forgetAccount(target.email).catch(() => {});
       const next = accountsRef.current.filter((a) => a.email !== target.email);
@@ -343,6 +387,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       signIn,
       switchAccount,
       signOut,
+      rememberPassword: writePassword,
       refreshFolders,
       refreshMe,
       handleError,

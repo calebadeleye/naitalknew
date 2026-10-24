@@ -1339,7 +1339,7 @@ export function GreenMailPrivacyPolicyPage() {
         },
         {
           heading: "What is kept on your phone",
-          body: "Your sign-in token is kept in the phone's secure storage (the iPhone Keychain or Android Keystore). To let you read mail offline, the app saves recent messages, your calendar, tasks, notes and templates, your drafts, and emails waiting to be sent in its own private storage on the phone. Phone backups of the app's data are turned off. Signing out of an account removes that account's saved data from the phone.",
+          body: "Your sign-in token and your mailbox password are kept in the phone's secure storage (the iPhone Keychain or Android Keystore), so the app can sign you in again by itself when a session ends instead of asking every few days. Signing out removes them. To let you read mail offline, the app saves recent messages, your calendar, tasks, notes and templates, your drafts, and emails waiting to be sent in its own private storage on the phone. Phone backups of the app's data are turned off. Signing out of an account removes that account's saved data from the phone.",
         },
         {
           heading: "Security",
