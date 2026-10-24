@@ -11,6 +11,8 @@ background, a caption and the unaltered screenshot in a rounded frame:
   phone/        1080 x 1920   (9:16)
   tablet-7/     1080 x 1920   (9:16; allowed 320-3840 px per side)
   tablet-10/    1440 x 2560   (9:16; allowed 1080-7680 px per side)
+  iphone-6.9/   1320 x 2868   (App Store, required iPhone size)
+  iphone-6.5/   1284 x 2778   (App Store, alternative iPhone size)
 Needs Pillow:  python3 -m pip install pillow
 """
 import re
@@ -37,7 +39,14 @@ CAPTIONS = {
     "assistant": "Summarise or draft a reply",
     "settings": "Simple settings",
 }
-SIZES = {"phone": (1080, 1920), "tablet-7": (1080, 1920), "tablet-10": (1440, 2560)}
+SIZES = {
+    "phone": (1080, 1920),
+    "tablet-7": (1080, 1920),
+    "tablet-10": (1440, 2560),
+    # App Store (iPhone): 6.9" is the one Apple requires; 6.5" is accepted as the alternative.
+    "iphone-6.9": (1320, 2868),
+    "iphone-6.5": (1284, 2778),
+}
 TOP, BOT = (11, 61, 36), (8, 42, 25)
 
 
@@ -129,7 +138,7 @@ def main():
             out = dest / name / f"{i:02d}-{re.sub(r'^\d+[-_ ]*', '', path.stem) or 'screen'}.png"
             render(shot, text, size).save(out, optimize=True)
         print(f"{path.name}: \"{text}\"")
-    print(f"Done. Upload the files from {dest}/phone, tablet-7 and tablet-10 (up to 8 each).")
+    print(f"Done. Google Play: {dest}/phone, tablet-7, tablet-10. App Store: {dest}/iphone-6.9 (or iphone-6.5). Up to 8 each.")
 
 
 if __name__ == "__main__":

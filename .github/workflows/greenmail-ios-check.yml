@@ -1,0 +1,73 @@
+name: Green Mail iOS check
+
+# Compiles the iPhone app on a GitHub macOS runner WITHOUT signing, so native
+# problems show up before any Apple account setup. Produces no installable app;
+# the real build (signed, to TestFlight) is "Green Mail iOS". Run by hand.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: greenmail-ios-check
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_NO_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - run: npm ci
+
+      - name: Type-check and unit tests
+        run: |
+          npm run typecheck
+          npm test -- --ci
+
+      - name: Expo prebuild (generate ios/)
+        run: npx expo prebuild --platform ios --no-install
+
+      - name: Install CocoaPods
+        working-directory: mobile/ios
+        run: |
+          for i in 1 2 3; do
+            pod install --repo-update && break
+            echo "pod install failed (attempt $i), retrying..."; sleep 15
+          done
+
+      - name: Show the app's identity
+        run: |
+          PLIST=$(ls ios/*/Info.plist | head -1)
+          for k in CFBundleDisplayName CFBundleShortVersionString CFBundleIdentifier ITSAppUsesNonExemptEncryption UIDeviceFamily NSPhotoLibraryUsageDescription NSCameraUsageDescription NSMicrophoneUsageDescription NSFaceIDUsageDescription; do
+            printf '%s = ' "$k"; /usr/libexec/PlistBuddy -c "Print :$k" "$PLIST" 2>/dev/null || echo "(not set)"
+          done
+
+      - name: Build for the iOS simulator (no signing)
+        run: |
+          WORKSPACE=$(cd ios && ls -d *.xcworkspace | head -1)
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          set -o pipefail
+          xcodebuild build \
+            -workspace "ios/$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            | (command -v xcbeautify >/dev/null 2>&1 && xcbeautify || cat)
