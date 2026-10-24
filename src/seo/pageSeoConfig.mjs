@@ -113,6 +113,10 @@ export const pageSeoConfig = {
     title: "Green Mail Privacy Policy | NAI TALK",
     description: "How the Green Mail apps for Android and iPhone handle your email, calendar, tasks, notes, notifications and sign-in details.",
   },
+  "/privacy-policy/green-mail/delete-account": {
+    title: "Delete your Green Mail account and data | NAI TALK",
+    description: "How to ask NAI TALK to delete your Green Mail mailbox and its data, or to delete only some of your data.",
+  },
   "/terms-of-service": {
     title: "Terms of Service | NAI TALK",
     description: "The terms that govern your use of NAI TALK's domains, hosting, website design and website care services.",

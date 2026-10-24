@@ -121,6 +121,8 @@ export default function Settings() {
         <Card>
           <Row icon="shield-outline" title="Privacy policy" onPress={() => void WebBrowser.openBrowserAsync("https://www.naitalk.com/privacy-policy/green-mail")} />
           <Divider />
+          <Row icon="trash-outline" title="Delete account and data" subtitle="Ask NAI TALK to delete this mailbox and its data" danger onPress={() => router.push("/delete-account")} />
+          <Divider />
           <Row icon="help-circle-outline" title="Help and support" subtitle="Contact NAI TALK" onPress={() => void WebBrowser.openBrowserAsync("https://www.naitalk.com/contact")} />
           <Divider />
           <Row icon="information-circle-outline" title={`Green Mail ${Constants.expoConfig?.version ?? ""}`} subtitle={API_BASE_URL.replace(/^https?:\/\//, "").replace(/\/api\/v1\/greenmail$/, "")} />

@@ -7,6 +7,7 @@ use App\Models\Greenmail\GreenmailPushSubscription;
 use App\Models\Greenmail\GreenmailSession;
 use App\Models\MailboxRecord;
 use App\Notifications\GreenmailCode;
+use App\Notifications\GreenmailDeletionRequested;
 use App\Notifications\GreenmailResetRequestedForOwner;
 use App\Services\Greenmail\FakeMailGateway;
 use App\Services\Greenmail\MailGateway;
@@ -226,5 +227,21 @@ class GreenmailAccountTest extends TestCase
 
         $this->assertCount(0, $this->pushed);
         $this->assertSame(0, GreenmailPushSubscription::count());
+    }
+
+    public function test_a_signed_in_person_can_ask_for_their_mailbox_and_data_to_be_deleted(): void
+    {
+        Notification::fake();
+        $token = $this->token();
+
+        $this->postJson('/api/v1/greenmail/account/deletion-request', ['password' => 'old-password'])->assertUnauthorized();
+        $this->withHeader('X-Greenmail-Token', $token)->postJson('/api/v1/greenmail/account/deletion-request', ['password' => 'wrong'])
+            ->assertStatus(422)->assertJsonValidationErrors('password');
+        Notification::assertNothingSent();
+
+        $this->withHeader('X-Greenmail-Token', $token)->postJson('/api/v1/greenmail/account/deletion-request', ['password' => 'old-password'])->assertCreated();
+
+        Notification::assertSentOnDemand(GreenmailDeletionRequested::class, fn ($n, $channels, $notifiable) => $n->forSupport && $notifiable->routes['mail'] === config('company.email'));
+        Notification::assertSentOnDemand(GreenmailDeletionRequested::class, fn ($n, $channels, $notifiable) => ! $n->forSupport && $notifiable->routes['mail'] === 'caleb@calebadeleye.com');
     }
 }

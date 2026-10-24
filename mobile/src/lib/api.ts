@@ -159,6 +159,8 @@ export function createClient(config: ClientConfig) {
       request<{ message: string }>("/password/reset", null, { method: "POST", body: { email, code, password, password_confirmation: password } }),
     changePassword: (token: string, current: string, password: string) =>
       request<{ message: string }>("/password", token, { method: "POST", body: { current_password: current, password, password_confirmation: password } }),
+    requestAccountDeletion: (token: string, password: string) =>
+      request<{ message: string }>("/account/deletion-request", token, { method: "POST", body: { password } }),
     setRecoveryEmail: (token: string, email: string | null) => request<{ message: string }>("/recovery-email", token, { method: "PUT", body: { recovery_email: email } }),
     confirmRecoveryEmail: (token: string, code: string) => request<{ message: string }>("/recovery-email/confirm", token, { method: "POST", body: { code } }),
     updateSettings: (token: string, settings: { display_name?: string | null; signature_html?: string | null }) =>

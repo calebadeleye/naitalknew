@@ -1356,7 +1356,7 @@ export function GreenMailPrivacyPolicyPage() {
             "Your email, calendar events, tasks, notes, templates and contacts stay until you delete them in the app or the mailbox is removed. You can delete each of these in the app.",
             "Signing out deletes your phone's saved copy, your notification token and the stored password used for notifications.",
             "Sign-in records are kept only as long as needed for security and fault-finding.",
-            "To have your data deleted, or the mailbox removed, write to info@naitalk.com from the mailbox's owner address. When a mailbox is deleted, its email and the data above are deleted from our servers.",
+            "To have your data deleted, or the mailbox removed, use Settings > Delete account and data in the app, or write to info@naitalk.com from the mailbox's owner address (details at www.naitalk.com/privacy-policy/green-mail/delete-account). When a mailbox is deleted, its email and the data above are deleted from our servers.",
           ],
         },
         {
@@ -1378,6 +1378,53 @@ export function GreenMailPrivacyPolicyPage() {
         {
           heading: "Contact us",
           body: "NAI TALK SERVICES, 7 Unity Road, Ikola, Lagos, Nigeria. Email info@naitalk.com or WhatsApp 0708 705 7654.",
+        },
+      ]}
+    />
+  );
+}
+
+/** How to delete a Green Mail account and its data, at /privacy-policy/green-mail/delete-account (linked from Google Play and the App Store). */
+export function GreenMailDeleteAccountPage() {
+  return (
+    <LegalPage
+      title="Delete your Green Mail account and data"
+      updated="24 October 2026"
+      description="How to ask NAI TALK to delete your Green Mail mailbox and its data, or to delete only some of your data."
+      intro="You can ask NAI TALK to delete your Green Mail mailbox and the data Green Mail keeps for it, or delete only some of that data yourself. This page applies to the Green Mail apps for Android and iPhone and to Green Mail on the web."
+      sections={[
+        {
+          heading: "Delete your account and all its data",
+          list: [
+            "In the Green Mail app: open Settings, tap Delete account and data, enter your password and confirm.",
+            "Without the app: email info@naitalk.com from the mailbox's address (or from the address of the NAI TALK account that owns it) with the subject “Delete my Green Mail account”, saying which mailbox it is. We may ask you to confirm it is yours.",
+            "We confirm by email when it is done, and aim to finish within 30 days. Until then the mailbox keeps working.",
+          ],
+        },
+        {
+          heading: "What is deleted",
+          list: [
+            "The mailbox and every email, folder, draft and attachment in it.",
+            "Your calendar events, tasks, notes, templates, contacts, filters, automatic replies and emails scheduled to send later.",
+            "Your name and signature, your recovery email, and your notification registrations, including the stored password used to check for new mail.",
+            "Saved copies on your phone are removed when you sign out of the app (do this on each phone you used).",
+          ],
+        },
+        {
+          heading: "What we may keep",
+          body: "Records we must keep by law, such as invoices and payment records of the NAI TALK account that owns the mailbox, and short-lived security and fault logs. These are not used for anything else and are deleted when we no longer need them. Emails you sent to other people are copies those people hold; we cannot delete them from their mailboxes.",
+        },
+        {
+          heading: "Delete only some of your data",
+          list: [
+            "In the app you can delete individual emails, notes, tasks, calendar events, templates, filters and scheduled emails at any time.",
+            "Sign out of the app to remove its saved copy of your mail from that phone, and to stop notifications to it.",
+            "To remove other data without closing the mailbox, email info@naitalk.com and tell us what to remove.",
+          ],
+        },
+        {
+          heading: "Questions",
+          body: "Email info@naitalk.com or WhatsApp 0708 705 7654. Our full policy for the app is at www.naitalk.com/privacy-policy/green-mail.",
         },
       ]}
     />
