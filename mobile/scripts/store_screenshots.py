@@ -20,6 +20,8 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 CAPTIONS = {
+    "welcome": "Business email on your phone",
+    "accounts": "Several accounts, one tap apart",
     "inbox": "Your business inbox",
     "menu": "All your folders and tools",
     "drawer": "All your folders and tools",
@@ -105,6 +107,8 @@ def render(shot: Image.Image, caption: str, size) -> Image.Image:
     shadow.paste((0, 0, 0, 130), (x, y0 + 12, x + sw, y0 + sh + 12), mask)
     canvas = Image.alpha_composite(canvas, shadow.filter(ImageFilter.GaussianBlur(18)))
     canvas.paste(shot, (x, y0), mask)
+    # A thin light edge so dark screens stand out from the background.
+    ImageDraw.Draw(canvas).rounded_rectangle((x, y0, x + sw - 1, y0 + sh - 1), radius=int(sw * 0.06), outline=(255, 255, 255), width=max(3, w // 300))
     return canvas.convert("RGB")
 
 
