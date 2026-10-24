@@ -1,0 +1,67 @@
+{
+  "expo": {
+    "name": "Green Mail",
+    "slug": "greenmail",
+    "scheme": "greenmail",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#ffffff",
+    "ios": {
+      "bundleIdentifier": "com.naitalk.greenmail",
+      "supportsTablet": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "Green Mail uses your photos when you attach an image to an email."
+      },
+      "buildNumber": "1"
+    },
+    "android": {
+      "package": "com.naitalk.greenmail",
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff",
+        "foregroundImage": "./assets/android-icon-foreground.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "versionCode": 1
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-secure-store",
+      "expo-sharing",
+      "expo-web-browser",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "backgroundColor": "#0b3d24"
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      "expo-image",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#16a34a",
+          "defaultChannel": "mail"
+        }
+      ],
+      "./plugins/withReleaseSigning.js"
+    ],
+    "experiments": {
+      "typedRoutes": false
+    },
+    "extra": {
+      "apiBaseUrl": "https://www.naitalk.com/api/v1/greenmail",
+      "eas": {}
+    }
+  }
+}

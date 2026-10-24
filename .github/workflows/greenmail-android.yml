@@ -1,0 +1,121 @@
+name: Green Mail Android
+
+# Builds the Green Mail phone app (mobile/) into a signed APK on GitHub and
+# publishes it as a GitHub Release, so it can be downloaded and installed
+# straight on a phone. Runs on every push that touches mobile/, or by hand.
+#
+# Secrets (Settings -> Secrets and variables -> Actions):
+#   GREENMAIL_ANDROID_KEYSTORE_BASE64   base64 of mobile/keystores/greenmail-release.p12
+#   GREENMAIL_RELEASE_STORE_PASSWORD    its password (also the key's password)
+# The same key must sign every build, or phones refuse to update the app.
+
+on:
+  push:
+    branches: [main, greenmail-mobile]
+    paths: ["mobile/**", ".github/workflows/greenmail-android.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: greenmail-android-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_NO_TELEMETRY: "1"
+      GREENMAIL_RELEASE_STORE_PASSWORD: ${{ secrets.GREENMAIL_RELEASE_STORE_PASSWORD }}
+      GREENMAIL_RELEASE_KEY_PASSWORD: ${{ secrets.GREENMAIL_RELEASE_STORE_PASSWORD }}
+      GREENMAIL_RELEASE_KEY_ALIAS: greenmail
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # The runner image already has the Android SDK (ANDROID_HOME); Gradle fetches what's missing.
+      - uses: gradle/actions/setup-gradle@v4
+
+      - run: npm ci
+
+      - name: Type-check and unit tests
+        run: |
+          npm run typecheck
+          npm test -- --ci
+
+      - name: Write the release key
+        run: |
+          [ -n "${{ secrets.GREENMAIL_ANDROID_KEYSTORE_BASE64 }}" ] || { echo "::error::Missing secret GREENMAIL_ANDROID_KEYSTORE_BASE64"; exit 1; }
+          [ -n "$GREENMAIL_RELEASE_STORE_PASSWORD" ] || { echo "::error::Missing secret GREENMAIL_RELEASE_STORE_PASSWORD"; exit 1; }
+          mkdir -p keystores
+          printf '%s' "${{ secrets.GREENMAIL_ANDROID_KEYSTORE_BASE64 }}" | tr -d '[:space:]' | base64 --decode > keystores/greenmail-release.p12
+          keytool -list -storetype pkcs12 -keystore keystores/greenmail-release.p12 -storepass "$GREENMAIL_RELEASE_STORE_PASSWORD" >/dev/null \
+            || { echo "::error::The key did not open with GREENMAIL_RELEASE_STORE_PASSWORD."; exit 1; }
+
+      - name: Version
+        id: meta
+        run: |
+          VERSION=$(node -p "require('./app.json').expo.version")
+          CODE=$((100 + ${{ github.run_number }}))
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "Green Mail $VERSION (build $CODE)"
+
+      - name: Expo prebuild (generate android/)
+        run: npx expo prebuild --clean --platform android --no-install
+
+      - name: Apply versionCode
+        run: |
+          sed -i "s/^\( *\)versionCode .*/\1versionCode ${{ steps.meta.outputs.code }}/" android/app/build.gradle
+          grep -q "storeFile file('release.p12')" android/app/build.gradle || { echo "::error::Release signing was not wired in."; exit 1; }
+
+      - name: Build release APK
+        working-directory: mobile/android
+        run: ./gradlew --no-daemon assembleRelease
+
+      - name: Check the signature
+        id: apk
+        run: |
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          OUT="greenmail-${{ steps.meta.outputs.version }}-build${{ steps.meta.outputs.code }}.apk"
+          cp "$APK" "$OUT"
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --print-certs "$OUT" | tee certs.txt
+          if grep -q "Android Debug" certs.txt; then echo "::error::APK is debug-signed."; exit 1; fi
+          echo "file=$OUT" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: greenmail-android
+          path: mobile/${{ steps.apk.outputs.file }}
+          retention-days: 30
+
+      - name: Publish as a GitHub Release (download link for phones)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: greenmail-android-${{ steps.meta.outputs.version }}-build${{ steps.meta.outputs.code }}
+          target_commitish: ${{ github.sha }}
+          name: Green Mail for Android ${{ steps.meta.outputs.version }} (build ${{ steps.meta.outputs.code }})
+          prerelease: ${{ github.ref != 'refs/heads/main' }}
+          files: mobile/${{ steps.apk.outputs.file }}
+          body: |
+            Green Mail Android app, built from `${{ github.sha }}` on `${{ github.ref_name }}`.
+
+            **Install on your phone:** open this page on the phone, tap the `.apk` under Assets,
+            then open the download. The first time, Android asks you to allow installing apps
+            from your browser — allow it. Later builds install over this one.
