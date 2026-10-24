@@ -13,6 +13,8 @@ background, a caption and the unaltered screenshot in a rounded frame:
   tablet-10/    1440 x 2560   (9:16; allowed 1080-7680 px per side)
   iphone-6.9/   1320 x 2868   (App Store, required iPhone size)
   iphone-6.5/   1284 x 2778   (App Store, alternative iPhone size)
+  iphone-6.3/   1206 x 2622   (App Store, 6.3" iPhones)
+  iphone-6.1/   1179 x 2556   (App Store, 6.1" iPhones)
 Needs Pillow:  python3 -m pip install pillow
 """
 import re
@@ -45,6 +47,8 @@ SIZES = {
     "tablet-10": (1440, 2560),
     # App Store (iPhone): 6.9" is the one Apple requires; 6.5" is accepted as the alternative.
     "iphone-6.9": (1320, 2868),
+    "iphone-6.3": (1206, 2622),
+    "iphone-6.1": (1179, 2556),
     "iphone-6.5": (1284, 2778),
 }
 TOP, BOT = (11, 61, 36), (8, 42, 25)
