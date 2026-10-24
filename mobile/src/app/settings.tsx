@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import { useEffect, useState, type ReactNode } from "react";
 import { Alert, KeyboardAvoidingView, Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -118,6 +119,10 @@ export default function Settings() {
 
         <SectionTitle>About</SectionTitle>
         <Card>
+          <Row icon="shield-outline" title="Privacy policy" onPress={() => void WebBrowser.openBrowserAsync("https://www.naitalk.com/privacy-policy")} />
+          <Divider />
+          <Row icon="help-circle-outline" title="Help and support" subtitle="Contact NAI TALK" onPress={() => void WebBrowser.openBrowserAsync("https://www.naitalk.com/contact")} />
+          <Divider />
           <Row icon="information-circle-outline" title={`Green Mail ${Constants.expoConfig?.version ?? ""}`} subtitle={API_BASE_URL.replace(/^https?:\/\//, "").replace(/\/api\/v1\/greenmail$/, "")} />
         </Card>
 

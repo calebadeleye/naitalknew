@@ -88,6 +88,9 @@ npx expo-doctor
   secrets `GREENMAIL_ANDROID_KEYSTORE_BASE64` and `GREENMAIL_RELEASE_STORE_PASSWORD`.
   **Back the key up**: if it is lost, phones can't update the app and must reinstall it,
   and the Play Store would need the same key.
+- **Google Play**: `.github/workflows/greenmail-play.yml` (signed `.aab` uploaded to Play);
+  see [PLAY-STORE-RELEASE.md](PLAY-STORE-RELEASE.md). Listing texts and privacy answers:
+  [STORE-LISTING.md](STORE-LISTING.md).
 - **iPhone (TestFlight)**: `.github/workflows/greenmail-ios.yml`; one-time setup in
   [IOS-RELEASE.md](IOS-RELEASE.md).
 

@@ -1,0 +1,128 @@
+name: Green Mail Play Store
+
+# Builds the Green Mail phone app (mobile/) into a signed Android App Bundle (.aab)
+# and uploads it to Google Play. The bundle is always kept as a downloadable
+# artifact too. Uploading needs the PLAY_SERVICE_ACCOUNT_JSON secret and the app
+# to exist in Play Console with its first release already created by hand
+# (Google's API can't create the app). See mobile/PLAY-STORE-RELEASE.md.
+#
+# Run: Actions -> "Green Mail Play Store" -> Run workflow, or push a tag:
+#   git tag greenmail-play-v1.0.0 && git push origin greenmail-play-v1.0.0
+
+on:
+  workflow_dispatch:
+    inputs:
+      track:
+        description: "Play track"
+        type: choice
+        default: internal
+        options: [internal, alpha, beta, production]
+      status:
+        description: "Release status (use draft until the store listing is finished)"
+        type: choice
+        default: completed
+        options: [completed, draft, inProgress, halted]
+      submit:
+        description: "Upload to Google Play (otherwise only build the .aab)"
+        type: boolean
+        default: true
+  push:
+    tags: ["greenmail-play-v*"]
+
+concurrency:
+  group: greenmail-play-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_NO_TELEMETRY: "1"
+      GREENMAIL_RELEASE_STORE_PASSWORD: ${{ secrets.GREENMAIL_RELEASE_STORE_PASSWORD }}
+      GREENMAIL_RELEASE_KEY_PASSWORD: ${{ secrets.GREENMAIL_RELEASE_STORE_PASSWORD }}
+      GREENMAIL_RELEASE_KEY_ALIAS: greenmail
+      PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - run: npm ci
+
+      - name: Type-check and unit tests
+        run: |
+          npm run typecheck
+          npm test -- --ci
+
+      - name: Write the upload key
+        run: |
+          [ -n "${{ secrets.GREENMAIL_ANDROID_KEYSTORE_BASE64 }}" ] || { echo "::error::Missing secret GREENMAIL_ANDROID_KEYSTORE_BASE64"; exit 1; }
+          [ -n "$GREENMAIL_RELEASE_STORE_PASSWORD" ] || { echo "::error::Missing secret GREENMAIL_RELEASE_STORE_PASSWORD"; exit 1; }
+          mkdir -p keystores
+          printf '%s' "${{ secrets.GREENMAIL_ANDROID_KEYSTORE_BASE64 }}" | tr -d '[:space:]' | base64 --decode > keystores/greenmail-release.p12
+          keytool -list -storetype pkcs12 -keystore keystores/greenmail-release.p12 -storepass "$GREENMAIL_RELEASE_STORE_PASSWORD" >/dev/null \
+            || { echo "::error::The key did not open with GREENMAIL_RELEASE_STORE_PASSWORD."; exit 1; }
+
+      - name: Check Play secret
+        if: ${{ github.event_name == 'push' || inputs.submit }}
+        run: '[ -n "$PLAY_SERVICE_ACCOUNT_JSON" ] || { echo "::error::Missing secret PLAY_SERVICE_ACCOUNT_JSON (needed to upload to Google Play). Re-run with Upload unticked to only build the bundle."; exit 1; }'
+
+      - name: Version
+        id: meta
+        run: |
+          echo "version=$(node -p "require('./app.json').expo.version")" >> "$GITHUB_OUTPUT"
+          echo "code=$((1000 + ${{ github.run_number }}))" >> "$GITHUB_OUTPUT"
+
+      - name: Expo prebuild (generate android/)
+        run: npx expo prebuild --clean --platform android --no-install
+
+      - name: Apply versionCode
+        run: |
+          sed -i "s/^\( *\)versionCode .*/\1versionCode ${{ steps.meta.outputs.code }}/" android/app/build.gradle
+          grep -q "storeFile file('release.p12')" android/app/build.gradle || { echo "::error::Release signing was not wired in."; exit 1; }
+
+      - name: Build release bundle
+        working-directory: mobile/android
+        run: ./gradlew --no-daemon bundleRelease
+
+      - name: Check the bundle
+        id: aab
+        run: |
+          AAB=$(find android/app/build/outputs/bundle/release -name '*.aab' | head -1)
+          [ -n "$AAB" ] || { echo "::error::No .aab was produced."; exit 1; }
+          OUT="greenmail-${{ steps.meta.outputs.version }}-build${{ steps.meta.outputs.code }}.aab"
+          cp "$AAB" "$OUT"
+          if jarsigner -verify -certs "$OUT" | grep -q "Android Debug"; then echo "::error::The bundle is debug-signed."; exit 1; fi
+          echo "file=$OUT" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: greenmail-play-bundle
+          path: mobile/${{ steps.aab.outputs.file }}
+          retention-days: 30
+
+      - name: Upload to Google Play
+        if: ${{ github.event_name == 'push' || inputs.submit }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.naitalk.greenmail
+          releaseFiles: mobile/${{ steps.aab.outputs.file }}
+          track: ${{ inputs.track || 'internal' }}
+          status: ${{ inputs.status || 'completed' }}
+          changesNotSentForReview: false

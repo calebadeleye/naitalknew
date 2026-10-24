@@ -40,8 +40,9 @@ are new.
    | `IOS_DIST_CERT_PASSWORD` | the .p12 password |
    | `GREENMAIL_IOS_PROVISION_PROFILE` | `base64 -i Green_Mail_App_Store.mobileprovision \| tr -d '\n'` |
 
-   From the terminal (inside the repo) it is, for example:
-   `gh secret set GREENMAIL_IOS_PROVISION_PROFILE < <(base64 -i Green_Mail_App_Store.mobileprovision | tr -d '\n')`
+   Easiest: put the `.p8`, the `.p12` and the `.mobileprovision` in one folder and run
+   `mobile/scripts/set-ios-secrets.sh <folder>`; it asks for the IDs and the .p12 password and
+   sets all seven secrets. Delete the folder afterwards.
 
 ## Run it
 
@@ -58,3 +59,12 @@ workflow.
 TestFlight → the build → **Internal Testing**: add yourself, and the build appears in
 the TestFlight app on your iPhone. Store release is App Store → prepare a version →
 pick the build → submit for review.
+
+## Store-readiness
+
+The app is iPhone-only (`supportsTablet: false`), has a 1024×1024 icon without transparency,
+asks only for photo-library access (shown with a plain-language reason), declares
+`ITSAppUsesNonExemptEncryption: false` (HTTPS only), and has no tracking. See
+[STORE-LISTING.md](STORE-LISTING.md) for the App Privacy answers and the review notes.
+Push notifications need Push Notifications enabled on the App ID (step 1) and the profile
+regenerated after enabling it.
