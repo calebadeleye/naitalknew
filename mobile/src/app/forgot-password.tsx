@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, Text } from "react-native";
+import { KeyboardAvoidingView, ScrollView, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button, Field, Header, IconButton } from "../components/ui";
 import { useToast } from "../components/toast";
@@ -53,7 +53,7 @@ export default function ForgotPassword() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.card }}>
       <Header title="Reset password" left={<IconButton name="arrow-back" label="Back" onPress={() => router.back()} />} />
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={{ padding: 24, gap: 18 }} keyboardShouldPersistTaps="handled">
           {stage === "ask" ? (
             <>

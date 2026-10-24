@@ -6,6 +6,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { RecipientField, allAddresses } from "../components/RecipientField";
 import { RichEditor, type RichEditorHandle } from "../components/RichEditor";
 import { useToast } from "../components/toast";
 import { Button, IconButton, Loading, type IconName } from "../components/ui";
@@ -22,6 +23,8 @@ import { useTheme } from "../state/theme";
 type Mode = "new" | "reply" | "reply_all" | "forward" | "draft" | "local";
 type Context = NonNullable<LocalDraft["context"]>;
 
+const joined = (addresses: string[], text: string) => allAddresses(addresses, text).join(", ");
+
 export default function Compose() {
   const params = useLocalSearchParams<{ mode?: Mode; folder?: string; uid?: string; body?: string; to?: string; templateId?: string; localId?: string }>();
   const mode: Mode = params.mode ?? "new";
@@ -33,9 +36,13 @@ export default function Compose() {
   const [ready, setReady] = useState(false);
   const [draftId] = useState(() => params.localId ?? newId());
   const [from, setFrom] = useState(account?.email ?? "");
-  const [to, setTo] = useState(params.to ?? "");
-  const [cc, setCc] = useState("");
-  const [bcc, setBcc] = useState("");
+  // Finished recipients (chips) and the text still being typed in each field.
+  const [to, setTo] = useState<string[]>(splitAddresses(params.to ?? ""));
+  const [cc, setCc] = useState<string[]>([]);
+  const [bcc, setBcc] = useState<string[]>([]);
+  const [toText, setToText] = useState("");
+  const [ccText, setCcText] = useState("");
+  const [bccText, setBccText] = useState("");
   const [showCc, setShowCc] = useState(false);
   const [subject, setSubject] = useState("");
   const [initialHtml, setInitialHtml] = useState("");
@@ -61,9 +68,9 @@ export default function Compose() {
           const d = await localDraft(params.localId);
           if (d) {
             setFrom(d.from);
-            setTo(d.to);
-            setCc(d.cc);
-            setBcc(d.bcc);
+            setTo(splitAddresses(d.to));
+            setCc(splitAddresses(d.cc));
+            setBcc(splitAddresses(d.bcc));
             setShowCc(!!(d.cc || d.bcc));
             setSubject(d.subject);
             setInitialHtml(d.html);
@@ -82,8 +89,8 @@ export default function Compose() {
         const start = params.body ? `<p>${escapeHtml(params.body).replace(/\n/g, "<br>")}</p>` : "<p><br></p>";
 
         if (original && mode === "draft") {
-          setTo(original.to.map((a) => a.email).join(", "));
-          setCc(original.cc.map((a) => a.email).join(", "));
+          setTo(original.to.map((a) => a.email));
+          setCc(original.cc.map((a) => a.email));
           setShowCc(original.cc.length > 0);
           setSubject(original.subject === "(no subject)" ? "" : original.subject);
           setInitialHtml(original.html);
@@ -92,8 +99,8 @@ export default function Compose() {
         } else if (original && (mode === "reply" || mode === "reply_all")) {
           const replyTo = original.reply_to[0] ?? original.from;
           const others = mode === "reply_all" ? [...original.to, ...original.cc].filter((a) => a.email !== account?.email && a.email !== replyTo.email) : [];
-          setTo(replyTo.email);
-          setCc([...new Set(others.map((a) => a.email))].join(", "));
+          setTo([replyTo.email]);
+          setCc([...new Set(others.map((a) => a.email))]);
           setShowCc(others.length > 0);
           setSubject(/^re:/i.test(original.subject) ? original.subject : `Re: ${original.subject}`);
           setInitialHtml(start + signature);
@@ -129,7 +136,7 @@ export default function Compose() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- autosave on this phone (works offline; nothing is lost if the app closes) ----
-  const snapshot = (): LocalDraft => ({ id: draftId, account: from, updatedAt: Date.now(), from, to, cc, bcc, subject, html: html.current, quoteHtml, attachments: files, context: { ...context, forward_attachments: forwarded.map((f) => f.index) } });
+  const snapshot = (): LocalDraft => ({ id: draftId, account: from, updatedAt: Date.now(), from, to: joined(to, toText), cc: joined(cc, ccText), bcc: joined(bcc, bccText), subject, html: html.current, quoteHtml, attachments: files, context: { ...context, forward_attachments: forwarded.map((f) => f.index) } });
   useEffect(() => {
     if (!ready || !touched.current) return;
     const t = setTimeout(() => void saveLocalDraft(snapshot()).catch(() => {}), 1200);
@@ -138,12 +145,12 @@ export default function Compose() {
 
   // ---- contact suggestions for To ----
   useEffect(() => {
-    const last = to.split(/[,;]/).pop()?.trim() ?? "";
+    const last = toText.trim();
     const owner = accounts.find((a) => a.email === from);
     if (last.length < 2 || !owner || !online) return setSuggestions([]);
     const t = setTimeout(() => api.contacts(owner.token, last).then((r) => setSuggestions(r.contacts.slice(0, 5))).catch(() => setSuggestions([])), 250);
     return () => clearTimeout(t);
-  }, [to, from, online, accounts]);
+  }, [toText, from, online, accounts]);
 
   const change = <T,>(setter: (v: T) => void) => (v: T) => {
     touched.current = true;
@@ -151,9 +158,9 @@ export default function Compose() {
   };
 
   const payload = (): ComposePayload => ({
-    to,
-    cc,
-    bcc,
+    to: joined(to, toText),
+    cc: joined(cc, ccText),
+    bcc: joined(bcc, bccText),
     subject,
     html: html.current + (quoteHtml ? `<br>${quoteHtml}` : ""),
     ...context,
@@ -164,8 +171,8 @@ export default function Compose() {
   });
 
   const validate = (needRecipient: boolean) => {
-    const all = [...splitAddresses(to), ...splitAddresses(cc), ...splitAddresses(bcc)];
-    if (needRecipient && splitAddresses(to).length === 0) return "Add at least one recipient.";
+    const all = [...allAddresses(to, toText), ...allAddresses(cc, ccText), ...allAddresses(bcc, bccText)];
+    if (needRecipient && allAddresses(to, toText).length === 0) return "Add at least one recipient.";
     const bad = all.find((a) => !isEmail(a));
     return bad ? `"${bad}" is not a valid email address.` : null;
   };
@@ -209,7 +216,7 @@ export default function Compose() {
   };
 
   const close = () => {
-    const empty = !to.trim() && !subject.trim() && html.current.replace(/<[^>]+>|&nbsp;|\s/g, "") === "" && files.length === 0;
+    const empty = allAddresses(to, toText).length === 0 && !subject.trim() && html.current.replace(/<[^>]+>|&nbsp;|\s/g, "") === "" && files.length === 0;
     if (!touched.current || empty) {
       void deleteLocalDraft(draftId).catch(() => {});
       return router.back();
@@ -262,7 +269,7 @@ export default function Compose() {
         </Pressable>
       </View>
 
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1 }}>
           {!online ? <Text style={{ backgroundColor: colors.banner, color: colors.bannerText, paddingHorizontal: 16, paddingVertical: 8, fontSize: 13 }}>You're offline. Sending puts this in the outbox; it goes when you're back online.</Text> : null}
           {error ? <Text style={{ backgroundColor: "#fee2e2", color: "#b91c1c", paddingHorizontal: 16, paddingVertical: 10 }}>{error}</Text> : null}
@@ -272,19 +279,23 @@ export default function Compose() {
             <Text style={[input, { paddingVertical: 0 }]}>{from}</Text>
             {accounts.length > 1 ? <Ionicons name="chevron-down" size={18} color={colors.muted} /> : null}
           </Pressable>
-          <View style={line}>
-            <Text style={label}>To</Text>
-            <TextInput value={to} onChangeText={change(setTo)} style={input} autoCapitalize="none" keyboardType="email-address" autoCorrect={false} placeholder="name@example.com" placeholderTextColor={colors.subtle} />
-            <IconButton name={showCc ? "chevron-up" : "chevron-down"} label="Cc and Bcc" color={colors.muted} size={18} onPress={() => setShowCc((s) => !s)} />
-          </View>
+          <RecipientField
+            label="To"
+            addresses={to}
+            text={toText}
+            onChange={(a, t) => { touched.current = true; setTo(a); setToText(t); }}
+            placeholder="name@example.com"
+            right={<IconButton name={showCc ? "chevron-up" : "chevron-down"} label="Cc and Bcc" color={colors.muted} size={18} onPress={() => setShowCc((s) => !s)} style={{ marginTop: 6 }} />}
+          />
           {suggestions.length ? (
             <View style={{ borderBottomWidth: 1, borderColor: colors.border }}>
               {suggestions.map((c) => (
                 <Pressable
                   key={c.id}
                   onPress={() => {
-                    const parts = to.split(/[,;]/).slice(0, -1).map((s) => s.trim()).filter(Boolean);
-                    setTo([...parts, c.email].join(", ") + ", ");
+                    touched.current = true;
+                    setTo((list) => (list.includes(c.email) ? list : [...list, c.email]));
+                    setToText("");
                     setSuggestions([]);
                   }}
                   style={{ paddingHorizontal: 16, paddingVertical: 10 }}
@@ -297,14 +308,8 @@ export default function Compose() {
           ) : null}
           {showCc ? (
             <>
-              <View style={line}>
-                <Text style={label}>Cc</Text>
-                <TextInput value={cc} onChangeText={change(setCc)} style={input} autoCapitalize="none" keyboardType="email-address" autoCorrect={false} />
-              </View>
-              <View style={line}>
-                <Text style={label}>Bcc</Text>
-                <TextInput value={bcc} onChangeText={change(setBcc)} style={input} autoCapitalize="none" keyboardType="email-address" autoCorrect={false} />
-              </View>
+              <RecipientField label="Cc" addresses={cc} text={ccText} onChange={(a, t) => { touched.current = true; setCc(a); setCcText(t); }} />
+              <RecipientField label="Bcc" addresses={bcc} text={bccText} onChange={(a, t) => { touched.current = true; setBcc(a); setBccText(t); }} />
             </>
           ) : (
             <Pressable style={line} onPress={() => setShowCc(true)}>
