@@ -9,7 +9,7 @@ two things that must come from you.
 - **Subtitle (App Store, 30)**: Business email, simplified
 - **Short description (Play, 80)**: Fast, secure business email from NAI TALK. Works offline.
 - **Category**: Productivity (Play: Business or Productivity). Free, no ads, no purchases.
-- **Privacy policy URL**: https://www.naitalk.com/privacy-policy
+- **Privacy policy URL**: https://www.naitalk.com/privacy-policy/green-mail
 - **Support URL**: https://www.naitalk.com/contact · **Marketing URL**: https://www.naitalk.com/green-mail
 - **Age rating**: 4+ (Apple) / Everyone (Play); user-generated content is the person's own email.
 - **Copyright**: © NAI TALK

@@ -119,7 +119,7 @@ export default function Settings() {
 
         <SectionTitle>About</SectionTitle>
         <Card>
-          <Row icon="shield-outline" title="Privacy policy" onPress={() => void WebBrowser.openBrowserAsync("https://www.naitalk.com/privacy-policy")} />
+          <Row icon="shield-outline" title="Privacy policy" onPress={() => void WebBrowser.openBrowserAsync("https://www.naitalk.com/privacy-policy/green-mail")} />
           <Divider />
           <Row icon="help-circle-outline" title="Help and support" subtitle="Contact NAI TALK" onPress={() => void WebBrowser.openBrowserAsync("https://www.naitalk.com/contact")} />
           <Divider />
