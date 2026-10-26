@@ -9,6 +9,7 @@ import {
   Activity,
   BadgeCheck,
   BarChart3,
+  PhoneCall,
   Bell,
   BookOpen,
   Bot,
@@ -118,6 +119,7 @@ import { ServerCapacityPanel } from "../admin/ServerCapacityPanel";
 import { AdminSupportInbox } from "../admin/AdminSupportInbox";
 import { PaymentMethodsPanel } from "../admin/PaymentMethodsPanel";
 import { GlobalBlockedIpsPanel } from "../admin/GlobalBlockedIpsPanel";
+import { NaitalkCallPanel } from "../admin/NaitalkCallPanel";
 import { AreaThemeToggle, useAreaTheme } from "../shared/areaTheme";
 import { useTicketsNeedingReply } from "../admin/useTicketsNeedingReply";
 
@@ -4700,6 +4702,10 @@ export const adminSectionGroups: Array<{ label: string; sections: AdminSectionDe
       { id: "websiteQuotes", label: "Website Quotes", icon: Send },
     ],
   },
+  {
+    label: "Naitalk Call",
+    sections: [{ id: "naitalkCall", label: "Call Businesses", icon: PhoneCall }],
+  },
 ];
 
 export const adminSections: AdminSectionDefinition[] = adminSectionGroups.flatMap((group) => group.sections);
@@ -6606,6 +6612,8 @@ export function AdminApp() {
         {activeSection === "domainPricing" && !routeClientId && !routeServiceId && <AdminDomainPricingPage adminToken={adminToken} />}
 
         {activeSection === "sslCertificates" && !routeClientId && !routeServiceId && <AdminSslCertificatesPage adminToken={adminToken} />}
+
+        {activeSection === "naitalkCall" && !routeClientId && !routeServiceId && <NaitalkCallPanel adminToken={adminToken} />}
 
         {activeSection === "domainAssignments" && !routeClientId && !routeServiceId && <AdminDomainAssignmentPage adminToken={adminToken} />}
 

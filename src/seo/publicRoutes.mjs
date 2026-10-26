@@ -23,6 +23,7 @@ export const KNOWN_PREFIXES = [
   "/business-email-hosting",
   "/green-mail",
   "/ssl-certificate",
+  "/naitalk-call",
   "/seo-services",
   "/blog",
   "/knowledge-base",

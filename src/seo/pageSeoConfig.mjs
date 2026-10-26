@@ -53,6 +53,10 @@ export const pageSeoConfig = {
     title: "SSL Certificate for Your Website — ₦15,000 | NAI TALK",
     description: "Secure your website with SSL (HTTPS) for ₦15,000 a year. Order it on its own — our team reaches out after you order and sets it up for you.",
   },
+  "/naitalk-call": {
+    title: "Naitalk Call — Hosted LiveKit Voice Calls for Apps, $20/month | NAI TALK",
+    description: "Add voice calls and live audio rooms to your app with hosted LiveKit. Your own API key, webhooks and monthly usage, for $20 a month (payable in Naira).",
+  },
   "/green-mail": {
     title: "Green Mail — Free Business Webmail with Your Hosting | NAI TALK",
     description: "Green Mail is the webmail included free with NAI TALK hosting: your own domain, an AI assistant, calendar, tasks, notes, templates, campaigns, filters and an installable app.",

@@ -396,6 +396,7 @@ export const footerColumns: Array<{ title: string; links: Array<{ label: string;
       { label: "Business Email Hosting", href: "/business-email-hosting" },
       { label: "Green Mail", href: "/green-mail" },
       { label: "SSL Certificate", href: "/ssl-certificate" },
+      { label: "Naitalk Call", href: "/naitalk-call" },
       { label: "SEO Services", href: "/seo-services" },
     ],
   },

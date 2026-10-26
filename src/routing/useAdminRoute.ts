@@ -28,7 +28,8 @@ export type AdminSectionId =
   | "domainTransfers"
   | "domainPricing"
   | "domainAssignments"
-  | "websiteQuotes";
+  | "websiteQuotes"
+  | "naitalkCall";
 
 const SECTION_PATHS: Record<AdminSectionId, string> = {
   dashboard: "",
@@ -58,6 +59,7 @@ const SECTION_PATHS: Record<AdminSectionId, string> = {
   domainPricing: "domain-pricing",
   domainAssignments: "domain-assignments",
   websiteQuotes: "website-quotes",
+  naitalkCall: "naitalk-call",
 };
 
 const PATH_TO_SECTION: Record<string, AdminSectionId> = Object.fromEntries(

@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\Admin\DomainAssignmentController;
 use App\Http\Controllers\Api\Admin\DomainController as AdminDomainController;
 use App\Http\Controllers\Api\Admin\DomainPricingController;
 use App\Http\Controllers\Api\Admin\DomainPricingSettingsController;
+use App\Http\Controllers\Api\Admin\NaitalkCallTenantController;
 use App\Http\Controllers\Api\Admin\FaqController;
 use App\Http\Controllers\Api\Admin\FtpAccountController as AdminFtpAccountController;
 use App\Http\Controllers\Api\Admin\HostingPlanController;
@@ -34,6 +35,7 @@ use App\Http\Controllers\Api\Admin\SslCertificateController;
 use App\Http\Controllers\Api\Admin\SupportTicketController as AdminSupportTicketController;
 use App\Http\Controllers\Api\Admin\WebsiteQuoteController as AdminWebsiteQuoteController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\NaitalkCallSyncController;
 use App\Http\Controllers\Api\Client\CartController;
 use App\Http\Controllers\Api\Client\CheckoutController;
 use App\Http\Controllers\Api\Client\ClientProfileController;
@@ -89,6 +91,7 @@ use App\Http\Controllers\Api\Greenmail\TemplateController as GreenmailTemplateCo
 use App\Http\Controllers\Api\Greenmail\UnsubscribeController as GreenmailUnsubscribeController;
 use App\Http\Controllers\Api\Greenmail\VacationController as GreenmailVacationController;
 use App\Http\Controllers\Api\Public\CatalogController;
+use App\Http\Controllers\Api\Public\NaitalkCallController;
 use App\Http\Controllers\Api\Public\ContentController;
 use App\Http\Controllers\Api\Public\DomainSearchController;
 use App\Http\Controllers\Api\Public\GreenmailStatsController;
@@ -207,6 +210,12 @@ Route::prefix('v1')->group(function (): void {
     Route::get('/public/domains/search', [DomainSearchController::class, 'search'])->middleware('throttle:60,1');
     Route::get('/public/domains/pricing', [DomainSearchController::class, 'pricing']);
     Route::get('/public/domains/pricing-table', [DomainSearchController::class, 'pricingTable']);
+    Route::get('/public/naitalk-call/pricing', [NaitalkCallController::class, 'pricing']);
+
+    // Root-run tools on the Naitalk Call server only (Bearer NAITALK_CALL_SYNC_TOKEN).
+    Route::get('/internal/naitalk-call/config', [NaitalkCallSyncController::class, 'config'])->middleware('throttle:60,1');
+    Route::post('/internal/naitalk-call/synced', [NaitalkCallSyncController::class, 'synced'])->middleware('throttle:60,1');
+    Route::post('/internal/naitalk-call/events', [NaitalkCallSyncController::class, 'events']);
 
     Route::get('/public/blog', [ContentController::class, 'blogIndex']);
     Route::get('/public/blog/{slug}', [ContentController::class, 'blogShow']);
@@ -501,6 +510,11 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/domain-pricing-settings', [DomainPricingSettingsController::class, 'show']);
             Route::put('/domain-pricing-settings', [DomainPricingSettingsController::class, 'update']);
             Route::put('/domain-pricing-settings/balance', [DomainPricingSettingsController::class, 'updateBalance']);
+
+            Route::get('/naitalk-call/tenants', [NaitalkCallTenantController::class, 'index']);
+            Route::post('/naitalk-call/tenants', [NaitalkCallTenantController::class, 'store']);
+            Route::put('/naitalk-call/tenants/{tenant}', [NaitalkCallTenantController::class, 'update']);
+            Route::post('/naitalk-call/tenants/{tenant}/rotate-key', [NaitalkCallTenantController::class, 'rotateKey']);
         });
     });
 });
