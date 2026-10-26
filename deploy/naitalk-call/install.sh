@@ -83,6 +83,8 @@ Description=Run the Naitalk Call key sync every 5 minutes
 
 [Timer]
 OnBootSec=2min
+# OnUnitActiveSec alone never fires if the service has not run under systemd yet.
+OnActiveSec=1min
 OnUnitActiveSec=5min
 
 [Install]
