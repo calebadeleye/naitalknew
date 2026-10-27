@@ -29,7 +29,7 @@ export const clientLabel = (c: ClientOption) => c.name || c.email || `Client #${
  * Search registered client accounts by company, email or client code. Only
  * registered accounts can subscribe, so there is no free-text entry.
  */
-export function ClientPicker({ adminToken, value, onChange, label = "Client account" }: { adminToken: string; value: ClientOption | null; onChange: (client: ClientOption | null) => void; label?: string }) {
+export function ClientPicker({ adminToken, value, onChange, label = "Client account", autoFocus = false }: { adminToken: string; value: ClientOption | null; onChange: (client: ClientOption | null) => void; label?: string; autoFocus?: boolean }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ClientOption[] | null>(null);
 
@@ -60,16 +60,19 @@ export function ClientPicker({ adminToken, value, onChange, label = "Client acco
   }
 
   return (
-    <div className="relative">
+    // Styled here, not by a surrounding form field: it is also used inside the table.
+    <div>
       <input
         aria-label={label}
-        className="w-full"
+        autoFocus={autoFocus}
+        className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-primary focus:outline-none"
         placeholder="Search by company, email or client code"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
       />
       {results && (
-        <ul className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-white/15 bg-[#0b130b] text-sm shadow-xl" role="listbox">
+        // In the page flow, so the table's scroll box can't clip it.
+        <ul className="mt-1 max-h-64 w-full overflow-auto rounded-lg border border-white/15 bg-[#0b130b] text-sm" role="listbox">
           {results.length === 0 ? (
             <li className="px-3 py-2 text-white/55">No registered client matches. They need a client account on NAI TALK first.</li>
           ) : (
@@ -394,6 +397,7 @@ export function NaitalkCallPanel({ adminToken }: { adminToken: string }) {
                       <ClientPicker
                         adminToken={adminToken}
                         label={`Client account for ${row.business_name}`}
+                        autoFocus
                         value={null}
                         onChange={(client) => {
                           if (!client) return;

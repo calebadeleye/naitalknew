@@ -134,18 +134,38 @@ describe("NaitalkCallPanel", () => {
     confirm.mockRestore();
   });
 
-  it("files an existing app under a client account", async () => {
-    const fetchMock = mockApi();
+  it("files an existing app under a client account from its row", async () => {
+    let linked = false;
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (url.includes("/naitalk-call/clients?q=")) return jsonResponse({ data: url.includes("tyf") ? [tyf] : [] });
+      if (init?.method === "PUT") {
+        linked = true;
+        return jsonResponse({ data: { ...cradle, client: tyf } });
+      }
+      return jsonResponse({ data: [linked ? { ...cradle, client: tyf } : cradle], plans, exchange_rate: exchangeRate, public_url: "wss://call.naitalk.com", last_sync: null });
+    });
+    vi.stubGlobal("fetch", fetchMock);
     render(<NaitalkCallPanel adminToken="t" />);
     await screen.findByText("kept on server");
 
     await userEvent.click(screen.getByRole("button", { name: "Link client" }));
-    await userEvent.type(screen.getByLabelText("Client account for Cradle"), "yoruba");
-    await userEvent.click(await screen.findByRole("option", { name: /Think Yoruba First/ }));
+    const search = screen.getByLabelText("Client account for Cradle");
+    // A real, visible input box (the table has no form-field styling) that is ready to type in.
+    expect(search).toHaveFocus();
+    expect(search.className).toMatch(/border/);
+    expect(search.className).toMatch(/bg-/);
+
+    await userEvent.type(search, "tyf");
+    const option = await screen.findByRole("option", { name: /Think Yoruba First/ });
+    expect(option.closest("ul")?.className).not.toMatch(/absolute/);
+    await userEvent.click(option);
 
     await waitFor(() => {
       const put = fetchMock.mock.calls.find(([, init]) => init?.method === "PUT");
       expect(JSON.parse(String(put?.[1]?.body))).toMatchObject({ client_id: 9, business_name: "Cradle", room_prefix: "cradle" });
     });
+    expect(await screen.findByText("Think Yoruba First")).toBeInTheDocument();
+    expect(screen.queryByText("No client account")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Change client" })).toBeInTheDocument();
   });
 });
