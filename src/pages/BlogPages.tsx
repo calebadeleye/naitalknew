@@ -318,6 +318,12 @@ const DEFAULT_POST_CTA: PostCta = {
 
 /** Posts about something specific end with a call to action for it, not the generic website one. */
 const POST_CTAS: Record<string, PostCta> = {
+  "introducing-naitalk-call-voice-calls-for-developers": {
+    title: "Ready to add voice calls to your app?",
+    text: "Start free while you build. Paid plans from $20 a month, with Naira pricing at the CBN official rate.",
+    primary: { label: "See Naitalk Call Plans", href: "/naitalk-call#naitalk-call-plans" },
+    secondary: { label: "Talk to Us", href: "/contact?service=Naitalk%20Call" },
+  },
   "from-webmail-to-green-mail-professional-business-email": {
     title: "Ready for business email that looks the part?",
     text: "Get Green Mail on your own domain from ₦12,000 a year. No website or hosting package needed.",
