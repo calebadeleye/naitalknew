@@ -8,8 +8,10 @@ This folder holds the tools for selling it to businesses. Cradle is the first cu
 
 | Piece | Where |
 |---|---|
-| Public page, $20/month plus the Naira equivalent | `/naitalk-call` (`src/pages/NaitalkCallPage.tsx`) |
-| Naira price | $20 × the USD→NGN rate the admin sets under **Domain Pricing** settings, rounded to whole naira. No FX API. |
+| Public page with the plans | `/naitalk-call` (`src/pages/NaitalkCallPage.tsx`) |
+| Plans | `backend/config/naitalk_call.php`: Free (testing, 5,000 participant-minutes), Starter $20 (50,000), Growth $49 (200,000), Business $99 (500,000) |
+| Naira prices | Dollar price × the Central Bank of Nigeria official rate (US DOLLAR central rate from `cbn.gov.ng/api/GetAllExchangeRates`), whole naira. Fetched at 10:00 and 16:00 by `naitalk-call:fetch-cbn-rate`, or from the admin with **Refresh CBN rate**. A failed fetch keeps the last good rate. |
+| Public address for apps | `wss://call.naitalk.com` (site web86, user `naitalk2call`; rules in `call.naitalk.com.htaccess`). Only `/rtc` is proxied; the room API (`/twirp`) is not. |
 | Onboarding businesses (key and secret, plan, status, minutes) | Admin → **Naitalk Call → Call Businesses** (`src/admin/NaitalkCallPanel.tsx`) |
 | Records | `naitalk_call_tenants` (secrets encrypted), `naitalk_call_usage_events` |
 | Server pulls keys and routes | `GET /api/v1/internal/naitalk-call/config` (Bearer `NAITALK_CALL_SYNC_TOKEN`) |
@@ -111,15 +113,14 @@ This is fine for businesses Naitalk trusts. Before selling to the public, pick o
    journalctl -u naitalk-call-router -f                   # make a Cradle call: expect "… → cradle: 200"
    ```
    The admin page should show Server sync: **applied**, then **unchanged** every 5 minutes.
-6. **Public address for other businesses.** Cradle connects through its own host.
-   Others need a Naitalk one: create `call.naitalk.com` in ISPConfig (DNS plus
-   Let's Encrypt) and add the same proxy rules Cradle's `.htaccess` uses:
+6. **Public address for other businesses** (done 2026-10-27). `call.naitalk.com` is an
+   ISPConfig site with Let's Encrypt; `call.naitalk.com.htaccess` is its `.htaccess`:
+   ```bash
+   scp deploy/naitalk-call/call.naitalk.com.htaccess naitalk2call@mail.naitalk.com:/var/www/clients/client4/web86/web/.htaccess
    ```
-   RewriteEngine On
-   RewriteCond %{HTTP:Upgrade} =websocket [NC]
-   RewriteRule ^rtc(/.*)?$ ws://127.0.0.1:7880/rtc$1 [P,L]
-   RewriteRule ^rtc(/.*)?$ http://127.0.0.1:7880/rtc$1 [P,L]
-   ```
+   A real token validates through `https://call.naitalk.com/rtc/validate`.
+7. **Naira prices.** After a deploy, fetch the CBN rate once instead of waiting for the schedule
+   (as the site user, in `web9/web/backend`): `php artisan naitalk-call:fetch-cbn-rate`.
 
 **Undo:** `systemctl disable --now naitalk-call-sync.timer naitalk-call-router`, copy the
 newest `/etc/naitalk-call/livekit.yaml.bak-*` over `livekit.yaml`, then `systemctl restart naitalk-call`.
@@ -134,5 +135,9 @@ webhook URL. The secret is shown **once**. Send the business:
 - that every room name must start with `<prefix>-`;
 - that webhooks arrive signed with their own key.
 
+New businesses start on Starter; pick another plan in the form or later in the
+table, where each business's minutes this month show against its plan's
+allowance (yellow from 80%, red from 100%). Going over doesn't cut calls off.
+
 The key works within 5 minutes, or once current calls end. There is no payment
-integration yet: invoice the $20 (or the Naira amount) from Admin → Invoices.
+integration yet: invoice the plan price (or its Naira amount) from Admin → Invoices.

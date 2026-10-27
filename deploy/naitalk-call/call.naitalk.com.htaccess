@@ -1,0 +1,23 @@
+# call.naitalk.com: where businesses' apps reach Naitalk Call.
+# Goes in the site's web root (/var/www/clients/client4/web86/web/.htaccess,
+# user naitalk2call). Needs Apache's mod_proxy, mod_proxy_http and
+# mod_proxy_wstunnel, as Cradle's API host already uses.
+RewriteEngine On
+
+# HTTPS only (Let's Encrypt renewals still reach /.well-known over HTTP).
+RewriteCond %{REQUEST_URI} !^/\.well-known/acme-challenge/
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+
+# LiveKit signalling: the SDKs connect to wss://call.naitalk.com/rtc.
+RewriteCond %{HTTP:Upgrade} =websocket [NC]
+RewriteRule ^rtc(/.*)?$ ws://127.0.0.1:7880/rtc$1 [P,L]
+RewriteRule ^rtc(/.*)?$ http://127.0.0.1:7880/rtc$1 [P,L]
+
+# The room API (/twirp) is deliberately not exposed: LiveKit keys are not
+# limited to one business's rooms, so it would let any business close or
+# empty another's calls. See README.md, "Read before onboarding".
+
+# Anything else: the Naitalk Call page.
+RewriteCond %{REQUEST_URI} !^/\.well-known/
+RewriteRule ^ https://www.naitalk.com/naitalk-call [R=302,L]
