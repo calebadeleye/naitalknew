@@ -216,6 +216,7 @@ Route::prefix('v1')->group(function (): void {
     // Root-run tools on the Naitalk Call server only (Bearer NAITALK_CALL_SYNC_TOKEN).
     Route::get('/internal/naitalk-call/config', [NaitalkCallSyncController::class, 'config'])->middleware('throttle:60,1');
     Route::post('/internal/naitalk-call/synced', [NaitalkCallSyncController::class, 'synced'])->middleware('throttle:60,1');
+    Route::post('/internal/naitalk-call/adopt', [NaitalkCallSyncController::class, 'adopt'])->middleware('throttle:10,1');
     Route::post('/internal/naitalk-call/events', [NaitalkCallSyncController::class, 'events']);
 
     Route::get('/public/blog', [ContentController::class, 'blogIndex']);
@@ -518,6 +519,8 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/naitalk-call/tenants', [NaitalkCallTenantController::class, 'store']);
             Route::put('/naitalk-call/tenants/{tenant}', [NaitalkCallTenantController::class, 'update']);
             Route::post('/naitalk-call/tenants/{tenant}/rotate-key', [NaitalkCallTenantController::class, 'rotateKey']);
+            Route::post('/naitalk-call/tenants/{tenant}/revoke-key', [NaitalkCallTenantController::class, 'revokeKey']);
+            Route::get('/naitalk-call/clients', [NaitalkCallTenantController::class, 'searchClients']);
             Route::post('/naitalk-call/exchange-rate/refresh', [NaitalkCallTenantController::class, 'refreshExchangeRate']);
         });
     });

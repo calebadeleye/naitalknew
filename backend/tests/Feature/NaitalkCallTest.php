@@ -77,7 +77,8 @@ class NaitalkCallTest extends TestCase
         $admin = $this->domainAdminToken();
         AppSetting::put(CbnExchangeRate::SETTING, ['rate' => 1500, 'date' => '2026-10-26', 'source' => 'CBN']);
 
-        $free = $this->withToken($admin)->postJson('/api/v1/admin/naitalk-call/tenants', ['business_name' => 'Tester', 'room_prefix' => 'tester', 'plan' => 'free'])
+        $owner = $this->clientWithUser('owner@tester.test');
+        $free = $this->withToken($admin)->postJson('/api/v1/admin/naitalk-call/tenants', ['client_id' => $owner->id, 'business_name' => 'Tester', 'room_prefix' => 'tester', 'plan' => 'free'])
             ->assertCreated();
         $this->assertSame('Free', $free->json('data.monthly_price_usd'));
         $this->assertNull($free->json('data.monthly_price_ngn'));
@@ -107,7 +108,13 @@ class NaitalkCallTest extends TestCase
         $this->seed();
         $admin = $this->domainAdminToken();
 
+        $tyf = $this->clientWithUser('accounts@thinkyorubafirst.org');
+        // Only registered client accounts can subscribe.
+        $this->withToken($admin)->postJson('/api/v1/admin/naitalk-call/tenants', ['business_name' => 'Acme Clinics', 'room_prefix' => 'acme'])
+            ->assertStatus(422)->assertJsonValidationErrors('client_id');
+
         $created = $this->withToken($admin)->postJson('/api/v1/admin/naitalk-call/tenants', [
+            'client_id' => $tyf->id,
             'business_name' => 'Acme Clinics',
             'contact_email' => 'ops@acme.test',
             'room_prefix' => 'acme',
@@ -128,9 +135,9 @@ class NaitalkCallTest extends TestCase
         // Secrets are encrypted at rest.
         $this->assertNotSame($secret, \DB::table('naitalk_call_tenants')->where('api_key', $key)->value('api_secret'));
 
-        $this->withToken($admin)->postJson('/api/v1/admin/naitalk-call/tenants', ['business_name' => 'Copycat', 'room_prefix' => 'acme'])
+        $this->withToken($admin)->postJson('/api/v1/admin/naitalk-call/tenants', ['client_id' => $tyf->id, 'business_name' => 'Copycat', 'room_prefix' => 'acme'])
             ->assertStatus(422)->assertJsonValidationErrors('room_prefix');
-        $this->withToken($admin)->postJson('/api/v1/admin/naitalk-call/tenants', ['business_name' => 'Bad', 'room_prefix' => 'Bad Prefix!'])
+        $this->withToken($admin)->postJson('/api/v1/admin/naitalk-call/tenants', ['client_id' => $tyf->id, 'business_name' => 'Bad', 'room_prefix' => 'Bad Prefix!'])
             ->assertStatus(422)->assertJsonValidationErrors('room_prefix');
     }
 
@@ -235,22 +242,53 @@ class NaitalkCallTest extends TestCase
         ]);
     }
 
-    public function test_admin_links_a_business_to_a_client_account_by_email(): void
+    public function test_admin_finds_a_client_account_and_files_an_existing_app_under_it(): void
     {
         $this->seed();
         $admin = $this->domainAdminToken();
-        $client = $this->clientWithUser('owner@acme.test');
-        $tenant = NaitalkCallTenant::query()->create(['business_name' => 'Acme', 'room_prefix' => 'acme', 'plan' => 'starter']);
+        $tyf = $this->clientWithUser('accounts@thinkyorubafirst.org');
+        $tyf->update(['company_name' => 'Think Yoruba First']);
+        $cradle = NaitalkCallTenant::query()->where('room_prefix', 'cradle')->sole();
 
-        $this->withToken($admin)->putJson("/api/v1/admin/naitalk-call/tenants/{$tenant->id}", ['business_name' => 'Acme', 'room_prefix' => 'acme', 'client_email' => 'nobody@acme.test'])
-            ->assertStatus(422)->assertJsonValidationErrors('client_email');
-        $this->withToken($admin)->putJson("/api/v1/admin/naitalk-call/tenants/{$tenant->id}", ['business_name' => 'Acme', 'room_prefix' => 'acme', 'client_email' => 'owner@acme.test'])
-            ->assertOk()->assertJsonPath('data.client.id', $client->id);
-        // Saving without client_email keeps the link; null removes it.
-        $this->withToken($admin)->putJson("/api/v1/admin/naitalk-call/tenants/{$tenant->id}", ['business_name' => 'Acme Ltd', 'room_prefix' => 'acme'])
-            ->assertOk()->assertJsonPath('data.client.id', $client->id);
-        $this->withToken($admin)->putJson("/api/v1/admin/naitalk-call/tenants/{$tenant->id}", ['business_name' => 'Acme Ltd', 'room_prefix' => 'acme', 'client_email' => null])
-            ->assertOk()->assertJsonPath('data.client', null);
+        $this->withToken($admin)->getJson('/api/v1/admin/naitalk-call/clients?q=y')->assertOk()->assertJsonPath('data', []);
+        $found = $this->withToken($admin)->getJson('/api/v1/admin/naitalk-call/clients?q=yoruba')->assertOk()->json('data');
+        $this->assertSame([['id' => $tyf->id, 'name' => 'Think Yoruba First', 'email' => 'accounts@thinkyorubafirst.org', 'client_code' => $tyf->client_code]], $found);
+        $this->assertCount(1, $this->withToken($admin)->getJson('/api/v1/admin/naitalk-call/clients?q=accounts@think')->json('data'));
+
+        // Cradle is TYF's app: same key, same rooms, now under TYF's account.
+        $this->withToken($admin)->putJson("/api/v1/admin/naitalk-call/tenants/{$cradle->id}", ['client_id' => $tyf->id, 'business_name' => 'Cradle', 'room_prefix' => 'cradle'])
+            ->assertOk()->assertJsonPath('data.client.name', 'Think Yoruba First')->assertJsonPath('data.key_source', 'server');
+        $this->withToken($admin)->putJson("/api/v1/admin/naitalk-call/tenants/{$cradle->id}", ['client_id' => 999999, 'business_name' => 'Cradle', 'room_prefix' => 'cradle'])
+            ->assertStatus(422)->assertJsonValidationErrors('client_id');
+    }
+
+    public function test_keys_can_be_revoked_and_cradles_key_once_handed_to_naitalk(): void
+    {
+        $this->seed();
+        $admin = $this->domainAdminToken();
+        $acme = NaitalkCallTenant::query()->create(['business_name' => 'Acme', 'room_prefix' => 'acme', 'webhook_url' => 'https://acme.test/hook']);
+        $acme->issueKey();
+        $cradle = NaitalkCallTenant::query()->where('room_prefix', 'cradle')->sole();
+        $config = fn () => $this->withToken(self::SYNC_TOKEN)->getJson('/api/v1/internal/naitalk-call/config')->json();
+
+        $this->withToken($admin)->postJson("/api/v1/admin/naitalk-call/tenants/{$acme->id}/revoke-key")->assertOk()->assertJsonPath('data.revoked_at', fn ($at) => $at !== null);
+        $this->assertSame([], $config()['keys'], 'a revoked key leaves livekit.yaml');
+        $this->assertNotContains('acme', array_column($config()['routes'], 'prefix'));
+        $this->withToken($admin)->postJson("/api/v1/admin/naitalk-call/tenants/{$acme->id}/revoke-key")->assertStatus(422);
+        // A new key brings it back.
+        $this->withToken($admin)->postJson("/api/v1/admin/naitalk-call/tenants/{$acme->id}/rotate-key")->assertOk()->assertJsonPath('data.revoked_at', null);
+        $this->assertCount(1, $config()['keys']);
+
+        // Cradle's key sits on the server: it has to be handed over first.
+        $this->withToken($admin)->postJson("/api/v1/admin/naitalk-call/tenants/{$cradle->id}/revoke-key")->assertStatus(422);
+        $this->withToken('wrong')->postJson('/api/v1/internal/naitalk-call/adopt', ['room_prefix' => 'cradle', 'api_key' => 'cradle1a2b3c4d', 'api_secret' => 'CradleSecret'])->assertUnauthorized();
+        $this->withToken(self::SYNC_TOKEN)->postJson('/api/v1/internal/naitalk-call/adopt', ['room_prefix' => 'cradle', 'api_key' => 'cradle1a2b3c4d', 'api_secret' => 'CradleSecret'])->assertOk();
+        $this->withToken(self::SYNC_TOKEN)->postJson('/api/v1/internal/naitalk-call/adopt', ['room_prefix' => 'cradle', 'api_key' => 'other', 'api_secret' => 'x'])->assertStatus(409);
+        $this->assertSame('CradleSecret', $config()['keys']['cradle1a2b3c4d'], 'same key and secret, so Cradle keeps working');
+        $this->assertSame('cradle1a2b3c4d', collect($config()['routes'])->firstWhere('prefix', 'cradle')['api_key']);
+
+        $this->withToken($admin)->postJson("/api/v1/admin/naitalk-call/tenants/{$cradle->id}/revoke-key")->assertOk();
+        $this->assertArrayNotHasKey('cradle1a2b3c4d', $config()['keys']);
     }
 
     public function test_clients_see_their_usage_dashboard_and_report_but_never_the_secret(): void

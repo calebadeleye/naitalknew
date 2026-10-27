@@ -11,13 +11,23 @@
 //      call, because a restart drops live calls. Otherwise it waits for the
 //      next run. --force restarts anyway; --dry-run only prints what changes.
 //
+// Webhooks are signed with Naitalk's own internal key (made here once), so
+// every customer key, Cradle's included, can be revoked from the admin.
+//
+// --adopt <room-prefix> [--key NAME]: hand a key that sits in livekit.yaml
+// outside the managed block (Cradle's) to Naitalk, unchanged, so the admin
+// can manage and revoke it. The app using it keeps working.
+//
 // The web app never writes these files: it only answers this script.
 import { execFileSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { chownSync, existsSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
-import { readKeys, readWebhookKey, renderConfig, signJwt } from "./lib.mjs";
+import { ensureInternalKey, readKeys, readUnmanagedKeys, readWebhookKey, renderConfig, signJwt } from "./lib.mjs";
 
-const args = new Set(process.argv.slice(2));
+const argv = process.argv.slice(2);
+const args = new Set(argv);
+const option = (name) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : undefined);
 const env = { ...loadEnvFile(process.env.NAITALK_CALL_ENV || "/etc/naitalk-call/sync.env"), ...process.env };
 const API = (env.NAITALK_API_URL || "https://www.naitalk.com/api/v1").replace(/\/$/, "");
 const TOKEN = env.NAITALK_CALL_SYNC_TOKEN;
@@ -93,24 +103,44 @@ function pruneBackups(keep = 10) {
   readdirSync(dir).filter((name) => name.startsWith(prefix)).sort().slice(0, -keep).forEach((name) => unlinkSync(join(dir, name)));
 }
 
+/** Sends an unmanaged key (and its secret) to Naitalk for the business with that room prefix. */
+async function adopt(yaml, prefix) {
+  const unmanaged = readUnmanagedKeys(yaml);
+  const name = option("--key") ?? (Object.keys(unmanaged).length === 1 ? Object.keys(unmanaged)[0] : undefined);
+  if (!name || !unmanaged[name]) throw new Error(`--adopt: name the key with --key (unmanaged keys: ${Object.keys(unmanaged).join(", ") || "none"})`);
+  await api("/internal/naitalk-call/adopt", { method: "POST", body: JSON.stringify({ room_prefix: prefix, api_key: name, api_secret: unmanaged[name] }) });
+  console.log(`adopted ${name} for ${prefix}-; it moves into the managed keys now`);
+}
+
+const newInternalKey = () => ({ key: `ncinternal${randomBytes(5).toString("hex")}`, secret: randomBytes(36).toString("base64url").replace(/[-_]/g, "").slice(0, 48) });
+
 async function main() {
   if (!TOKEN) throw new Error("NAITALK_CALL_SYNC_TOKEN is not set (see /etc/naitalk-call/sync.env)");
   if (process.getuid?.() !== 0 && !args.has("--dry-run")) throw new Error("run as root");
 
-  const remote = await api("/internal/naitalk-call/config");
   const yaml = readFileSync(CONFIG, "utf8");
-  const inboundKey = readWebhookKey(yaml);
-  const inboundSecret = readKeys(yaml)[inboundKey];
-  if (!inboundKey || !inboundSecret) throw new Error("webhook.api_key in livekit.yaml has no matching key");
+  if (option("--adopt")) await adopt(yaml, option("--adopt"));
+  const remote = await api("/internal/naitalk-call/config");
+  const current = { key: readWebhookKey(yaml) };
+  current.secret = readKeys(yaml)[current.key];
+  if (!current.key || !current.secret) throw new Error("webhook.api_key in livekit.yaml has no matching key");
+  const internal = ensureInternalKey(yaml, newInternalKey);
+  // A business whose key is still kept on the server (Cradle, until adopted)
+  // checks LiveKit's own signature, so webhooks stay signed with that key until then.
+  const useInternal = remote.routes.every((route) => route.api_key);
 
-  // The router needs its routes before LiveKit starts sending to it.
-  const routes = `${JSON.stringify({ inbound: { api_key: inboundKey, api_secret: inboundSecret }, routes: remote.routes }, null, 2)}\n`;
+  // The router needs its routes before LiveKit starts sending to it. Until the
+  // restart, LiveKit still signs with the old key, so the router accepts both.
+  const inbound = [current, ...(useInternal ? [internal] : [])]
+    .filter((k, i, all) => all.findIndex((o) => o.key === k.key) === i)
+    .map((k) => ({ api_key: k.key, api_secret: k.secret }));
+  const routes = `${JSON.stringify({ inbound, routes: remote.routes }, null, 2)}\n`;
   if (!existsSync(ROUTES) || readFileSync(ROUTES, "utf8") !== routes) {
     if (args.has("--dry-run")) console.log(`would write ${ROUTES} (${remote.routes.length} routes)`);
     else writeAtomically(ROUTES, routes);
   }
 
-  const { yaml: next, skipped } = renderConfig(yaml, remote.keys, ROUTER_URL);
+  const { yaml: next, skipped } = renderConfig(internal.yaml, remote.keys, ROUTER_URL, useInternal ? internal.key : null);
   const count = Object.keys(remote.keys).length - skipped.length;
   const note = skipped.length ? ` Skipped (clash or bad characters): ${skipped.join(", ")}.` : "";
   if (next === yaml) return report("unchanged", `${count} managed key(s) already live.${note}`);

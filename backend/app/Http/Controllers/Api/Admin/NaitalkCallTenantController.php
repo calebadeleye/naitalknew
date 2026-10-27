@@ -13,7 +13,6 @@ use App\Services\NaitalkCall\CbnExchangeRate;
 use App\Services\NaitalkCall\NaitalkCallPricing;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 
 /**
  * Onboarding businesses onto Naitalk Call. This only records them and makes
@@ -36,7 +35,7 @@ class NaitalkCallTenantController extends Controller
             ->pluck('total', 'tenant_id');
 
         return response()->json([
-            'data' => NaitalkCallTenant::query()->with('client:id,company_name,billing_email')->orderBy('business_name')->get()
+            'data' => NaitalkCallTenant::query()->with('client.user:id,name,email')->orderBy('business_name')->get()
                 ->map(fn (NaitalkCallTenant $tenant) => $this->serialize($tenant, (int) ($seconds[$tenant->id] ?? 0))),
             'plans' => array_map(fn (array $plan) => [...$plan, 'monthly_ngn' => $plan['monthly_ngn_kobo'] === null ? null : Money::naira($plan['monthly_ngn_kobo'])], $this->pricing->plans()),
             'exchange_rate' => $this->pricing->exchangeRate(),
@@ -74,6 +73,49 @@ class NaitalkCallTenantController extends Controller
         }
     }
 
+    /** Registered client accounts matching a name, email or client code, for onboarding. */
+    public function searchClients(Request $request)
+    {
+        $q = trim((string) $request->validate(['q' => ['nullable', 'string', 'max:100']])['q'] ?? '');
+        if (mb_strlen($q) < 2) {
+            return response()->json(['data' => []]);
+        }
+        $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $q).'%';
+
+        return response()->json([
+            'data' => Client::query()->with('user:id,name,email')
+                ->where(fn ($w) => $w->where('company_name', 'like', $like)->orWhere('billing_email', 'like', $like)->orWhere('client_code', 'like', $like)
+                    ->orWhereHas('user', fn ($u) => $u->where('email', 'like', $like)->orWhere('name', 'like', $like)))
+                ->orderBy('company_name')->limit(10)->get()
+                ->map(fn (Client $c) => self::clientSummary($c)),
+        ]);
+    }
+
+    /**
+     * Takes the key out of livekit.yaml at the next server sync (within minutes,
+     * once no calls are live): apps using it can no longer connect. A new key
+     * can be issued later.
+     */
+    public function revokeKey(Request $request, NaitalkCallTenant $tenant)
+    {
+        if ($tenant->key_source === 'server') {
+            return response()->json(['message' => 'This key is still kept on the server. Hand it to Naitalk first (sync.mjs --adopt '.$tenant->room_prefix.'), then revoke it here.'], 422);
+        }
+        if (! $tenant->api_key || $tenant->revoked_at) {
+            return response()->json(['message' => 'This app has no live key to revoke.'], 422);
+        }
+
+        $tenant->forceFill(['revoked_at' => now()])->save();
+        $this->audit($request, 'naitalk_call_key_revoked', "Revoked the Naitalk Call key {$tenant->api_key} of {$tenant->business_name}.", null, $tenant);
+
+        return response()->json(['data' => $this->serialize($tenant->refresh())]);
+    }
+
+    private static function clientSummary(Client $c): array
+    {
+        return ['id' => $c->id, 'name' => $c->company_name ?: $c->user?->name, 'email' => $c->user?->email ?: $c->billing_email, 'client_code' => $c->client_code];
+    }
+
     /** New key and secret; the old pair stops working at the next server sync. */
     public function rotateKey(Request $request, NaitalkCallTenant $tenant)
     {
@@ -91,11 +133,11 @@ class NaitalkCallTenantController extends Controller
     private function validated(Request $request, ?NaitalkCallTenant $tenant = null): array
     {
         $payload = $request->validate([
-            // Links the business to a client account (their usage dashboard and alerts); empty unlinks.
-            'client_email' => ['sometimes', 'nullable', 'email', 'max:190'],
+            // Only registered client accounts subscribe; existing apps may still be unlinked (Cradle at first).
+            'client_id' => [...($tenant ? ['sometimes', 'nullable'] : ['required']), 'integer', 'exists:clients,id'],
+            // The app's name, e.g. "Cradle": a client can have several apps.
             'business_name' => ['required', 'string', 'max:120'],
-            'contact_email' => ['nullable', 'email', 'max:190'],
-            'client_id' => ['nullable', 'integer', 'exists:clients,id'],
+            'contact_email' => ['sometimes', 'nullable', 'email', 'max:190'],
             'plan' => ['sometimes', Rule::in(array_keys(config('naitalk_call.plans')))],
             'monthly_price_usd_cents' => ['sometimes', 'integer', 'min:0'],
             'status' => ['sometimes', Rule::in(NaitalkCallTenant::STATUSES)],
@@ -104,17 +146,6 @@ class NaitalkCallTenantController extends Controller
             'webhook_url' => ['nullable', 'url', 'max:255'],
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
-
-        if (array_key_exists('client_email', $payload)) {
-            $email = $payload['client_email'];
-            unset($payload['client_email']);
-            $payload['client_id'] = $email === null ? null : Client::query()
-                ->where('billing_email', $email)->orWhereHas('user', fn ($q) => $q->where('email', $email))
-                ->value('id');
-            if ($email !== null && $payload['client_id'] === null) {
-                throw ValidationException::withMessages(['client_email' => 'No client account has that email.']);
-            }
-        }
 
         $plan = $payload['plan'] ?? ($tenant ? null : config('naitalk_call.default_plan'));
         if ($plan !== null && ! array_key_exists('monthly_price_usd_cents', $payload) && $plan !== $tenant?->plan) {
@@ -143,7 +174,8 @@ class NaitalkCallTenantController extends Controller
             'id' => $tenant->id,
             'business_name' => $tenant->business_name,
             'contact_email' => $tenant->contact_email,
-            'client' => $tenant->client ? ['id' => $tenant->client->id, 'name' => $tenant->client->company_name, 'email' => $tenant->client->billing_email] : null,
+            'client' => $tenant->client ? self::clientSummary($tenant->client) : null,
+            'revoked_at' => $tenant->revoked_at?->toIso8601String(),
             'plan' => $tenant->plan,
             'monthly_price_usd_cents' => $tenant->monthly_price_usd_cents,
             'monthly_price_usd' => $price['monthly_usd'],

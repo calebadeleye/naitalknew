@@ -5,6 +5,10 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 export const MANAGED_BEGIN = "# BEGIN naitalk-call managed keys";
 export const MANAGED_END = "# END naitalk-call managed keys";
+// Naitalk's own key, used only to sign webhooks to the router. Created once by
+// sync.mjs and kept; no customer ever holds it, so any customer key can be revoked.
+export const INTERNAL_BEGIN = "# BEGIN naitalk-call internal key";
+export const INTERNAL_END = "# END naitalk-call internal key";
 
 const b64url = (input) => Buffer.from(input).toString("base64url");
 
@@ -88,6 +92,51 @@ export function readKeys(yaml) {
   return keys;
 }
 
+/** [start, end) indexes, within `lines`, of the block between two marker comments, or null. */
+function markedBlock(lines, begin, end) {
+  const b = lines.findIndex((line) => line.trim() === begin);
+  const e = lines.findIndex((line) => line.trim() === end);
+  if ((b < 0) !== (e < 0) || e < b) throw new Error(`livekit.yaml markers "${begin}" are unbalanced`);
+  return b < 0 ? null : [b, e + 1];
+}
+
+/** Keys under `keys:` that Naitalk neither manages nor owns (Cradle's, before it is adopted). */
+export function readUnmanagedKeys(yaml) {
+  const lines = yaml.split("\n");
+  const block = topLevelBlock(lines, "keys");
+  if (!block) return {};
+  let body = lines.slice(block[0] + 1, block[1]);
+  for (const [begin, end] of [[MANAGED_BEGIN, MANAGED_END], [INTERNAL_BEGIN, INTERNAL_END]]) {
+    const m = markedBlock(body, begin, end);
+    if (m) body = [...body.slice(0, m[0]), ...body.slice(m[1])];
+  }
+  return readKeys(["keys:", ...body].join("\n"));
+}
+
+/** The internal webhook-signing key: { key, secret }, or null if not created yet. */
+export function readInternalKey(yaml) {
+  const lines = yaml.split("\n");
+  const block = topLevelBlock(lines, "keys");
+  const body = block ? lines.slice(block[0] + 1, block[1]) : [];
+  const m = markedBlock(body, INTERNAL_BEGIN, INTERNAL_END);
+  if (!m) return null;
+  const [[key, secret] = []] = Object.entries(readKeys(["keys:", ...body.slice(m[0], m[1])].join("\n")));
+  return key ? { key, secret } : null;
+}
+
+/** livekit.yaml with an internal key block added at the top of `keys:`, if it has none. */
+export function ensureInternalKey(yaml, generate) {
+  const existing = readInternalKey(yaml);
+  if (existing) return { yaml, ...existing };
+  const { key, secret } = generate();
+  const lines = yaml.split("\n");
+  const block = topLevelBlock(lines, "keys");
+  if (!block) throw new Error("livekit.yaml has no top-level keys: block");
+  const indent = (lines.slice(block[0] + 1, block[1]).find((l) => l.trim() && !l.trim().startsWith("#")) || "  x").match(/^\s*/)[0];
+  lines.splice(block[0] + 1, 0, `${indent}${INTERNAL_BEGIN}`, `${indent}${key}: ${secret}`, `${indent}${INTERNAL_END}`);
+  return { yaml: lines.join("\n"), key, secret };
+}
+
 /** webhook.api_key: the key LiveKit signs every webhook with. */
 export function readWebhookKey(yaml) {
   const lines = yaml.split("\n");
@@ -105,7 +154,7 @@ export function readWebhookKey(yaml) {
  * pointed at `webhookUrl`. Keys that would clash with a key Naitalk does not
  * manage are left out and listed in `skipped`.
  */
-export function renderConfig(yaml, managed, webhookUrl) {
+export function renderConfig(yaml, managed, webhookUrl, webhookKey = null) {
   const lines = yaml.split("\n");
 
   const keysBlock = topLevelBlock(lines, "keys");
@@ -115,7 +164,12 @@ export function renderConfig(yaml, managed, webhookUrl) {
   const begin = body.findIndex((line) => line.trim() === MANAGED_BEGIN);
   const end = body.findIndex((line) => line.trim() === MANAGED_END);
   if ((begin < 0) !== (end < 0) || end < begin) throw new Error("livekit.yaml managed key markers are unbalanced");
-  const unmanaged = begin < 0 ? body : [...body.slice(0, begin), ...body.slice(end + 1)];
+  // A key that is now managed with the very same secret was adopted: its old line moves into the managed block.
+  const adopted = (line) => {
+    const m = line.match(/^\s+([A-Za-z0-9_-]+):\s*"?([^\s"#]+)"?\s*(#.*)?$/);
+    return m && managed[m[1]] === m[2];
+  };
+  const unmanaged = (begin < 0 ? body : [...body.slice(0, begin), ...body.slice(end + 1)]).filter((line) => !adopted(line));
   const indent = (unmanaged.find((line) => line.trim() !== "" && !line.trim().startsWith("#")) || "  x").match(/^\s*/)[0];
 
   const taken = new Set(Object.keys(readKeys(["keys:", ...unmanaged].join("\n"))));
@@ -140,5 +194,14 @@ export function renderConfig(yaml, managed, webhookUrl) {
   const itemIndent = out[urlsAt + 1]?.match(/^(\s+)-\s/)?.[1] ?? `${out[urlsAt].match(/^\s*/)[0]}  `;
   out.splice(urlsAt + 1, itemsEnd - urlsAt - 1, `${itemIndent}- ${webhookUrl}`);
 
-  return { yaml: out.join("\n"), skipped };
+  if (webhookKey) {
+    const keyAt = out.findIndex((line, i) => i > hookBlock[0] && i < hookBlock[1] && /^\s+api_key:/.test(line));
+    if (keyAt < 0) throw new Error("livekit.yaml webhook: block has no api_key");
+    out[keyAt] = out[keyAt].replace(/(api_key:\s*).*/, `$1${webhookKey}`);
+  }
+  const result = out.join("\n");
+  // LiveKit refuses to start if webhooks are signed with a key it doesn't have.
+  if (!readKeys(result)[readWebhookKey(result)]) throw new Error("webhook.api_key would name a key that is not in keys:");
+
+  return { yaml: result, skipped };
 }

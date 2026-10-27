@@ -24,7 +24,7 @@ class NaitalkCallUsageAlerts
     public function check(): int
     {
         $plans = collect(config('naitalk_call.plans'))->filter(fn (array $plan) => ! empty($plan['usage_alerts']))->keys()->all();
-        $tenants = NaitalkCallTenant::query()->with('client.user')->where('status', 'active')->whereIn('plan', $plans)->get();
+        $tenants = NaitalkCallTenant::query()->with('client.user')->where('status', 'active')->whereNull('revoked_at')->whereIn('plan', $plans)->get();
         $minutes = $this->usage->minutesThisMonth($tenants->pluck('id')->all());
         $period = now()->format('Y-m');
         $sent = 0;

@@ -18,6 +18,32 @@ This folder holds the tools for selling it to businesses. Cradle is the first cu
 | Key sync (root, every 5 min) | `sync.mjs` → `naitalk-call-sync.timer` |
 | Webhook router | `router.mjs` → `naitalk-call-router.service` on 127.0.0.1:7890 |
 
+### Clients, apps and keys
+
+Whoever subscribes is a **registered client account** (for Cradle: Think Yoruba
+First, TYF). Each client can have several **apps** (Cradle, thinkyorubafirst.org,
+other TYF subdomains), and each app has its own key, room prefix, webhook and
+plan. In the admin, **Add an app for a client** starts with a search of the
+registered client accounts; there is no free-text business entry. Existing
+apps are filed under a client with **Link client** / **Change client**.
+
+**Revoking a key** (admin, after a confirmation) takes it out of livekit.yaml
+at the next sync, and the app's webhooks stop. **New key** issues a fresh one.
+
+Webhooks are signed with Naitalk's own internal key (`# BEGIN naitalk-call
+internal key`, created by the sync), so no customer key is needed for signing
+and every customer key can be revoked. Cradle's key was set up by hand outside
+the managed block, so it must be handed to Naitalk once, unchanged:
+
+```bash
+ssh root@mail.naitalk.com node /opt/naitalk-call/sync.mjs --adopt cradle
+```
+
+After that its line moves into the managed block (same key, same secret, so
+`/home/cradle/app/.env` keeps working), webhooks switch to the internal key
+when no calls are live, and Cradle's key can be revoked from the admin like
+any other.
+
 ### How a new key reaches livekit.yaml
 
 The web app never writes root files. `sync.mjs` runs as root on the server. It pulls

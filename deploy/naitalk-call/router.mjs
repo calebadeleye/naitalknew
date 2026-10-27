@@ -5,9 +5,8 @@
 // events here instead. The router:
 //   - checks LiveKit's signature (webhook.api_key in livekit.yaml);
 //   - sends the event only to the business whose room prefix matches the room
-//     ("acme-…" → Acme). A business on its own Naitalk key gets the event
-//     re-signed with that key; a business whose key LiveKit signs with
-//     (Cradle) gets LiveKit's original signature unchanged;
+//     ("acme-…" → Acme), re-signed with that business's own key (a business
+//     whose key is still kept on the server gets LiveKit's original signature);
 //   - drops events for rooms no business owns;
 //   - passes participant_left to Naitalk for per-business minutes.
 // Routes come from /etc/naitalk-call/routes.json, written by sync.mjs.
@@ -49,7 +48,9 @@ function meter(event, body) {
 /** What happens to one webhook delivery: [status for LiveKit, log line]. */
 export async function handle(body, headers, cfg, send = fetch) {
   const authorization = headers.authorization || "";
-  if (!verifyWebhook(body, authorization, cfg.inbound.api_key, cfg.inbound.api_secret)) return [401, "rejected: bad signature"];
+  // Usually one signing key; two while a key change waits for LiveKit to restart.
+  const signers = [].concat(cfg.inbound);
+  if (!signers.some((k) => verifyWebhook(body, authorization, k.api_key, k.api_secret))) return [401, "rejected: bad signature"];
 
   let event;
   try {

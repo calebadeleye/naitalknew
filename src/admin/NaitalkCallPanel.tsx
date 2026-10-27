@@ -16,9 +16,77 @@ export type NaitalkCallTenantRow = {
   webhook_url: string | null;
   minutes_this_month: number | null;
   included_minutes: number;
-  /** The client account that sees this business's usage dashboard and alerts. */
-  client: { id: number; name: string | null; email: string | null } | null;
+  /** The client account that owns this app: who subscribes and pays (TYF for Cradle). */
+  client: ClientOption | null;
+  revoked_at: string | null;
 };
+
+export type ClientOption = { id: number; name: string | null; email: string | null; client_code: string | null };
+
+export const clientLabel = (c: ClientOption) => c.name || c.email || `Client #${c.id}`;
+
+/**
+ * Search registered client accounts by company, email or client code. Only
+ * registered accounts can subscribe, so there is no free-text entry.
+ */
+export function ClientPicker({ adminToken, value, onChange, label = "Client account" }: { adminToken: string; value: ClientOption | null; onChange: (client: ClientOption | null) => void; label?: string }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<ClientOption[] | null>(null);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setResults(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      laravelApi<{ data: ClientOption[] }>(`/api/v1/admin/naitalk-call/clients?q=${encodeURIComponent(q)}`, adminToken)
+        .then((response) => setResults(response.data))
+        .catch(() => setResults([]));
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [query, adminToken]);
+
+  if (value) {
+    return (
+      <div className="flex items-center justify-between gap-2 rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-sm" data-testid="client-picked">
+        <span>
+          <span className="font-bold">{clientLabel(value)}</span>
+          <span className="text-white/55"> · {[value.email, value.client_code].filter(Boolean).join(" · ")}</span>
+        </span>
+        <button type="button" className="text-xs font-bold text-primary" onClick={() => onChange(null)}>Change</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <input
+        aria-label={label}
+        className="w-full"
+        placeholder="Search by company, email or client code"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+      />
+      {results && (
+        <ul className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-white/15 bg-[#0b130b] text-sm shadow-xl" role="listbox">
+          {results.length === 0 ? (
+            <li className="px-3 py-2 text-white/55">No registered client matches. They need a client account on NAI TALK first.</li>
+          ) : (
+            results.map((client) => (
+              <li key={client.id}>
+                <button type="button" role="option" aria-selected={false} className="w-full px-3 py-2 text-left hover:bg-white/10" onClick={() => onChange(client)}>
+                  <span className="font-bold">{clientLabel(client)}</span>
+                  <span className="block text-xs text-white/55">{[client.email, client.client_code].filter(Boolean).join(" · ")}</span>
+                </button>
+              </li>
+            ))
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 /** "12,300 of 50,000 (25%)" and how full the plan is, for the usage column. */
 export function usageSummary(used: number, included: number): { text: string; percent: number } {
@@ -41,14 +109,16 @@ export function roomPrefixFor(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32).replace(/-+$/, "");
 }
 
-/** Admin: businesses on Naitalk Call — onboard, issue keys, suspend, see minutes. */
+/** Admin: client accounts' apps on Naitalk Call — onboard, issue and revoke keys, suspend, see minutes. */
 export function NaitalkCallPanel({ adminToken }: { adminToken: string }) {
   const [data, setData] = useState<Payload | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [issued, setIssued] = useState<IssuedKey | null>(null);
   const [busyId, setBusyId] = useState<number | "new" | null>(null);
-  const emptyForm = { business_name: "", contact_email: "", room_prefix: "", webhook_url: "", plan: "starter" };
+  const emptyForm = { business_name: "", room_prefix: "", webhook_url: "", plan: "starter" };
   const [form, setForm] = useState(emptyForm);
+  const [formClient, setFormClient] = useState<ClientOption | null>(null);
+  const [linking, setLinking] = useState<number | null>(null);
   const [prefixTouched, setPrefixTouched] = useState(false);
 
   const load = useCallback(() => {
@@ -68,10 +138,11 @@ export function NaitalkCallPanel({ adminToken }: { adminToken: string }) {
     try {
       const response = await laravelApi<{ data: NaitalkCallTenantRow; api_secret: string }>("/api/v1/admin/naitalk-call/tenants", adminToken, {
         method: "POST",
-        body: JSON.stringify({ ...form, contact_email: form.contact_email || null, webhook_url: form.webhook_url || null }),
+        body: JSON.stringify({ ...form, client_id: formClient?.id, webhook_url: form.webhook_url || null }),
       });
       setIssued({ business: response.data.business_name, apiKey: response.data.api_key ?? "", secret: response.api_secret });
       setForm(emptyForm);
+      setFormClient(null);
       setPrefixTouched(false);
       load();
     } catch (error) {
@@ -81,13 +152,13 @@ export function NaitalkCallPanel({ adminToken }: { adminToken: string }) {
     }
   };
 
-  const save = async (row: NaitalkCallTenantRow, changes: Partial<Pick<NaitalkCallTenantRow, "status" | "plan">> & { client_email?: string | null }) => {
+  const save = async (row: NaitalkCallTenantRow, changes: Partial<Pick<NaitalkCallTenantRow, "status" | "plan">> & { client_id?: number | null }) => {
     setBusyId(row.id);
     setNotice(null);
     try {
       await laravelApi(`/api/v1/admin/naitalk-call/tenants/${row.id}`, adminToken, {
         method: "PUT",
-        body: JSON.stringify({ business_name: row.business_name, room_prefix: row.room_prefix, contact_email: row.contact_email, webhook_url: row.webhook_url, ...changes }),
+        body: JSON.stringify({ business_name: row.business_name, room_prefix: row.room_prefix, webhook_url: row.webhook_url, ...changes }),
       });
       load();
     } catch (error) {
@@ -107,6 +178,25 @@ export function NaitalkCallPanel({ adminToken }: { adminToken: string }) {
       load();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Could not issue a new key.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const revoke = async (row: NaitalkCallTenantRow) => {
+    const ok = window.confirm(
+      `Revoke the key ${row.api_key} of ${row.business_name}${row.client ? ` (${clientLabel(row.client)})` : ""}?\n\n` +
+        `${row.business_name} will stop connecting to Naitalk Call once the server syncs (within minutes, as soon as no calls are live), ` +
+        `and its webhooks stop. Calls in its app fail until you issue a new key and they put it in their app.`,
+    );
+    if (!ok) return;
+    setBusyId(row.id);
+    setNotice(null);
+    try {
+      await laravelApi(`/api/v1/admin/naitalk-call/tenants/${row.id}/revoke-key`, adminToken, { method: "POST" });
+      load();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not revoke the key.");
     } finally {
       setBusyId(null);
     }
@@ -207,7 +297,7 @@ export function NaitalkCallPanel({ adminToken }: { adminToken: string }) {
         <table className="w-full min-w-[760px] text-left text-xs">
           <thead className="text-white/45">
             <tr>
-              <th className="py-1.5 font-bold">Business</th>
+              <th className="py-1.5 font-bold">Client / app</th>
               <th className="py-1.5 font-bold">Rooms</th>
               <th className="py-1.5 font-bold">API key</th>
               <th className="py-1.5 font-bold">Plan</th>
@@ -218,14 +308,22 @@ export function NaitalkCallPanel({ adminToken }: { adminToken: string }) {
           </thead>
           <tbody className="text-white/75">
             {data.data.map((row) => (
-              <tr key={row.id} className="border-t border-white/10 align-top">
+              <React.Fragment key={row.id}>
+              <tr className="border-t border-white/10 align-top">
                 <td className="py-2">
-                  <span className="font-bold text-white">{row.business_name}</span>
-                  {row.contact_email && <span className="block text-white/45">{row.contact_email}</span>}
-                  <span className="block text-white/45">{row.client ? `Client: ${row.client.name ?? row.client.email ?? `#${row.client.id}`}` : "No client account linked"}</span>
+                  {row.client ? <span className="font-bold text-white">{clientLabel(row.client)}</span> : <span className="font-bold text-yellow-200">No client account</span>}
+                  <span className="block text-white/60">App: {row.business_name}</span>
                 </td>
                 <td className="py-2 font-mono">{row.room_prefix}-…</td>
-                <td className="py-2 font-mono">{row.key_source === "server" ? <span className="text-white/45">kept on server</span> : row.api_key}</td>
+                <td className="py-2 font-mono">
+                  {row.key_source === "server" ? (
+                    <span className="text-white/45">kept on server</span>
+                  ) : row.revoked_at ? (
+                    <span className="text-red-300"><s>{row.api_key}</s> revoked</span>
+                  ) : (
+                    row.api_key
+                  )}
+                </td>
                 <td className="py-2">
                   <select
                     aria-label={`Plan for ${row.business_name}`}
@@ -261,15 +359,7 @@ export function NaitalkCallPanel({ adminToken }: { adminToken: string }) {
                         Activate
                       </button>
                     )}
-                    <button
-                      type="button"
-                      className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
-                      disabled={busyId === row.id}
-                      onClick={() => {
-                        const email = window.prompt(`Client account email for ${row.business_name} (their usage dashboard and alerts). Leave empty to unlink.`, row.client?.email ?? "");
-                        if (email !== null) void save(row, { client_email: email.trim() || null });
-                      }}
-                    >
+                    <button type="button" className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]" disabled={busyId === row.id} onClick={() => setLinking(linking === row.id ? null : row.id)}>
                       {row.client ? "Change client" : "Link client"}
                     </button>
                     {row.key_source === "managed" && (
@@ -277,18 +367,58 @@ export function NaitalkCallPanel({ adminToken }: { adminToken: string }) {
                         <KeyRound className="h-3.5 w-3.5" /> New key
                       </button>
                     )}
+                    {row.key_source === "server" ? (
+                      <button
+                        type="button"
+                        className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                        disabled
+                        title={`This key is still kept on the server. Hand it to Naitalk first (sync.mjs --adopt ${row.room_prefix}), then it can be revoked here.`}
+                      >
+                        Revoke key
+                      </button>
+                    ) : (
+                      row.api_key && !row.revoked_at && (
+                        <button type="button" className="btn-outline !min-h-9 !border-red-400/50 !px-3 !py-1.5 !text-[10px] !text-red-300" disabled={busyId === row.id} onClick={() => void revoke(row)}>
+                          Revoke key
+                        </button>
+                      )
+                    )}
                   </div>
                 </td>
               </tr>
+              {linking === row.id && (
+                <tr>
+                  <td colSpan={7} className="pb-3">
+                    <div className="max-w-xl">
+                      <p className="mb-1 text-xs text-white/55">Which client account owns {row.business_name}? Its usage dashboard and alerts go to them.</p>
+                      <ClientPicker
+                        adminToken={adminToken}
+                        label={`Client account for ${row.business_name}`}
+                        value={null}
+                        onChange={(client) => {
+                          if (!client) return;
+                          setLinking(null);
+                          void save(row, { client_id: client.id });
+                        }}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              )}
+              </React.Fragment>
             ))}
           </tbody>
         </table>
       </div>
 
       <form className="mt-6 grid gap-3 rounded-lg border border-white/10 bg-black/20 p-4 sm:grid-cols-2" onSubmit={(event) => void onboard(event)}>
-        <h3 className="text-base font-black sm:col-span-2">Onboard a business</h3>
+        <h3 className="text-base font-black sm:col-span-2">Add an app for a client</h3>
+        <div className="admin-field sm:col-span-2">
+          <span>Client account (must be registered)</span>
+          <ClientPicker adminToken={adminToken} value={formClient} onChange={setFormClient} />
+        </div>
         <label className="admin-field">
-          <span>Business name</span>
+          <span>App name (e.g. Cradle)</span>
           <input
             required
             maxLength={120}
@@ -298,10 +428,6 @@ export function NaitalkCallPanel({ adminToken }: { adminToken: string }) {
               setForm((current) => ({ ...current, business_name, room_prefix: prefixTouched ? current.room_prefix : roomPrefixFor(business_name) }));
             }}
           />
-        </label>
-        <label className="admin-field">
-          <span>Contact email</span>
-          <input type="email" maxLength={190} value={form.contact_email} onChange={(event) => setForm((current) => ({ ...current, contact_email: event.target.value }))} />
         </label>
         <label className="admin-field">
           <span>Room prefix (rooms are named prefix-…)</span>
@@ -329,7 +455,7 @@ export function NaitalkCallPanel({ adminToken }: { adminToken: string }) {
           </select>
         </label>
         <div className="sm:col-span-2">
-          <button type="submit" className="btn-primary" disabled={busyId === "new" || !form.business_name.trim() || !form.room_prefix}>
+          <button type="submit" className="btn-primary" disabled={busyId === "new" || !formClient || !form.business_name.trim() || !form.room_prefix}>
             {busyId === "new" ? "Creating..." : `Create key — ${data.plans.find((plan) => plan.id === form.plan)?.name ?? "Starter"}`}
           </button>
         </div>

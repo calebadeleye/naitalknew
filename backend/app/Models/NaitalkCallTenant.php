@@ -8,8 +8,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 /**
- * A business that uses Naitalk Call. Its rooms are named "<room_prefix>-…",
- * which is how webhooks and usage are matched back to it.
+ * One app on Naitalk Call (Cradle, a website…), owned by a client account,
+ * which is who signs up and pays. business_name is the app's name. Its rooms
+ * are named "<room_prefix>-…", which is how webhooks and usage find it.
  */
 class NaitalkCallTenant extends Model
 {
@@ -28,6 +29,7 @@ class NaitalkCallTenant extends Model
         'api_secret',
         'webhook_url',
         'notes',
+        'revoked_at',
     ];
 
     protected $hidden = ['api_secret'];
@@ -37,6 +39,7 @@ class NaitalkCallTenant extends Model
         return [
             'api_secret' => 'encrypted',
             'monthly_price_usd_cents' => 'integer',
+            'revoked_at' => 'datetime',
         ];
     }
 
@@ -62,9 +65,16 @@ class NaitalkCallTenant extends Model
             'key_source' => 'managed',
             'api_key' => 'nc'.Str::lower(Str::random(14)),
             'api_secret' => $secret,
+            'revoked_at' => null,
         ])->save();
 
         return $secret;
+    }
+
+    /** Its key is in livekit.yaml: active, not revoked, and managed by Naitalk. */
+    public function keyIsLive(): bool
+    {
+        return $this->status === 'active' && $this->revoked_at === null && $this->key_source === 'managed' && $this->api_key && $this->api_secret;
     }
 
     /** The tenant whose prefix is the longest match for this room, if any. */

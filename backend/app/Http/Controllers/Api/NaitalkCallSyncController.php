@@ -22,11 +22,11 @@ class NaitalkCallSyncController extends Controller
     {
         $this->authorizeServer($request);
 
-        $tenants = NaitalkCallTenant::query()->where('status', 'active')->orderBy('id')->get();
+        // Revoked keys drop out of livekit.yaml, and their apps' webhooks stop.
+        $tenants = NaitalkCallTenant::query()->where('status', 'active')->whereNull('revoked_at')->orderBy('id')->get();
 
         return response()->json([
-            'keys' => $tenants->where('key_source', 'managed')->filter(fn ($t) => $t->api_key && $t->api_secret)
-                ->mapWithKeys(fn ($t) => [$t->api_key => $t->api_secret]),
+            'keys' => $tenants->filter(fn ($t) => $t->keyIsLive())->mapWithKeys(fn ($t) => [$t->api_key => $t->api_secret]),
             'routes' => $tenants->filter(fn ($t) => $t->webhook_url)->values()->map(fn ($t) => [
                 'prefix' => $t->room_prefix,
                 'url' => $t->webhook_url,
@@ -36,6 +36,27 @@ class NaitalkCallSyncController extends Controller
                 'api_secret' => $t->key_source === 'managed' ? $t->api_secret : null,
             ]),
         ]);
+    }
+
+    /**
+     * sync.mjs --adopt: a key that was set up on the server by hand (Cradle's)
+     * becomes Naitalk-managed, with the same key and secret, so the app keeps
+     * working and the admin can revoke it.
+     */
+    public function adopt(Request $request)
+    {
+        $this->authorizeServer($request);
+        $payload = $request->validate([
+            'room_prefix' => ['required', 'string', 'exists:naitalk_call_tenants,room_prefix'],
+            'api_key' => ['required', 'string', 'max:64', 'regex:/^[A-Za-z0-9_-]+$/', Rule::unique('naitalk_call_tenants', 'api_key')],
+            'api_secret' => ['required', 'string', 'max:200', 'regex:/^[A-Za-z0-9_-]+$/'],
+        ]);
+        $tenant = NaitalkCallTenant::query()->where('room_prefix', $payload['room_prefix'])->sole();
+        abort_if($tenant->key_source !== 'server', 409, 'This app already has a Naitalk-managed key.');
+
+        $tenant->forceFill(['key_source' => 'managed', 'api_key' => $payload['api_key'], 'api_secret' => $payload['api_secret'], 'revoked_at' => null])->save();
+
+        return response()->json(['adopted' => $tenant->api_key]);
     }
 
     /** The sync script reports what it did, for the admin page. */

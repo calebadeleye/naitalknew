@@ -27,6 +27,7 @@ const cradle = {
   minutes_this_month: 4200,
   included_minutes: 5000,
   client: null,
+  revoked_at: null,
 };
 
 function jsonResponse(body: unknown, status = 200) {
@@ -75,29 +76,76 @@ describe("NaitalkCallPage", () => {
 });
 
 describe("NaitalkCallPanel", () => {
-  it("onboards a business on Starter by default and shows its secret once", async () => {
+  const tyf = { id: 9, name: "Think Yoruba First", email: "accounts@thinkyorubafirst.org", client_code: "CLT-TYF" };
+  const acme = { ...cradle, id: 2, business_name: "thinkyorubafirst.org", room_prefix: "tyf-site", key_source: "managed", api_key: "ncabc", plan: "starter", client: tyf, minutes_this_month: 100, included_minutes: 50000 };
+
+  function mockApi() {
     const fetchMock = vi.fn((url: string, init?: RequestInit) => {
-      if (init?.method === "POST") {
-        return jsonResponse({ data: { ...cradle, id: 2, business_name: "Acme Clinics", room_prefix: "acme-clinics", key_source: "managed", api_key: "ncabc", plan: "starter" }, api_secret: "S3cret" }, 201);
-      }
-      return jsonResponse({ data: [cradle], plans, exchange_rate: exchangeRate, public_url: "wss://call.naitalk.com", last_sync: null });
+      if (url.includes("/naitalk-call/clients?q=")) return jsonResponse({ data: url.includes("yoruba") ? [tyf] : [] });
+      if (url.endsWith("/revoke-key")) return jsonResponse({ data: { ...acme, revoked_at: "2026-10-27T12:00:00Z" } });
+      if (init?.method === "POST") return jsonResponse({ data: acme, api_secret: "S3cret" }, 201);
+      return jsonResponse({ data: [cradle, acme], plans, exchange_rate: exchangeRate, public_url: "wss://call.naitalk.com", last_sync: null });
     });
     vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  it("adds an app only for a registered client found by search", async () => {
+    const fetchMock = mockApi();
     render(<NaitalkCallPanel adminToken="t" />);
 
     expect(await screen.findByText("kept on server")).toBeInTheDocument();
+    expect(screen.getByText("No client account")).toBeInTheDocument();
     expect(screen.getByText("4,200 of 5,000 (84%)")).toBeInTheDocument();
-    expect(screen.getByTestId("naitalk-call-plans")).toHaveTextContent("₦1,367.106 per $1 (2026-10-26)");
-    expect(screen.getByLabelText("Plan for Cradle")).toHaveValue("free");
+    expect(screen.queryByLabelText("Contact email")).not.toBeInTheDocument();
+    const create = screen.getByRole("button", { name: /Create key/ });
 
-    await userEvent.type(screen.getByLabelText("Business name"), "Acme Clinics");
-    expect(screen.getByLabelText(/Room prefix/)).toHaveValue("acme-clinics");
-    expect(screen.getByLabelText("Plan")).toHaveValue("starter");
-    await userEvent.click(screen.getByRole("button", { name: /Create key/ }));
+    await userEvent.type(screen.getByLabelText(/App name/), "thinkyorubafirst.org");
+    expect(create).toBeDisabled();
 
-    expect(await screen.findByText(/Key for Acme Clinics/)).toBeInTheDocument();
-    expect(screen.getByText("S3cret")).toBeInTheDocument();
-    const post = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
-    expect(JSON.parse(String(post?.[1]?.body))).toMatchObject({ business_name: "Acme Clinics", room_prefix: "acme-clinics", plan: "starter" });
+    await userEvent.type(screen.getByLabelText("Client account"), "nobody");
+    expect(await screen.findByText(/No registered client matches/)).toBeInTheDocument();
+    await userEvent.clear(screen.getByLabelText("Client account"));
+    await userEvent.type(screen.getByLabelText("Client account"), "yoruba");
+    await userEvent.click(await screen.findByRole("option", { name: /Think Yoruba First/ }));
+    expect(screen.getByTestId("client-picked")).toHaveTextContent("Think Yoruba First");
+
+    await userEvent.click(create);
+    expect(await screen.findByText(/Key for thinkyorubafirst.org/)).toBeInTheDocument();
+    const post = fetchMock.mock.calls.find(([url, init]) => init?.method === "POST" && String(url).endsWith("/tenants"));
+    expect(JSON.parse(String(post?.[1]?.body))).toMatchObject({ client_id: 9, business_name: "thinkyorubafirst.org", plan: "starter" });
+  });
+
+  it("revokes a key only after confirming, and not a key still kept on the server", async () => {
+    const fetchMock = mockApi();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
+    render(<NaitalkCallPanel adminToken="t" />);
+    await screen.findByText("kept on server");
+
+    const revokeButtons = screen.getAllByRole("button", { name: "Revoke key" });
+    expect(revokeButtons[0]).toBeDisabled(); // Cradle, until its key is handed over
+
+    await userEvent.click(revokeButtons[1]);
+    expect(confirm.mock.calls[0][0]).toMatch(/Revoke the key ncabc of thinkyorubafirst.org \(Think Yoruba First\)/);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/revoke-key"))).toBe(false);
+
+    await userEvent.click(revokeButtons[1]);
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/tenants/2/revoke-key"))).toBe(true));
+    confirm.mockRestore();
+  });
+
+  it("files an existing app under a client account", async () => {
+    const fetchMock = mockApi();
+    render(<NaitalkCallPanel adminToken="t" />);
+    await screen.findByText("kept on server");
+
+    await userEvent.click(screen.getByRole("button", { name: "Link client" }));
+    await userEvent.type(screen.getByLabelText("Client account for Cradle"), "yoruba");
+    await userEvent.click(await screen.findByRole("option", { name: /Think Yoruba First/ }));
+
+    await waitFor(() => {
+      const put = fetchMock.mock.calls.find(([, init]) => init?.method === "PUT");
+      expect(JSON.parse(String(put?.[1]?.body))).toMatchObject({ client_id: 9, business_name: "Cradle", room_prefix: "cradle" });
+    });
   });
 });
