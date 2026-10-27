@@ -10,9 +10,9 @@ const cradle = {
   id: 1,
   business_name: "Cradle",
   contact_email: null,
-  plan: "business",
-  monthly_price_usd: "$20",
-  monthly_price_ngn: "₦30,910",
+  plan: "free",
+  monthly_price_usd: "Free",
+  monthly_price_ngn: null,
   status: "active",
   room_prefix: "cradle",
   key_source: "server",
@@ -60,7 +60,7 @@ describe("NaitalkCallPanel", () => {
       if (init?.method === "POST") {
         return jsonResponse({ data: { ...cradle, id: 2, business_name: "Acme Clinics", room_prefix: "acme-clinics", key_source: "managed", api_key: "ncabc" }, api_secret: "S3cret" }, 201);
       }
-      return jsonResponse({ data: [cradle], plan, public_url: "wss://call.naitalk.com", last_sync: null });
+      return jsonResponse({ data: [cradle], plan, plans: [{ id: "free", name: "Naitalk Call Free (testing)", monthly_usd: "Free" }, { id: "business", name: "Naitalk Call Business", monthly_usd: "$20" }], public_url: "wss://call.naitalk.com", last_sync: null });
     });
     vi.stubGlobal("fetch", fetchMock);
     render(<NaitalkCallPanel adminToken="t" />);
@@ -70,11 +70,13 @@ describe("NaitalkCallPanel", () => {
 
     await userEvent.type(screen.getByLabelText("Business name"), "Acme Clinics");
     expect(screen.getByLabelText(/Room prefix/)).toHaveValue("acme-clinics");
+    expect(screen.getByLabelText("Plan for Cradle")).toHaveValue("free");
+    await userEvent.selectOptions(screen.getByLabelText("Plan"), "free");
     await userEvent.click(screen.getByRole("button", { name: /Create key/ }));
 
     expect(await screen.findByText(/Key for Acme Clinics/)).toBeInTheDocument();
     expect(screen.getByText("S3cret")).toBeInTheDocument();
     const post = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
-    expect(JSON.parse(String(post?.[1]?.body))).toMatchObject({ business_name: "Acme Clinics", room_prefix: "acme-clinics", webhook_url: null });
+    expect(JSON.parse(String(post?.[1]?.body))).toMatchObject({ business_name: "Acme Clinics", room_prefix: "acme-clinics", webhook_url: null, plan: "free" });
   });
 });

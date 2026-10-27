@@ -20,6 +20,7 @@ export type NaitalkCallTenantRow = {
 type Payload = {
   data: NaitalkCallTenantRow[];
   plan: { name: string; monthly_usd: string; exchange_rate: number | null; monthly_ngn_kobo: number | null };
+  plans: Array<{ id: string; name: string; monthly_usd: string }>;
   public_url: string;
   last_sync: { status: string; message?: string | null; at: string } | null;
 };
@@ -37,7 +38,8 @@ export function NaitalkCallPanel({ adminToken }: { adminToken: string }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [issued, setIssued] = useState<IssuedKey | null>(null);
   const [busyId, setBusyId] = useState<number | "new" | null>(null);
-  const [form, setForm] = useState({ business_name: "", contact_email: "", room_prefix: "", webhook_url: "" });
+  const emptyForm = { business_name: "", contact_email: "", room_prefix: "", webhook_url: "", plan: "business" };
+  const [form, setForm] = useState(emptyForm);
   const [prefixTouched, setPrefixTouched] = useState(false);
 
   const load = useCallback(() => {
@@ -60,7 +62,7 @@ export function NaitalkCallPanel({ adminToken }: { adminToken: string }) {
         body: JSON.stringify({ ...form, contact_email: form.contact_email || null, webhook_url: form.webhook_url || null }),
       });
       setIssued({ business: response.data.business_name, apiKey: response.data.api_key ?? "", secret: response.api_secret });
-      setForm({ business_name: "", contact_email: "", room_prefix: "", webhook_url: "" });
+      setForm(emptyForm);
       setPrefixTouched(false);
       load();
     } catch (error) {
@@ -70,13 +72,13 @@ export function NaitalkCallPanel({ adminToken }: { adminToken: string }) {
     }
   };
 
-  const setStatus = async (row: NaitalkCallTenantRow, status: NaitalkCallTenantRow["status"]) => {
+  const save = async (row: NaitalkCallTenantRow, changes: Partial<Pick<NaitalkCallTenantRow, "status" | "plan">>) => {
     setBusyId(row.id);
     setNotice(null);
     try {
       await laravelApi(`/api/v1/admin/naitalk-call/tenants/${row.id}`, adminToken, {
         method: "PUT",
-        body: JSON.stringify({ business_name: row.business_name, room_prefix: row.room_prefix, contact_email: row.contact_email, webhook_url: row.webhook_url, status }),
+        body: JSON.stringify({ business_name: row.business_name, room_prefix: row.room_prefix, contact_email: row.contact_email, webhook_url: row.webhook_url, ...changes }),
       });
       load();
     } catch (error) {
@@ -179,7 +181,7 @@ export function NaitalkCallPanel({ adminToken }: { adminToken: string }) {
               <th className="py-1.5 font-bold">Business</th>
               <th className="py-1.5 font-bold">Rooms</th>
               <th className="py-1.5 font-bold">API key</th>
-              <th className="py-1.5 font-bold">Price</th>
+              <th className="py-1.5 font-bold">Plan</th>
               <th className="py-1.5 text-right font-bold">Minutes this month</th>
               <th className="py-1.5 font-bold">Status</th>
               <th className="py-1.5" />
@@ -195,19 +197,32 @@ export function NaitalkCallPanel({ adminToken }: { adminToken: string }) {
                 <td className="py-2 font-mono">{row.room_prefix}-…</td>
                 <td className="py-2 font-mono">{row.key_source === "server" ? <span className="text-white/45">kept on server</span> : row.api_key}</td>
                 <td className="py-2">
-                  {row.monthly_price_usd}
-                  {row.monthly_price_ngn && <span className="block text-white/45">≈ {row.monthly_price_ngn}</span>}
+                  <select
+                    aria-label={`Plan for ${row.business_name}`}
+                    className="rounded border border-white/15 bg-black/40 px-2 py-1 text-xs"
+                    value={row.plan}
+                    disabled={busyId === row.id}
+                    onChange={(event) => void save(row, { plan: event.target.value })}
+                  >
+                    {data.plans.map((plan) => (
+                      <option key={plan.id} value={plan.id}>{plan.name}</option>
+                    ))}
+                  </select>
+                  <span className="mt-1 block">
+                    {row.monthly_price_usd}
+                    {row.monthly_price_ngn && <span className="text-white/45"> ≈ {row.monthly_price_ngn}</span>}
+                  </span>
                 </td>
                 <td className="py-2 text-right">{(row.minutes_this_month ?? 0).toLocaleString()}</td>
                 <td className="py-2 capitalize">{row.status}</td>
                 <td className="py-2">
                   <div className="flex flex-wrap justify-end gap-2">
                     {row.status === "active" ? (
-                      <button type="button" className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]" disabled={busyId === row.id} onClick={() => void setStatus(row, "suspended")}>
+                      <button type="button" className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]" disabled={busyId === row.id} onClick={() => void save(row, { status: "suspended" })}>
                         Suspend
                       </button>
                     ) : (
-                      <button type="button" className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]" disabled={busyId === row.id} onClick={() => void setStatus(row, "active")}>
+                      <button type="button" className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]" disabled={busyId === row.id} onClick={() => void save(row, { status: "active" })}>
                         Activate
                       </button>
                     )}
@@ -259,9 +274,17 @@ export function NaitalkCallPanel({ adminToken }: { adminToken: string }) {
           <span>Webhook URL (optional)</span>
           <input type="url" maxLength={255} placeholder="https://api.example.com/livekit/webhook" value={form.webhook_url} onChange={(event) => setForm((current) => ({ ...current, webhook_url: event.target.value }))} />
         </label>
+        <label className="admin-field">
+          <span>Plan</span>
+          <select value={form.plan} onChange={(event) => setForm((current) => ({ ...current, plan: event.target.value }))}>
+            {data.plans.map((plan) => (
+              <option key={plan.id} value={plan.id}>{plan.name} — {plan.monthly_usd}</option>
+            ))}
+          </select>
+        </label>
         <div className="sm:col-span-2">
           <button type="submit" className="btn-primary" disabled={busyId === "new" || !form.business_name.trim() || !form.room_prefix}>
-            {busyId === "new" ? "Creating..." : `Create key — ${data.plan.monthly_usd}/month`}
+            {busyId === "new" ? "Creating..." : `Create key — ${data.plans.find((plan) => plan.id === form.plan)?.name ?? "Business"}`}
           </button>
         </div>
       </form>

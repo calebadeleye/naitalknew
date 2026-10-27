@@ -23,11 +23,11 @@ class NaitalkCallPricing
             'plan' => $plan,
             'name' => $definition['name'],
             'monthly_usd_cents' => $usdCents,
-            'monthly_usd' => '$'.number_format($usdCents / 100, $usdCents % 100 === 0 ? 0 : 2),
+            'monthly_usd' => $usdCents === 0 ? 'Free' : '$'.number_format($usdCents / 100, $usdCents % 100 === 0 ? 0 : 2),
             'exchange_rate' => $rate,
             'exchange_rate_updated_at' => $settings?->updated_at?->toIso8601String(),
             // Whole naira; null until the admin has set a rate.
-            'monthly_ngn_kobo' => $rate === null ? null : (int) round($usdCents * $rate / 100) * 100,
+            'monthly_ngn_kobo' => $rate === null || $usdCents === 0 ? null : (int) round($usdCents * $rate / 100) * 100,
         ];
     }
 }

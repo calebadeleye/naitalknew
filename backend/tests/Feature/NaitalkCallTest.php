@@ -41,7 +41,38 @@ class NaitalkCallTest extends TestCase
 
         $this->assertSame('server', $cradle->key_source);
         $this->assertNull($cradle->api_key);
-        $this->assertSame(2000, $cradle->monthly_price_usd_cents);
+        $this->assertSame('free', $cradle->plan);
+        $this->assertSame(0, $cradle->monthly_price_usd_cents);
+    }
+
+    public function test_choosing_a_plan_sets_its_price(): void
+    {
+        $this->seed();
+        $admin = $this->domainAdminToken();
+        DomainPricingSettings::forProvider('spaceship')->update(['exchange_rate' => 1500]);
+
+        $free = $this->withToken($admin)->postJson('/api/v1/admin/naitalk-call/tenants', ['business_name' => 'Tester', 'room_prefix' => 'tester', 'plan' => 'free'])
+            ->assertCreated();
+        $this->assertSame('Free', $free->json('data.monthly_price_usd'));
+        $this->assertNull($free->json('data.monthly_price_ngn'));
+        $this->assertNotEmpty($free->json('api_secret'));
+
+        $id = $free->json('data.id');
+        $paid = $this->withToken($admin)->putJson("/api/v1/admin/naitalk-call/tenants/$id", ['business_name' => 'Tester', 'room_prefix' => 'tester', 'plan' => 'business'])->assertOk();
+        $this->assertSame('$20', $paid->json('data.monthly_price_usd'));
+        $this->assertSame('₦30,000', $paid->json('data.monthly_price_ngn'));
+
+        // Saving other fields keeps the plan's price.
+        $this->withToken($admin)->putJson("/api/v1/admin/naitalk-call/tenants/$id", ['business_name' => 'Tester Ltd', 'room_prefix' => 'tester'])
+            ->assertOk()->assertJsonPath('data.monthly_price_usd', '$20');
+
+        $plans = $this->withToken($admin)->getJson('/api/v1/admin/naitalk-call/tenants')->json('plans');
+        $this->assertSame(['free', 'business'], array_column($plans, 'id'));
+
+        // Free tenants still get keys on the server.
+        config(['naitalk_call.sync_token' => self::SYNC_TOKEN]);
+        $this->withToken($admin)->putJson("/api/v1/admin/naitalk-call/tenants/$id", ['business_name' => 'Tester', 'room_prefix' => 'tester', 'plan' => 'free'])->assertOk();
+        $this->assertCount(1, $this->withToken(self::SYNC_TOKEN)->getJson('/api/v1/internal/naitalk-call/config')->json('keys'));
     }
 
     public function test_admin_onboards_a_business_and_sees_the_secret_once(): void

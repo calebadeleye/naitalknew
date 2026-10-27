@@ -8,6 +8,11 @@
  */
 return [
     'plans' => [
+        // For trying the service out (Cradle is on it for now). No charge.
+        'free' => [
+            'name' => 'Naitalk Call Free (testing)',
+            'monthly_usd_cents' => 0,
+        ],
         'business' => [
             'name' => 'Naitalk Call Business',
             'monthly_usd_cents' => 2000,

@@ -36,6 +36,7 @@ class NaitalkCallTenantController extends Controller
             'data' => NaitalkCallTenant::query()->with('client:id,company_name,billing_email')->orderBy('business_name')->get()
                 ->map(fn (NaitalkCallTenant $tenant) => $this->serialize($tenant, (int) ($seconds[$tenant->id] ?? 0))),
             'plan' => $this->pricing->plan(),
+            'plans' => collect(config('naitalk_call.plans'))->map(fn (array $plan, string $id) => ['id' => $id, 'name' => $plan['name'], 'monthly_usd' => $this->pricing->plan($id)['monthly_usd']])->values(),
             'public_url' => config('naitalk_call.public_url'),
             'last_sync' => AppSetting::get('naitalk_call_last_sync'),
         ]);
@@ -44,10 +45,7 @@ class NaitalkCallTenantController extends Controller
     public function store(Request $request)
     {
         $payload = $this->validated($request);
-        $tenant = NaitalkCallTenant::query()->create([
-            ...$payload,
-            'monthly_price_usd_cents' => $payload['monthly_price_usd_cents'] ?? config('naitalk_call.plans.business.monthly_usd_cents'),
-        ]);
+        $tenant = NaitalkCallTenant::query()->create(['plan' => 'business', ...$payload]);
         $secret = $tenant->issueKey();
         $this->audit($request, 'naitalk_call_tenant_created', "Onboarded {$tenant->business_name} onto Naitalk Call.", null, $tenant);
 
@@ -76,9 +74,10 @@ class NaitalkCallTenantController extends Controller
         return response()->json(['data' => $this->serialize($tenant->refresh()), 'api_secret' => $secret]);
     }
 
+    /** Choosing a plan sets its price, unless a price is given as well. */
     private function validated(Request $request, ?NaitalkCallTenant $tenant = null): array
     {
-        return $request->validate([
+        $payload = $request->validate([
             'business_name' => ['required', 'string', 'max:120'],
             'contact_email' => ['nullable', 'email', 'max:190'],
             'client_id' => ['nullable', 'integer', 'exists:clients,id'],
@@ -90,6 +89,13 @@ class NaitalkCallTenantController extends Controller
             'webhook_url' => ['nullable', 'url', 'max:255'],
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
+
+        $plan = $payload['plan'] ?? ($tenant ? null : 'business');
+        if ($plan !== null && ! array_key_exists('monthly_price_usd_cents', $payload) && $plan !== $tenant?->plan) {
+            $payload['monthly_price_usd_cents'] = (int) config("naitalk_call.plans.$plan.monthly_usd_cents");
+        }
+
+        return $payload;
     }
 
     private function audit(Request $request, string $action, string $reason, ?array $before, NaitalkCallTenant $tenant): void

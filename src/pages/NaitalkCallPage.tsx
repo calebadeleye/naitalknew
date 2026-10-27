@@ -72,6 +72,7 @@ export function NaitalkCallPage() {
         question: "How much is Naitalk Call?",
         answer: `${pricing.monthly_usd} a month per business${naira ? ` (about ${naira} at today's rate)` : ""}. You can pay in Naira; the Naira amount follows the exchange rate.`,
       },
+      { question: "Can I try it before paying?", answer: "Yes. Ask us for the free testing plan: you get your own key to build and test with, and move to the paid plan when you go live." },
       { question: "What do I need to build?", answer: "Your app uses the LiveKit client SDK, and your server makes a short access token for each user with the key and secret we give you. Any LiveKit tutorial works." },
       { question: "Why do my room names need a prefix?", answer: "Every business gets its own prefix, such as yourbrand-. Rooms that start with it are yours, so we can send you your events and count your minutes." },
       { question: "Is it voice only?", answer: "The plan is built for voice calls and audio rooms. Talk to us if you need video." },
@@ -136,7 +137,7 @@ export function NaitalkCallPage() {
             <button type="button" className="btn-primary mt-7 w-full justify-center" onClick={() => contact("naitalk_call_price_card")}>
               Talk to us <ArrowRight className="h-4 w-4" />
             </button>
-            <p className="mt-3 text-center text-xs text-white/45">The Naira amount follows the exchange rate. VAT added where it applies.</p>
+            <p className="mt-3 text-center text-xs text-white/45">Free testing plan available — ask us. The Naira amount follows the exchange rate. VAT added where it applies.</p>
           </div>
         </div>
       </section>
