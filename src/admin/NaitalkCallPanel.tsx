@@ -16,6 +16,8 @@ export type NaitalkCallTenantRow = {
   webhook_url: string | null;
   minutes_this_month: number | null;
   included_minutes: number;
+  /** The client account that sees this business's usage dashboard and alerts. */
+  client: { id: number; name: string | null; email: string | null } | null;
 };
 
 /** "12,300 of 50,000 (25%)" and how full the plan is, for the usage column. */
@@ -79,7 +81,7 @@ export function NaitalkCallPanel({ adminToken }: { adminToken: string }) {
     }
   };
 
-  const save = async (row: NaitalkCallTenantRow, changes: Partial<Pick<NaitalkCallTenantRow, "status" | "plan">>) => {
+  const save = async (row: NaitalkCallTenantRow, changes: Partial<Pick<NaitalkCallTenantRow, "status" | "plan">> & { client_email?: string | null }) => {
     setBusyId(row.id);
     setNotice(null);
     try {
@@ -220,6 +222,7 @@ export function NaitalkCallPanel({ adminToken }: { adminToken: string }) {
                 <td className="py-2">
                   <span className="font-bold text-white">{row.business_name}</span>
                   {row.contact_email && <span className="block text-white/45">{row.contact_email}</span>}
+                  <span className="block text-white/45">{row.client ? `Client: ${row.client.name ?? row.client.email ?? `#${row.client.id}`}` : "No client account linked"}</span>
                 </td>
                 <td className="py-2 font-mono">{row.room_prefix}-…</td>
                 <td className="py-2 font-mono">{row.key_source === "server" ? <span className="text-white/45">kept on server</span> : row.api_key}</td>
@@ -258,6 +261,17 @@ export function NaitalkCallPanel({ adminToken }: { adminToken: string }) {
                         Activate
                       </button>
                     )}
+                    <button
+                      type="button"
+                      className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]"
+                      disabled={busyId === row.id}
+                      onClick={() => {
+                        const email = window.prompt(`Client account email for ${row.business_name} (their usage dashboard and alerts). Leave empty to unlink.`, row.client?.email ?? "");
+                        if (email !== null) void save(row, { client_email: email.trim() || null });
+                      }}
+                    >
+                      {row.client ? "Change client" : "Link client"}
+                    </button>
                     {row.key_source === "managed" && (
                       <button type="button" className="btn-outline !min-h-9 !px-3 !py-1.5 !text-[10px]" disabled={busyId === row.id} onClick={() => void rotate(row)}>
                         <KeyRound className="h-3.5 w-3.5" /> New key

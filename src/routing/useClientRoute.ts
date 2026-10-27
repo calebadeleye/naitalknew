@@ -29,7 +29,8 @@ export type ClientRouteName =
   | "profile"
   | "support"
   | "support-new"
-  | "support-ticket";
+  | "support-ticket"
+  | "naitalk-call";
 
 const ROUTE_SEGMENTS: Record<string, ClientRouteName> = {
   login: "login",
@@ -55,6 +56,7 @@ const ROUTE_SEGMENTS: Record<string, ClientRouteName> = {
   profile: "profile",
   support: "support",
   "support/new": "support-new",
+  "naitalk-call": "naitalk-call",
 };
 
 const HOSTING_MANAGE_PATTERN = /^services\/(\d+)\/manage$/;

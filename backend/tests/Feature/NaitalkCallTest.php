@@ -3,6 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\AppSetting;
+use App\Models\Client;
+use App\Models\User;
+use App\Notifications\NaitalkCallUsageWarning;
+use Illuminate\Support\Facades\Notification;
+use Laravel\Sanctum\Sanctum;
 use App\Models\NaitalkCallTenant;
 use App\Models\NaitalkCallUsageEvent;
 use App\Services\NaitalkCall\CbnExchangeRate;
@@ -210,5 +215,95 @@ class NaitalkCallTest extends TestCase
         $rows = collect($this->withToken($admin)->getJson('/api/v1/admin/naitalk-call/tenants')->json('data'))->keyBy('room_prefix');
         $this->assertSame(3, $rows['cradle']['minutes_this_month']); // 125s rounds up
         $this->assertSame(1, $rows['acme']['minutes_this_month']);
+    }
+
+    private function clientWithUser(string $email): Client
+    {
+        $user = User::factory()->create(['role' => 'client', 'email' => $email]);
+
+        return Client::query()->create([
+            'user_id' => $user->id, 'client_code' => 'CLT-'.strtoupper(substr(md5($email), 0, 8)), 'account_type' => 'billing_client',
+            'client_status' => 'active', 'status' => 'active', 'billing_email' => $email, 'company_name' => 'Acme Ltd', 'country' => 'Nigeria',
+        ]);
+    }
+
+    private function usage(NaitalkCallTenant $tenant, int $minutes, string $id): void
+    {
+        NaitalkCallUsageEvent::query()->create([
+            'tenant_id' => $tenant->id, 'event_id' => $id, 'room_name' => $tenant->room_prefix.'-room', 'participant_identity' => 'u1',
+            'seconds' => $minutes * 60, 'left_at' => now(),
+        ]);
+    }
+
+    public function test_admin_links_a_business_to_a_client_account_by_email(): void
+    {
+        $this->seed();
+        $admin = $this->domainAdminToken();
+        $client = $this->clientWithUser('owner@acme.test');
+        $tenant = NaitalkCallTenant::query()->create(['business_name' => 'Acme', 'room_prefix' => 'acme', 'plan' => 'starter']);
+
+        $this->withToken($admin)->putJson("/api/v1/admin/naitalk-call/tenants/{$tenant->id}", ['business_name' => 'Acme', 'room_prefix' => 'acme', 'client_email' => 'nobody@acme.test'])
+            ->assertStatus(422)->assertJsonValidationErrors('client_email');
+        $this->withToken($admin)->putJson("/api/v1/admin/naitalk-call/tenants/{$tenant->id}", ['business_name' => 'Acme', 'room_prefix' => 'acme', 'client_email' => 'owner@acme.test'])
+            ->assertOk()->assertJsonPath('data.client.id', $client->id);
+        // Saving without client_email keeps the link; null removes it.
+        $this->withToken($admin)->putJson("/api/v1/admin/naitalk-call/tenants/{$tenant->id}", ['business_name' => 'Acme Ltd', 'room_prefix' => 'acme'])
+            ->assertOk()->assertJsonPath('data.client.id', $client->id);
+        $this->withToken($admin)->putJson("/api/v1/admin/naitalk-call/tenants/{$tenant->id}", ['business_name' => 'Acme Ltd', 'room_prefix' => 'acme', 'client_email' => null])
+            ->assertOk()->assertJsonPath('data.client', null);
+    }
+
+    public function test_clients_see_their_usage_dashboard_and_report_but_never_the_secret(): void
+    {
+        $client = $this->clientWithUser('owner@acme.test');
+        $tenant = NaitalkCallTenant::query()->create(['business_name' => 'Acme', 'room_prefix' => 'acme', 'plan' => 'starter', 'client_id' => $client->id]);
+        $secret = $tenant->issueKey();
+        $this->usage($tenant, 12_500, 'EV_A');
+        $other = NaitalkCallTenant::query()->create(['business_name' => 'Other', 'room_prefix' => 'other', 'plan' => 'growth']);
+
+        Sanctum::actingAs($client->user, [], 'sanctum');
+        $response = $this->getJson('/api/v1/client/naitalk-call')->assertOk();
+        $this->assertStringNotContainsString($secret, $response->getContent());
+        $this->assertSame(['Acme'], array_column($response->json('data'), 'business_name'));
+        $response->assertJsonPath('data.0.usage.minutes', 12500)
+            ->assertJsonPath('data.0.usage.included_minutes', 50000)
+            ->assertJsonPath('data.0.usage.percent', 25)
+            ->assertJsonPath('data.0.plan.monthly_usd', '$20')
+            ->assertJsonPath('data.0.connection.api_key', $tenant->api_key)
+            ->assertJsonPath('data.0.connection.url', 'wss://call.naitalk.com');
+        $this->assertSame(12500, collect($response->json('data.0.daily'))->sum('minutes'));
+        $this->assertSame(12500, $response->json('data.0.monthly.0.minutes'));
+
+        $csv = $this->get("/api/v1/client/naitalk-call/{$tenant->id}/report?month=".now()->format('Y-m'))->assertOk()->streamedContent();
+        $this->assertStringContainsString('acme-room,u1,750000,12500', $csv);
+        $this->assertStringContainsString('total,,,750000,12500', $csv);
+        $this->get("/api/v1/client/naitalk-call/{$other->id}/report")->assertNotFound();
+
+        $this->getJson('/api/v1/client/dashboard')->assertOk()->assertJsonPath('has_naitalk_call', true);
+    }
+
+    public function test_usage_alerts_go_out_once_per_level_on_plans_that_have_them(): void
+    {
+        Notification::fake();
+        $client = $this->clientWithUser('owner@grow.test');
+        $growth = NaitalkCallTenant::query()->create(['business_name' => 'Grow', 'room_prefix' => 'grow', 'plan' => 'growth', 'client_id' => $client->id]);
+        $starter = NaitalkCallTenant::query()->create(['business_name' => 'Small', 'room_prefix' => 'small', 'plan' => 'starter', 'contact_email' => 'ops@small.test']);
+        $unlinked = NaitalkCallTenant::query()->create(['business_name' => 'Big', 'room_prefix' => 'big', 'plan' => 'business', 'contact_email' => 'ops@big.test']);
+        $this->usage($growth, 170_000, 'EV_G1'); // 85%
+        $this->usage($starter, 60_000, 'EV_S1'); // 120%, but Starter has no alerts
+        $this->usage($unlinked, 600_000, 'EV_B1'); // 120%
+
+        $this->artisan('naitalk-call:usage-alerts')->expectsOutput('2 usage alert(s) sent.')->assertSuccessful();
+        Notification::assertSentTo($client->user, NaitalkCallUsageWarning::class, fn ($n) => $n->level === 80 && $n->usedMinutes === 170000);
+        Notification::assertSentOnDemand(NaitalkCallUsageWarning::class, fn ($n, $channels, $notifiable) => $n->level === 100 && $notifiable->routes['mail'] === 'ops@big.test');
+
+        // Nothing new: no repeat.
+        $this->artisan('naitalk-call:usage-alerts')->expectsOutput('0 usage alert(s) sent.');
+
+        // Growth passes 100%: the 100% alert goes out once.
+        $this->usage($growth, 40_000, 'EV_G2');
+        $this->artisan('naitalk-call:usage-alerts')->expectsOutput('1 usage alert(s) sent.');
+        Notification::assertSentTo($client->user, NaitalkCallUsageWarning::class, fn ($n) => $n->level === 100);
+        $this->assertDatabaseHas('notification_logs', ['client_id' => $client->id, 'template' => "naitalk_call_usage_{$growth->id}_100_".now()->format('Y-m')]);
     }
 }

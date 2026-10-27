@@ -158,6 +158,8 @@ export type ClientDashboardSnapshot = {
     total: string;
     due_at: string | null;
   }>;
+  /** The client has a business on Naitalk Call (shows it in the menu). */
+  has_naitalk_call?: boolean;
   tickets: Array<Record<string, unknown>>;
   empty_state: {
     title: string;

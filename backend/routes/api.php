@@ -40,6 +40,7 @@ use App\Http\Controllers\Api\Client\CartController;
 use App\Http\Controllers\Api\Client\CheckoutController;
 use App\Http\Controllers\Api\Client\ClientProfileController;
 use App\Http\Controllers\Api\Client\DashboardController as ClientDashboardController;
+use App\Http\Controllers\Api\Client\NaitalkCallController as ClientNaitalkCallController;
 use App\Http\Controllers\Api\Client\DomainContactController;
 use App\Http\Controllers\Api\Client\DomainController;
 use App\Http\Controllers\Api\Client\DomainOrderController;
@@ -274,6 +275,8 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/domains/{domain}', [DomainController::class, 'show']);
             Route::get('/domains/transfers/eligibility', [DomainTransferController::class, 'eligibility']);
             Route::get('/domain-contact', [DomainContactController::class, 'show']);
+            Route::get('/naitalk-call', [ClientNaitalkCallController::class, 'index']);
+            Route::get('/naitalk-call/{tenant}/report', [ClientNaitalkCallController::class, 'report']);
             Route::put('/domain-contact', [DomainContactController::class, 'update']);
 
             // Managing your own account (profile fields, security toggles,

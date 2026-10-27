@@ -33,6 +33,7 @@ import {
   FileText,
   Gift,
   Globe2,
+  PhoneCall,
   HardDrive,
   Headphones,
   HelpCircle,
@@ -123,6 +124,7 @@ import { ClientSupportPage } from "../support/ClientSupportPage";
 import { ServiceOrderPage } from "../client/ServiceOrderPage";
 import { CartPage, type CartCheckout } from "../client/CartPage";
 import { EmailSetupPanel } from "../client/EmailSetupPanel";
+import { NaitalkCallUsagePage } from "../client/NaitalkCallUsagePage";
 import { addToCart, clearCart, setCartOwner, useCart } from "../client/cart";
 import { WebsiteStatisticsPanel } from "../hosting/WebsiteStatisticsPanel";
 import { AreaThemeToggle, useAreaTheme } from "../shared/areaTheme";
@@ -157,6 +159,7 @@ export const portalNavLinks = [
   { icon: ShoppingCart, label: "My Cart", route: "cart" as ClientRouteName, path: "/client/cart" },
   { icon: FileText, label: "Orders & Invoices", route: "orders" as ClientRouteName, path: "/client/orders" },
   { icon: Globe2, label: "My Domains", route: "domains" as ClientRouteName, path: "/client/domains" },
+  { icon: PhoneCall, label: "Naitalk Call", route: "naitalk-call" as ClientRouteName, path: "/client/naitalk-call", onlyIf: "has_naitalk_call" as const },
   { icon: Search, label: "Search Domains", route: "domain-search" as ClientRouteName, path: "/client/domains/search" },
   { icon: Wallet, label: "Wallet", route: "wallet" as ClientRouteName, path: "/client/wallet" },
   { icon: CreditCard, label: "Saved Payment Methods", route: "payment-methods" as ClientRouteName, path: "/client/payment-methods" },
@@ -212,7 +215,7 @@ export function ClientPortalShell({
         </div>
         <p className="portal-kicker">Client Portal</p>
         <nav className={isMobileNavOpen ? "portal-nav-list open" : "portal-nav-list"}>
-          {portalNavLinks.map((item) => (
+          {portalNavLinks.filter((item) => !("onlyIf" in item) || dashboard?.[item.onlyIf]).map((item) => (
             <button
               key={item.label}
               type="button"
@@ -5986,6 +5989,21 @@ export function ClientPortal() {
           onPayWithGateway={handlePayWithGateway}
           onPayByBankTransfer={handlePayByBankTransfer}
         />
+      </ClientPortalShell>
+    );
+  }
+
+  if (route === "naitalk-call") {
+    return (
+      <ClientPortalShell
+        dashboard={dashboard}
+        route={route}
+        isVerified={isVerified}
+        navigate={navigate}
+        onLogout={() => void handleClientLogout()}
+        onProfileClick={() => navigate("/client/profile")}
+      >
+        <NaitalkCallUsagePage token={clientToken} />
       </ClientPortalShell>
     );
   }

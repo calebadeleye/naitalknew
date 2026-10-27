@@ -42,6 +42,8 @@ return [
             'tagline' => 'For growing apps',
             'monthly_usd_cents' => 4900,
             'included_minutes' => 200_000,
+            // Emails at 80% and 100% of the monthly minutes (naitalk-call:usage-alerts).
+            'usage_alerts' => true,
             'features' => [
                 'All Starter features',
                 'Larger monthly usage allowance',
@@ -54,6 +56,8 @@ return [
             'tagline' => 'For established apps',
             'monthly_usd_cents' => 9900,
             'included_minutes' => 500_000,
+            // Emails at 80% and 100% of the monthly minutes (naitalk-call:usage-alerts).
+            'usage_alerts' => true,
             'features' => [
                 'All Growth features',
                 'Higher usage and API allowances',

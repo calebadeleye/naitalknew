@@ -26,6 +26,7 @@ const cradle = {
   webhook_url: "http://127.0.0.1:4300/v1/calls/webhook",
   minutes_this_month: 4200,
   included_minutes: 5000,
+  client: null,
 };
 
 function jsonResponse(body: unknown, status = 200) {

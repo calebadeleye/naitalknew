@@ -71,6 +71,8 @@ class ClientDashboardService
                 'due_at' => $invoice->due_at?->toDateString(),
             ])->values(),
             'tickets' => $client->supportTickets->sortByDesc('created_at')->take(5)->values(),
+            // Shows Naitalk Call in the portal menu for clients with a business on it.
+            'has_naitalk_call' => \App\Models\NaitalkCallTenant::query()->where('client_id', $client->id)->exists(),
         ];
     }
 }

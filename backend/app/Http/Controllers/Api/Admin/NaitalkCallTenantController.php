@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
+use App\Models\Client;
 use App\Models\AuditLog;
 use App\Models\NaitalkCallTenant;
 use App\Models\NaitalkCallUsageEvent;
@@ -12,6 +13,7 @@ use App\Services\NaitalkCall\CbnExchangeRate;
 use App\Services\NaitalkCall\NaitalkCallPricing;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Onboarding businesses onto Naitalk Call. This only records them and makes
@@ -89,6 +91,8 @@ class NaitalkCallTenantController extends Controller
     private function validated(Request $request, ?NaitalkCallTenant $tenant = null): array
     {
         $payload = $request->validate([
+            // Links the business to a client account (their usage dashboard and alerts); empty unlinks.
+            'client_email' => ['sometimes', 'nullable', 'email', 'max:190'],
             'business_name' => ['required', 'string', 'max:120'],
             'contact_email' => ['nullable', 'email', 'max:190'],
             'client_id' => ['nullable', 'integer', 'exists:clients,id'],
@@ -100,6 +104,17 @@ class NaitalkCallTenantController extends Controller
             'webhook_url' => ['nullable', 'url', 'max:255'],
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
+
+        if (array_key_exists('client_email', $payload)) {
+            $email = $payload['client_email'];
+            unset($payload['client_email']);
+            $payload['client_id'] = $email === null ? null : Client::query()
+                ->where('billing_email', $email)->orWhereHas('user', fn ($q) => $q->where('email', $email))
+                ->value('id');
+            if ($email !== null && $payload['client_id'] === null) {
+                throw ValidationException::withMessages(['client_email' => 'No client account has that email.']);
+            }
+        }
 
         $plan = $payload['plan'] ?? ($tenant ? null : config('naitalk_call.default_plan'));
         if ($plan !== null && ! array_key_exists('monthly_price_usd_cents', $payload) && $plan !== $tenant?->plan) {

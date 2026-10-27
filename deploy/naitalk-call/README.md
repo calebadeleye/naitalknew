@@ -52,6 +52,18 @@ which:
 - drops events for rooms no business owns, and answers 502 when a delivery
   fails so LiveKit retries.
 
+### Customer usage dashboard and alerts
+
+- **Dashboard:** a business linked to a client account (admin: **Link client**,
+  by the client's email) shows up for that client at `/client/naitalk-call`:
+  plan and price, this month's participant-minutes against the allowance,
+  minutes per day, the last six months, connection details (never the
+  secret), and a CSV usage report per month (`/api/v1/client/naitalk-call/{id}/report`).
+- **Alerts:** `naitalk-call:usage-alerts` runs hourly and emails Growth and
+  Business plans at 80% and 100% of the month's minutes, once per level per
+  month (`naitalk_call_usage_alerts`). It goes to the linked client account,
+  or else the business's contact email.
+
 ### Usage metering
 
 The router passes every `participant_left` event to
