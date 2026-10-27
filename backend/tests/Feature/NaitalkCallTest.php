@@ -3,10 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\AppSetting;
-use App\Models\DomainPricingSettings;
 use App\Models\NaitalkCallTenant;
 use App\Models\NaitalkCallUsageEvent;
+use App\Services\NaitalkCall\CbnExchangeRate;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\Concerns\CreatesDomainFixtures;
 use Tests\TestCase;
 
@@ -22,17 +23,37 @@ class NaitalkCallTest extends TestCase
         config(['naitalk_call.sync_token' => self::SYNC_TOKEN]);
     }
 
-    public function test_public_pricing_shows_twenty_dollars_and_the_naira_equivalent_from_the_admin_rate(): void
+    public function test_public_pricing_lists_every_plan_with_naira_at_the_cbn_official_rate(): void
     {
-        $this->getJson('/api/v1/public/naitalk-call/pricing')
-            ->assertOk()
-            ->assertJson(['monthly_usd_cents' => 2000, 'monthly_usd' => '$20', 'exchange_rate' => null, 'monthly_ngn' => null]);
+        $plans = $this->getJson('/api/v1/public/naitalk-call/pricing')->assertOk()->assertJsonPath('exchange_rate', null)->json('plans');
+        $this->assertSame(['free', 'starter', 'growth', 'business'], array_column($plans, 'id'));
+        $this->assertSame(['Free', '$20', '$49', '$99'], array_column($plans, 'monthly_usd'));
+        $this->assertSame([5000, 50000, 200000, 500000], array_column($plans, 'included_minutes'));
+        $this->assertNull($plans[1]['monthly_ngn'], 'no Naira price before the first CBN fetch');
 
-        DomainPricingSettings::forProvider('spaceship')->update(['exchange_rate' => 1545.5]);
+        AppSetting::put(CbnExchangeRate::SETTING, ['rate' => 1367.1057, 'date' => '2026-10-26', 'source' => 'CBN', 'fetched_at' => now()->toIso8601String()]);
 
-        $this->getJson('/api/v1/public/naitalk-call/pricing')
-            ->assertOk()
-            ->assertJson(['exchange_rate' => 1545.5, 'monthly_ngn_kobo' => 3091000, 'monthly_ngn' => '₦30,910']);
+        $response = $this->getJson('/api/v1/public/naitalk-call/pricing')->assertOk()->assertJsonPath('exchange_rate.date', '2026-10-26');
+        $this->assertSame([null, '₦27,342', '₦66,988', '₦135,343'], array_column($response->json('plans'), 'monthly_ngn'));
+    }
+
+    public function test_the_cbn_rate_is_the_newest_us_dollar_central_rate(): void
+    {
+        Http::fake(['*' => Http::sequence()
+            ->push([
+                ['id' => 3, 'currency' => 'EURO', 'ratedate' => '2026-10-26', 'buyingrate' => '1590.1', 'centralrate' => '1590.6', 'sellingrate' => '1591.1'],
+                ['id' => 2, 'currency' => 'US DOLLAR', 'ratedate' => '2026-10-23', 'buyingrate' => '1360.8394', 'centralrate' => '1361.3394', 'sellingrate' => '1361.8394'],
+                ['id' => 1, 'currency' => 'US DOLLAR', 'ratedate' => '2026-10-26', 'buyingrate' => '1366.6057', 'centralrate' => '1367.1057', 'sellingrate' => '1367.6057'],
+            ])
+            // Then a broken table: the last good rate stays.
+            ->push([['currency' => 'US DOLLAR', 'ratedate' => '2026-10-27', 'centralrate' => '0']]),
+        ]);
+
+        $this->artisan('naitalk-call:fetch-cbn-rate')->assertSuccessful();
+        $this->assertSame(['rate' => 1367.1057, 'date' => '2026-10-26', 'source' => 'CBN'], array_intersect_key(app(CbnExchangeRate::class)->current(), array_flip(['rate', 'date', 'source'])));
+
+        $this->artisan('naitalk-call:fetch-cbn-rate')->assertFailed();
+        $this->assertSame('2026-10-26', app(CbnExchangeRate::class)->current()['date']);
     }
 
     public function test_cradle_is_recorded_as_the_first_customer_with_its_key_left_on_the_server(): void
@@ -49,7 +70,7 @@ class NaitalkCallTest extends TestCase
     {
         $this->seed();
         $admin = $this->domainAdminToken();
-        DomainPricingSettings::forProvider('spaceship')->update(['exchange_rate' => 1500]);
+        AppSetting::put(CbnExchangeRate::SETTING, ['rate' => 1500, 'date' => '2026-10-26', 'source' => 'CBN']);
 
         $free = $this->withToken($admin)->postJson('/api/v1/admin/naitalk-call/tenants', ['business_name' => 'Tester', 'room_prefix' => 'tester', 'plan' => 'free'])
             ->assertCreated();
@@ -58,16 +79,17 @@ class NaitalkCallTest extends TestCase
         $this->assertNotEmpty($free->json('api_secret'));
 
         $id = $free->json('data.id');
-        $paid = $this->withToken($admin)->putJson("/api/v1/admin/naitalk-call/tenants/$id", ['business_name' => 'Tester', 'room_prefix' => 'tester', 'plan' => 'business'])->assertOk();
-        $this->assertSame('$20', $paid->json('data.monthly_price_usd'));
-        $this->assertSame('₦30,000', $paid->json('data.monthly_price_ngn'));
+        $paid = $this->withToken($admin)->putJson("/api/v1/admin/naitalk-call/tenants/$id", ['business_name' => 'Tester', 'room_prefix' => 'tester', 'plan' => 'growth'])->assertOk();
+        $this->assertSame('$49', $paid->json('data.monthly_price_usd'));
+        $this->assertSame('₦73,500', $paid->json('data.monthly_price_ngn'));
+        $this->assertSame(200000, $paid->json('data.included_minutes'));
 
         // Saving other fields keeps the plan's price.
         $this->withToken($admin)->putJson("/api/v1/admin/naitalk-call/tenants/$id", ['business_name' => 'Tester Ltd', 'room_prefix' => 'tester'])
-            ->assertOk()->assertJsonPath('data.monthly_price_usd', '$20');
+            ->assertOk()->assertJsonPath('data.monthly_price_usd', '$49');
 
         $plans = $this->withToken($admin)->getJson('/api/v1/admin/naitalk-call/tenants')->json('plans');
-        $this->assertSame(['free', 'business'], array_column($plans, 'id'));
+        $this->assertSame(['free', 'starter', 'growth', 'business'], array_column($plans, 'id'));
 
         // Free tenants still get keys on the server.
         config(['naitalk_call.sync_token' => self::SYNC_TOKEN]);

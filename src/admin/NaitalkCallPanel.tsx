@@ -15,12 +15,19 @@ export type NaitalkCallTenantRow = {
   api_key: string | null;
   webhook_url: string | null;
   minutes_this_month: number | null;
+  included_minutes: number;
 };
+
+/** "12,300 of 50,000 (25%)" and how full the plan is, for the usage column. */
+export function usageSummary(used: number, included: number): { text: string; percent: number } {
+  const percent = included > 0 ? Math.round((used / included) * 100) : 0;
+  return { text: `${used.toLocaleString("en-NG")} of ${included.toLocaleString("en-NG")} (${percent}%)`, percent };
+}
 
 type Payload = {
   data: NaitalkCallTenantRow[];
-  plan: { name: string; monthly_usd: string; exchange_rate: number | null; monthly_ngn_kobo: number | null };
-  plans: Array<{ id: string; name: string; monthly_usd: string }>;
+  plans: Array<{ id: string; name: string; monthly_usd: string; monthly_ngn: string | null; included_minutes: number }>;
+  exchange_rate: { rate: number; date: string; source: string; fetched_at?: string } | null;
   public_url: string;
   last_sync: { status: string; message?: string | null; at: string } | null;
 };
@@ -38,7 +45,7 @@ export function NaitalkCallPanel({ adminToken }: { adminToken: string }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [issued, setIssued] = useState<IssuedKey | null>(null);
   const [busyId, setBusyId] = useState<number | "new" | null>(null);
-  const emptyForm = { business_name: "", contact_email: "", room_prefix: "", webhook_url: "", plan: "business" };
+  const emptyForm = { business_name: "", contact_email: "", room_prefix: "", webhook_url: "", plan: "starter" };
   const [form, setForm] = useState(emptyForm);
   const [prefixTouched, setPrefixTouched] = useState(false);
 
@@ -103,11 +110,20 @@ export function NaitalkCallPanel({ adminToken }: { adminToken: string }) {
     }
   };
 
+  const refreshRate = async () => {
+    setNotice(null);
+    try {
+      await laravelApi("/api/v1/admin/naitalk-call/exchange-rate/refresh", adminToken, { method: "POST" });
+      load();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not fetch the CBN rate.");
+    }
+  };
+
   if (!data) {
     return <section className="admin-panel text-sm font-bold text-white/60">{notice ?? "Loading..."}</section>;
   }
 
-  const naira = data.plan.monthly_ngn_kobo === null ? null : `₦${(data.plan.monthly_ngn_kobo / 100).toLocaleString("en-NG")}`;
 
   return (
     <section className="admin-panel">
@@ -125,15 +141,26 @@ export function NaitalkCallPanel({ adminToken }: { adminToken: string }) {
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-lg border border-white/10 bg-black/20 p-4 text-sm">
-          <p className="text-xs font-bold uppercase tracking-wide text-white/45">{data.plan.name}</p>
-          <p className="mt-1 text-lg font-black">
-            {data.plan.monthly_usd} / month{naira && <span className="text-white/60"> ≈ {naira}</span>}
-          </p>
-          <p className="mt-1 text-xs text-white/50">
-            {data.plan.exchange_rate
-              ? `At ₦${data.plan.exchange_rate.toLocaleString("en-NG")} per $1, the rate set under Domain Pricing.`
-              : "Set the USD→NGN rate under Domain Pricing to show the Naira price."}
+        <div className="rounded-lg border border-white/10 bg-black/20 p-4 text-sm" data-testid="naitalk-call-plans">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-xs font-bold uppercase tracking-wide text-white/45">Plans</p>
+            <button type="button" className="text-[11px] font-bold text-primary" onClick={() => void refreshRate()}>Refresh CBN rate</button>
+          </div>
+          <ul className="mt-2 grid gap-1">
+            {data.plans.map((plan) => (
+              <li key={plan.id} className="flex justify-between gap-3">
+                <span className="font-bold">{plan.name}</span>
+                <span className="text-white/70">
+                  {plan.monthly_usd}
+                  {plan.monthly_ngn && <span className="text-white/45"> ≈ {plan.monthly_ngn}</span>} · {plan.included_minutes.toLocaleString("en-NG")} min
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-white/50">
+            {data.exchange_rate
+              ? `Naira at the CBN official rate: ₦${data.exchange_rate.rate.toLocaleString("en-NG")} per $1 (${data.exchange_rate.date}). Fetched twice a day.`
+              : "No CBN rate yet, so Naira prices are hidden. Refresh it now or wait for the next scheduled fetch."}
           </p>
         </div>
         <div className="rounded-lg border border-white/10 bg-black/20 p-4 text-sm" data-testid="naitalk-call-sync">
@@ -213,7 +240,12 @@ export function NaitalkCallPanel({ adminToken }: { adminToken: string }) {
                     {row.monthly_price_ngn && <span className="text-white/45"> ≈ {row.monthly_price_ngn}</span>}
                   </span>
                 </td>
-                <td className="py-2 text-right">{(row.minutes_this_month ?? 0).toLocaleString()}</td>
+                <td className="py-2 text-right">
+                  {(() => {
+                    const usage = usageSummary(row.minutes_this_month ?? 0, row.included_minutes);
+                    return <span className={usage.percent >= 100 ? "font-bold text-red-300" : usage.percent >= 80 ? "font-bold text-yellow-200" : undefined}>{usage.text}</span>;
+                  })()}
+                </td>
                 <td className="py-2 capitalize">{row.status}</td>
                 <td className="py-2">
                   <div className="flex flex-wrap justify-end gap-2">
@@ -284,7 +316,7 @@ export function NaitalkCallPanel({ adminToken }: { adminToken: string }) {
         </label>
         <div className="sm:col-span-2">
           <button type="submit" className="btn-primary" disabled={busyId === "new" || !form.business_name.trim() || !form.room_prefix}>
-            {busyId === "new" ? "Creating..." : `Create key — ${data.plans.find((plan) => plan.id === form.plan)?.name ?? "Business"}`}
+            {busyId === "new" ? "Creating..." : `Create key — ${data.plans.find((plan) => plan.id === form.plan)?.name ?? "Starter"}`}
           </button>
         </div>
       </form>

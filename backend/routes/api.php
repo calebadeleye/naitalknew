@@ -515,6 +515,7 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/naitalk-call/tenants', [NaitalkCallTenantController::class, 'store']);
             Route::put('/naitalk-call/tenants/{tenant}', [NaitalkCallTenantController::class, 'update']);
             Route::post('/naitalk-call/tenants/{tenant}/rotate-key', [NaitalkCallTenantController::class, 'rotateKey']);
+            Route::post('/naitalk-call/exchange-rate/refresh', [NaitalkCallTenantController::class, 'refreshExchangeRate']);
         });
     });
 });

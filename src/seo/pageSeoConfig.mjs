@@ -54,8 +54,8 @@ export const pageSeoConfig = {
     description: "Secure your website with SSL (HTTPS) for ₦15,000 a year. Order it on its own — our team reaches out after you order and sets it up for you.",
   },
   "/naitalk-call": {
-    title: "Naitalk Call — Hosted LiveKit Voice Calls for Apps, $20/month | NAI TALK",
-    description: "Add voice calls and live audio rooms to your app with hosted LiveKit. Your own API key, webhooks and monthly usage, for $20 a month (payable in Naira).",
+    title: "Naitalk Call — Hosted LiveKit Voice Calls for Apps, from $20/month | NAI TALK",
+    description: "Add voice calls and live audio rooms to your app with hosted LiveKit. Free to test, then Starter $20, Growth $49 or Business $99 a month, payable in Naira at the CBN official rate.",
   },
   "/green-mail": {
     title: "Green Mail — Free Business Webmail with Your Hosting | NAI TALK",

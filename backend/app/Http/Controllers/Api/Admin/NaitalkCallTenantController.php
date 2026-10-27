@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use App\Models\NaitalkCallTenant;
 use App\Models\NaitalkCallUsageEvent;
 use App\Services\Billing\Money;
+use App\Services\NaitalkCall\CbnExchangeRate;
 use App\Services\NaitalkCall\NaitalkCallPricing;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -35,8 +36,8 @@ class NaitalkCallTenantController extends Controller
         return response()->json([
             'data' => NaitalkCallTenant::query()->with('client:id,company_name,billing_email')->orderBy('business_name')->get()
                 ->map(fn (NaitalkCallTenant $tenant) => $this->serialize($tenant, (int) ($seconds[$tenant->id] ?? 0))),
-            'plan' => $this->pricing->plan(),
-            'plans' => collect(config('naitalk_call.plans'))->map(fn (array $plan, string $id) => ['id' => $id, 'name' => $plan['name'], 'monthly_usd' => $this->pricing->plan($id)['monthly_usd']])->values(),
+            'plans' => array_map(fn (array $plan) => [...$plan, 'monthly_ngn' => $plan['monthly_ngn_kobo'] === null ? null : Money::naira($plan['monthly_ngn_kobo'])], $this->pricing->plans()),
+            'exchange_rate' => $this->pricing->exchangeRate(),
             'public_url' => config('naitalk_call.public_url'),
             'last_sync' => AppSetting::get('naitalk_call_last_sync'),
         ]);
@@ -45,7 +46,7 @@ class NaitalkCallTenantController extends Controller
     public function store(Request $request)
     {
         $payload = $this->validated($request);
-        $tenant = NaitalkCallTenant::query()->create(['plan' => 'business', ...$payload]);
+        $tenant = NaitalkCallTenant::query()->create(['plan' => config('naitalk_call.default_plan'), ...$payload]);
         $secret = $tenant->issueKey();
         $this->audit($request, 'naitalk_call_tenant_created', "Onboarded {$tenant->business_name} onto Naitalk Call.", null, $tenant);
 
@@ -59,6 +60,16 @@ class NaitalkCallTenantController extends Controller
         $this->audit($request, 'naitalk_call_tenant_updated', "Updated Naitalk Call business {$tenant->business_name}.", $before, $tenant);
 
         return response()->json(['data' => $this->serialize($tenant->refresh())]);
+    }
+
+    /** Fetch the CBN official rate now instead of waiting for the schedule. */
+    public function refreshExchangeRate(CbnExchangeRate $cbn)
+    {
+        try {
+            return response()->json(['exchange_rate' => $cbn->refresh()]);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => 'Could not fetch the CBN rate right now: '.$e->getMessage()], 502);
+        }
     }
 
     /** New key and secret; the old pair stops working at the next server sync. */
@@ -90,7 +101,7 @@ class NaitalkCallTenantController extends Controller
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $plan = $payload['plan'] ?? ($tenant ? null : 'business');
+        $plan = $payload['plan'] ?? ($tenant ? null : config('naitalk_call.default_plan'));
         if ($plan !== null && ! array_key_exists('monthly_price_usd_cents', $payload) && $plan !== $tenant?->plan) {
             $payload['monthly_price_usd_cents'] = (int) config("naitalk_call.plans.$plan.monthly_usd_cents");
         }
@@ -122,6 +133,8 @@ class NaitalkCallTenantController extends Controller
             'monthly_price_usd_cents' => $tenant->monthly_price_usd_cents,
             'monthly_price_usd' => $price['monthly_usd'],
             'monthly_price_ngn' => $price['monthly_ngn_kobo'] === null ? null : Money::naira($price['monthly_ngn_kobo']),
+            'plan_name' => $price['name'],
+            'included_minutes' => $price['included_minutes'],
             'status' => $tenant->status,
             'room_prefix' => $tenant->room_prefix,
             'key_source' => $tenant->key_source,

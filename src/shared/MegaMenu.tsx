@@ -61,7 +61,7 @@ export const MEGA_MENUS: MegaMenuDef[] = [
           { label: "Website Design", href: "/website-design", description: "Custom websites that win customers", icon: Code2 },
           { label: "Get a Website Quote", href: "/get-a-website", description: "Tell us what you need, get a price", icon: FileText },
           { label: "SEO Services", href: "/seo-services", description: "Get found on Google", icon: BarChart3 },
-          { label: "Naitalk Call", href: "/naitalk-call", description: "Voice calls for your app — $20/month", icon: PhoneCall },
+          { label: "Naitalk Call", href: "/naitalk-call", description: "Voice calls for your app — free to test, from $20/mo", icon: PhoneCall },
           { label: "Portfolio", href: "/portfolio", description: "Websites we've built", icon: Sparkles },
         ],
       },

@@ -45,6 +45,9 @@ Schedule::job(new RepairWebsiteProxiesJob)->everyTenMinutes();
 // AWStats report after ISPConfig rebuilds it overnight.
 Schedule::job(new SyncSiteStatisticsJob)->dailyAt('06:20');
 
+// Naitalk Call Naira prices: the CBN publishes its official rate once per business day.
+Schedule::command('naitalk-call:fetch-cbn-rate')->twiceDaily(10, 16)->withoutOverlapping(30);
+
 // Greenmail: forget expired/idle webmail sessions (and the passwords they hold).
 Schedule::call(fn () => app(\App\Services\Greenmail\GreenmailSessions::class)->pruneExpired())->hourly()->name('greenmail-prune-sessions');
 // Greenmail: "Send later" emails that are due, and the next few campaign emails.
