@@ -363,13 +363,19 @@ class MailController extends Controller
         $settings = GreenmailSetting::query()->where('owner_email', $session->email)->first();
         $drafts = $this->folderForRole('drafts');
 
-        $this->mail()->append($drafts, $sender->compose($session->email, $settings?->display_name, $data, $request->file('attachments', []), $this->forwardedAttachments($data)), ['\\Seen', '\\Draft']);
+        $raw = $sender->compose($session->email, $settings?->display_name, $data, $request->file('attachments', []), $this->forwardedAttachments($data));
+        $this->mail()->append($drafts, $raw, ['\\Seen', '\\Draft']);
 
-        if (! empty($data['draft_uid'])) {
+        // Drafts save by themselves as people type, each replacing the last: the new copy goes in
+        // first (so nothing is lost if this fails half way), then the old one goes, and the app is
+        // told the new copy's UID to replace next time.
+        $uid = preg_match('/^Message-ID:\s*(<[^>\r\n]+>)/mi', $raw, $match) ? rescue(fn () => $this->mail()->findUidByMessageId($drafts, $match[1]), null, report: false) : null;
+
+        if (! empty($data['draft_uid']) && (int) $data['draft_uid'] !== $uid) {
             rescue(fn () => $this->mail()->delete($drafts, (int) $data['draft_uid']), report: false);
         }
 
-        return response()->json(['message' => 'Draft saved.']);
+        return response()->json(['message' => 'Draft saved.', 'draft_uid' => $uid]);
     }
 
     private function validateCompose(Request $request, bool $requireRecipient): array

@@ -16,7 +16,7 @@ export function PasswordField({ label, value, onChange, autoComplete }: { label:
       {label}
       <span className="relative mt-1.5 block">
         <input type={show ? "text" : "password"} value={value} onChange={(event) => onChange(event.target.value)} autoComplete={autoComplete} autoCapitalize="none" autoCorrect="off" spellCheck={false} className={`${field} !mt-0 pr-11`} required />
-        <button type="button" aria-label={show ? "Hide password" : "Show password"} aria-pressed={show} onClick={() => setShow(!show)} className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-500 hover:text-slate-800">
+        <button type="button" aria-label={show ? "Hide password" : "Show password"} aria-pressed={show} onMouseDown={(event) => event.preventDefault()} onClick={() => setShow(!show)} className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-500 hover:text-slate-800">
           {show ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
         </button>
       </span>

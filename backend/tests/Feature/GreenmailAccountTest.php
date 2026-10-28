@@ -88,6 +88,30 @@ class GreenmailAccountTest extends TestCase
         return $this->isp->mailUserGet('t', $this->mailUserId)['password'] ?? null;
     }
 
+    public function test_a_mailbox_made_on_the_mail_server_but_never_linked_here_can_still_change_its_password(): void
+    {
+        $clientId = (int) $this->isp->mailUserGet('t', $this->mailUserId)['client_id'];
+        $unlinkedId = $this->isp->mailUserAdd($this->isp->login(), $clientId, ['email' => 'consult@elinthgroup.com']);
+        $this->mail->addAccount('consult@elinthgroup.com', 'old-password');
+        $this->assertSame(0, MailboxRecord::query()->where('email_address', 'consult@elinthgroup.com')->count());
+
+        $token = $this->postJson('/api/v1/greenmail/session', ['email' => 'consult@elinthgroup.com', 'password' => 'old-password'])->assertCreated()->json('token');
+        $this->withHeader('X-Greenmail-Token', $token)->postJson('/api/v1/greenmail/password', ['current_password' => 'old-password', 'password' => 'brand-new-pass', 'password_confirmation' => 'brand-new-pass'])->assertOk();
+
+        $this->assertSame('brand-new-pass', $this->isp->mailUserGet('t', $unlinkedId)['password']);
+        $this->assertNotSame('brand-new-pass', $this->ispPassword(), 'only that mailbox changes');
+    }
+
+    public function test_a_mailbox_with_no_linked_neighbour_is_still_refused_with_a_clear_message(): void
+    {
+        $this->isp->mailUserAdd($this->isp->login(), 4242, ['email' => 'stray@elsewhere.test']);
+        $this->mail->addAccount('stray@elsewhere.test', 'old-password');
+
+        $token = $this->postJson('/api/v1/greenmail/session', ['email' => 'stray@elsewhere.test', 'password' => 'old-password'])->assertCreated()->json('token');
+        $this->withHeader('X-Greenmail-Token', $token)->postJson('/api/v1/greenmail/password', ['current_password' => 'old-password', 'password' => 'brand-new-pass', 'password_confirmation' => 'brand-new-pass'])
+            ->assertStatus(422)->assertJsonValidationErrors('password');
+    }
+
     public function test_changing_the_password_needs_the_current_one_signs_out_other_devices_and_keeps_this_one(): void
     {
         $phone = $this->token();

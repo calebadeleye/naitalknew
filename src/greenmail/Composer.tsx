@@ -24,7 +24,13 @@ export type ComposeDraft = {
   quoteHtml?: string;
   /** Forward: the original's attachments, sent along unless removed (the server copies them). */
   forward?: { folder: string; uid: number; attachments: Attachment[] };
+  /** Opened from the Drafts folder: saving replaces this draft instead of adding another. */
+  draftUid?: number;
 };
+
+/** A draft is saved this long after the last change (longer when files are attached, since they're sent again). */
+const AUTOSAVE_MS = 3000;
+const AUTOSAVE_WITH_FILES_MS = 15000;
 
 /**
  * The message editor, used for new mail, replies and forwards. Rich text is a
@@ -40,6 +46,7 @@ export function Composer({
   onClose,
   onSessionError,
   onDraftSaved,
+  draftsFolder = "Drafts",
   title = "New message",
 }: {
   token: string;
@@ -50,7 +57,10 @@ export function Composer({
   onSent: (message: string) => void;
   onClose: () => void;
   onSessionError: (error: unknown) => void;
+  /** Called quietly after each automatic save (to refresh counts). */
   onDraftSaved?: () => void;
+  /** The mailbox's Drafts folder (a discarded message's saved draft is removed from it). */
+  draftsFolder?: string;
   /** The title bar text for a full-window message. */
   title?: string;
 }) {
@@ -73,6 +83,14 @@ export function Composer({
   const { toast } = useFeedback();
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [draftState, setDraftState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
+  // Automatic drafts: the saved copy's UID (replaced on every save), what's waiting to be saved, and when to stop.
+  const draftUid = useRef<number | undefined>(draft.draftUid);
+  const pending = useRef<FormData | null>(null);
+  const saving = useRef<Promise<void> | null>(null);
+  const finished = useRef(false);
+  const autosaveTimer = useRef<number | undefined>(undefined);
+  const lastFields = useRef<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -128,6 +146,7 @@ export function Composer({
     if (draft.references) data.append("references", draft.references);
     if (draft.replyUid) data.append("reply_uid", String(draft.replyUid));
     if (draft.replyFolder) data.append("reply_folder", draft.replyFolder);
+    if (draftUid.current) data.append("draft_uid", String(draftUid.current));
     files.forEach((file) => data.append("attachments[]", file));
     if (draft.forward && forwarded.length > 0) {
       data.append("forward_folder", draft.forward.folder);
@@ -154,6 +173,10 @@ export function Composer({
   const send = async () => {
     setBusy("send");
     setError(null);
+    // Finish any draft being saved first, so the draft that goes with this email is the one deleted.
+    finished.current = true;
+    window.clearTimeout(autosaveTimer.current);
+    await saving.current;
     const data = form();
     if (remindDays > 0) {
       const at = new Date();
@@ -166,6 +189,7 @@ export function Composer({
       onSent(result.message);
     } catch (err) {
       if (isOfflineError(err)) return await toOutbox("send", data);
+      finished.current = false;
       onSessionError(err);
       setError(err instanceof Error ? err.message : "Could not send.");
     } finally {
@@ -178,6 +202,9 @@ export function Composer({
     setMenu(null);
     setBusy("later");
     setError(null);
+    finished.current = true;
+    window.clearTimeout(autosaveTimer.current);
+    await saving.current;
     try {
       const data = form();
       data.append("send_at", when.toISOString());
@@ -186,6 +213,7 @@ export function Composer({
       onSent(result.message);
     } catch (err) {
       onSessionError(err);
+      finished.current = false;
       setError(err instanceof Error ? err.message : "Could not schedule it.");
     } finally {
       setBusy(null);
@@ -235,22 +263,93 @@ export function Composer({
     }
   };
 
-  const saveDraft = async () => {
-    setBusy("draft");
-    setError(null);
-    const data = form();
-    try {
-      if (!navigator.onLine) return await toOutbox("draft", data);
-      await gm("/drafts", token, { method: "POST", body: data });
-      setSavedAt(new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }));
-      onDraftSaved?.();
-    } catch (err) {
-      if (isOfflineError(err)) return await toOutbox("draft", data);
-      onSessionError(err);
-      setError(err instanceof Error ? err.message : "Could not save the draft.");
-    } finally {
-      setBusy(null);
+  /** Anything worth keeping: a recipient, a subject, a file, or words the person typed (not just the signature). */
+  const hasContent = () => {
+    if (to.trim() || cc.trim() || bcc.trim() || subject.trim() || files.length > 0) return true;
+    const copy = editorRef.current?.cloneNode(true) as HTMLElement | undefined;
+    copy?.querySelectorAll(".gm-signature").forEach((node) => node.remove());
+    return Boolean(copy?.textContent?.trim());
+  };
+
+  /** Save what's waiting. Each save replaces the last, so the Drafts folder only ever has one copy. */
+  const saveDraftNow = (): Promise<void> => {
+    if (saving.current) return saving.current;
+    const data = pending.current;
+    if (!data || finished.current || !navigator.onLine) return Promise.resolve();
+    pending.current = null;
+    setDraftState("saving");
+    const run = (async () => {
+      try {
+        if (draftUid.current) data.set("draft_uid", String(draftUid.current));
+        const result = await gm<{ draft_uid?: number | null }>("/drafts", token, { method: "POST", body: data });
+        if (result.draft_uid) draftUid.current = result.draft_uid;
+        setSavedAt(new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }));
+        setDraftState("saved");
+        onDraftSaved?.();
+      } catch (err) {
+        // Try again with the next change; a refused session signs the person out as usual.
+        pending.current ??= data;
+        setDraftState("failed");
+        onSessionError(err);
+      } finally {
+        saving.current = null;
+        // More typing happened meanwhile.
+        if (pending.current && !finished.current) autosaveTimer.current = window.setTimeout(() => void saveDraftNow(), AUTOSAVE_MS);
+      }
+    })();
+    saving.current = run;
+    return run;
+  };
+
+  /** Something changed: keep a copy of the message as it is, and save it a moment after the last change. */
+  const changed = () => {
+    if (finished.current) return;
+    if (!hasContent()) {
+      pending.current = null;
+      return;
     }
+    pending.current = form();
+    window.clearTimeout(autosaveTimer.current);
+    const bigFiles = files.reduce((sum, f) => sum + f.size, 0) > 2 * 1048576;
+    autosaveTimer.current = window.setTimeout(() => void saveDraftNow(), bigFiles ? AUTOSAVE_WITH_FILES_MS : AUTOSAVE_MS);
+  };
+
+  const changedRef = useRef(changed);
+  changedRef.current = changed;
+
+  // Recipients, subject and attachments (the body reports its own changes).
+  useEffect(() => {
+    const key = JSON.stringify([to, cc, bcc, subject, files.map((f) => [f.name, f.size]), forwarded.map((f) => f.index)]);
+    const before = lastFields.current;
+    lastFields.current = key;
+    if (before !== null && before !== key) changedRef.current();
+  }, [to, cc, bcc, subject, files, forwarded]);
+
+  // Leaving the screen, or the page, with something unsaved: save it now.
+  useEffect(() => {
+    const flush = () => {
+      window.clearTimeout(autosaveTimer.current);
+      void saveDraftNow();
+    };
+    const onHide = () => document.visibilityState === "hidden" && flush();
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Discard: the message is thrown away, and so is its saved draft. */
+  const discard = async () => {
+    finished.current = true;
+    pending.current = null;
+    window.clearTimeout(autosaveTimer.current);
+    await saving.current;
+    if (draftUid.current) void gm(`/messages/${draftUid.current}?folder=${encodeURIComponent(draftsFolder)}`, token, { method: "DELETE" }).catch(() => undefined);
+    onClose();
   };
 
   /**
@@ -389,6 +488,7 @@ export function Composer({
       <div
         ref={editorRef}
         contentEditable
+        onInput={() => changed()}
         role="textbox"
         aria-multiline="true"
         aria-label="Message"
@@ -474,11 +574,10 @@ export function Composer({
             <option value={7}>Remind me in 1 week if nobody replies</option>
           </select>
         </label>
-        <button type="button" className="rounded-lg px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-60" disabled={busy !== null} onClick={() => void saveDraft()}>
-          {busy === "draft" ? "Saving…" : "Save draft"}
-        </button>
-        <span className="ml-auto text-xs text-slate-400">{savedAt ? `Saved ${savedAt}` : ""}</span>
-        <button type="button" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="Discard" title="Discard" onClick={onClose}>
+        <span className={`ml-auto text-xs ${draftState === "failed" ? "text-amber-600" : "text-slate-400"}`} role="status">
+          {draftState === "saving" ? "Saving draft…" : draftState === "failed" ? "Couldn't save the draft yet" : draftState === "saved" && savedAt ? `Draft saved ${savedAt}` : ""}
+        </span>
+        <button type="button" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="Discard" title="Discard" onClick={() => void discard()}>
           <Trash2 className="h-4 w-4" />
         </button>
       </div>

@@ -182,7 +182,8 @@ class FakeMailGateway implements MailGateway
     {
         $this->appended[] = ['folder' => $folder, 'raw' => $rawMessage, 'flags' => $flags];
         preg_match('/^Subject: (.*)$/mi', $rawMessage, $subject);
-        $this->deliver($this->email, ['subject' => trim($subject[1] ?? ''), 'seen' => true, 'text' => $rawMessage], $folder);
+        preg_match('/^Message-ID:\s*(<[^>\r\n]+>)/mi', $rawMessage, $id);
+        $this->deliver($this->email, array_filter(['subject' => trim($subject[1] ?? ''), 'seen' => true, 'text' => $rawMessage, 'message_id' => $id[1] ?? null]), $folder);
     }
 
     public function quota(): ?array

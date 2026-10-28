@@ -61,7 +61,7 @@ export function GreenmailThemeProvider({ children }: { children: React.ReactNode
 
   return (
     <ThemeContext.Provider value={{ choice, dark, setChoice }}>
-      <div className={dark ? "gm-dark" : undefined}>{children}</div>
+      <div className={dark ? "gm-app gm-dark" : "gm-app"}>{children}</div>
     </ThemeContext.Provider>
   );
 }
@@ -78,19 +78,31 @@ export function useVisibleViewport(): { height: number; top: number } | null {
   useEffect(() => {
     const viewport = window.visualViewport;
     if (!viewport) return;
+    let frame = 0;
+
     const update = () => {
+      frame = 0;
       // Leave it alone while someone pinch-zooms.
       if (Math.abs(viewport.scale - 1) > 0.01) return;
-      setBox({ height: Math.round(viewport.height), top: Math.round(viewport.offsetTop) });
-      // Safari may still scroll the page itself; keep it pinned at the top.
-      if (window.scrollY !== 0) window.scrollTo(0, 0);
+      const next = { height: Math.round(viewport.height), top: Math.round(viewport.offsetTop) };
+      // Safari fires these events constantly while text is selected or the Copy / Paste bubble is
+      // open; changing the layout then closes the bubble, so only real changes (the keyboard opening
+      // or closing) are applied.
+      setBox((current) => (current && Math.abs(current.height - next.height) < 2 && Math.abs(current.top - next.top) < 2 ? current : next));
+      // Safari may still scroll the page itself; keep it pinned at the top, but never while text is selected.
+      if (window.scrollY !== 0 && window.getSelection()?.type !== "Range") window.scrollTo(0, 0);
     };
+    const schedule = () => {
+      if (!frame) frame = window.requestAnimationFrame(update);
+    };
+
     update();
-    viewport.addEventListener("resize", update);
-    viewport.addEventListener("scroll", update);
+    viewport.addEventListener("resize", schedule);
+    viewport.addEventListener("scroll", schedule);
     return () => {
-      viewport.removeEventListener("resize", update);
-      viewport.removeEventListener("scroll", update);
+      if (frame) window.cancelAnimationFrame(frame);
+      viewport.removeEventListener("resize", schedule);
+      viewport.removeEventListener("scroll", schedule);
     };
   }, []);
 

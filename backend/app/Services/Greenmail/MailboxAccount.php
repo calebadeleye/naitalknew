@@ -26,9 +26,7 @@ class MailboxAccount
 
     private const MAX_ATTEMPTS = 5;
 
-    public function __construct(private readonly ServerMailbox $server)
-    {
-    }
+    public function __construct(private readonly ServerMailbox $server) {}
 
     /** Signed in: change the password. Other devices are signed out; this one stays signed in. */
     public function changePassword(GreenmailSession $session, string $current, string $new): void
@@ -122,7 +120,11 @@ class MailboxAccount
         try {
             $this->server->modify($mailbox, fn () => ['password' => $password]);
         } catch (Exceptions\MailboxSettingsUnavailable $exception) {
-            throw ValidationException::withMessages(['password' => $exception->getMessage()]);
+            // The default text is about rules and vacation replies: not what someone changing a password needs to read.
+            $generic = (new Exceptions\MailboxSettingsUnavailable)->getMessage();
+            throw ValidationException::withMessages(['password' => $exception->getMessage() === $generic
+                ? 'We couldn’t change this mailbox’s password here. Please contact NAI TALK support and we’ll do it for you.'
+                : $exception->getMessage()]);
         } catch (Throwable $exception) {
             report($exception);
             throw ValidationException::withMessages(['password' => 'The password could not be changed on the mail server. Please try again, or try a different password.']);

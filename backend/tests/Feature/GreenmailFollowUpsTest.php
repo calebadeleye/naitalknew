@@ -232,6 +232,22 @@ class GreenmailFollowUpsTest extends TestCase
         $gm->getJson('/api/v1/greenmail/attachments')->assertJsonPath('total', 1);
     }
 
+    public function test_saving_a_draft_again_replaces_the_previous_copy(): void
+    {
+        $gm = $this->gm();
+
+        $first = $gm->postJson('/api/v1/greenmail/drafts', ['to' => 'ada@example.com', 'subject' => 'Plan', 'html' => '<p>One</p>'])->assertOk()->json('draft_uid');
+        $this->assertIsInt($first);
+        $second = $gm->postJson('/api/v1/greenmail/drafts', ['to' => 'ada@example.com', 'subject' => 'Plan', 'html' => '<p>One two</p>', 'draft_uid' => $first])->assertOk()->json('draft_uid');
+
+        $this->assertNotSame($first, $second);
+        $this->assertSame([$second], array_keys($this->box('Drafts')), 'one draft, the latest');
+
+        // Sending it clears the draft.
+        $gm->postJson('/api/v1/greenmail/send', ['to' => 'ada@example.com', 'subject' => 'Plan', 'html' => '<p>Done</p>', 'draft_uid' => $second])->assertCreated();
+        $this->assertSame([], $this->box('Drafts'));
+    }
+
     public function test_an_email_without_a_date_is_still_indexed(): void
     {
         $this->mail->deliver(self::OWNER, ['date' => '1970-01-01T00:00:00+00:00', 'attachments' => [['name' => 'old.pdf', 'mime' => 'application/pdf', 'content' => 'x']]]);

@@ -500,7 +500,7 @@ function Mailbox({
         setCompose({
           variant: "window",
           key: Date.now(),
-          draft: { to: full.to.map((a) => a.email).join(", "), cc: full.cc.map((a) => a.email).join(", "), bcc: "", subject: full.subject === "(no subject)" ? "" : full.subject, bodyHtml: full.html },
+          draft: { to: full.to.map((a) => a.email).join(", "), cc: full.cc.map((a) => a.email).join(", "), bcc: "", subject: full.subject === "(no subject)" ? "" : full.subject, bodyHtml: full.html, draftUid: summary.uid },
         });
       } catch (error) {
         handleError(error);
@@ -1059,7 +1059,8 @@ function Mailbox({
               draft={compose.draft}
               variant="window"
               onSessionError={handleError}
-              onDraftSaved={() => { flash("Draft saved."); void loadFolders(); }}
+              onDraftSaved={() => void loadFolders()}
+              draftsFolder={pathOf("drafts") ?? "Drafts"}
               onClose={() => setCompose(null)}
               onSent={(text) => { flash(text); setCompose(null); void loadFolders(); if (roleOf(folder) === "sent" || roleOf(folder) === "drafts") void loadList(true); }}
               />
@@ -1089,7 +1090,8 @@ function Mailbox({
                   draft={compose.draft}
                   variant="inline"
                   onSessionError={handleError}
-                  onDraftSaved={() => { flash("Draft saved."); void loadFolders(); }}
+                  onDraftSaved={() => void loadFolders()}
+              draftsFolder={pathOf("drafts") ?? "Drafts"}
                   onClose={() => setCompose(null)}
                   onSent={(text) => { flash(text); setCompose(null); setMessage({ ...message, answered: true }); void loadFolders(); }}
                   />
@@ -1104,7 +1106,7 @@ function Mailbox({
   return (
     <div
       className="fixed inset-x-0 top-0 flex h-[100dvh] overflow-hidden bg-[#f3f5f7] font-body text-slate-900"
-      style={visible ? { height: visible.height, transform: visible.top ? `translateY(${visible.top}px)` : undefined } : undefined}
+      style={visible ? { height: visible.height, top: visible.top } : undefined}
     >
       <div className="hidden lg:flex">{sidebar}</div>
       {mobileNav && (

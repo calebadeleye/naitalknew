@@ -2054,3 +2054,26 @@
   border-radius: 12px;
   background: #fff;
 }
+
+/*
+ * Green Mail on a phone: iPhone Safari zooms the page when a field under 16px
+ * is tapped (and leaves it zoomed, which then fights the app's own sizing and
+ * the Copy / Paste bubble). Fields stay at 16px on touch screens, and always
+ * allow selecting and pasting text.
+ */
+@media (pointer: coarse) {
+  .gm-app input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]),
+  .gm-app textarea,
+  .gm-app select,
+  .gm-app [contenteditable="true"] {
+    font-size: 16px;
+  }
+}
+
+.gm-app input,
+.gm-app textarea,
+.gm-app [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
