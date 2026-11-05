@@ -3,6 +3,7 @@
 namespace App\Services\Ispconfig;
 
 use App\Services\Ispconfig\Exceptions\IspConfigApiException;
+use Illuminate\Support\Str;
 use Throwable;
 
 /**
@@ -105,7 +106,16 @@ class FakeIspConfigClient implements IspConfigClient
 
         return array_values(array_filter($records, function (array $record) use ($filter): bool {
             foreach ($filter as $key => $value) {
-                if (! array_key_exists($key, $record) || (string) $record[$key] !== (string) $value) {
+                if (! array_key_exists($key, $record)) {
+                    return false;
+                }
+
+                // ISPConfig treats a value containing % as a LIKE pattern.
+                $matches = str_contains((string) $value, '%')
+                    ? Str::is(str_replace('%', '*', Str::lower((string) $value)), Str::lower((string) $record[$key]))
+                    : (string) $record[$key] === (string) $value;
+
+                if (! $matches) {
                     return false;
                 }
             }

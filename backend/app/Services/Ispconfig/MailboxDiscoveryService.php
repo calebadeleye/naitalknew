@@ -33,23 +33,21 @@ class MailboxDiscoveryService
             throw new IspConfigApiException('This service is not provisioned in ISPConfig yet.', ['hosting_service_id' => $service->id]);
         }
 
-        $ispConfigClientId = (int) $mapping->clientMapping->ispconfig_client_id;
         $domain = Str::lower((string) $service->primary_domain);
         $sessionId = $this->ispConfig->login();
 
         try {
-            // ISPConfig's remote API filters mail users by the client's own
-            // group id, not by domain directly (same filter LegacyImportService
-            // uses) — a client's mailboxes across every domain they own come
-            // back together, so results still need narrowing to this one
-            // service's domain below.
-            $remoteMailUsers = $this->ispConfig->mailUserList($sessionId, ['sys_groupid' => $ispConfigClientId + 1]);
+            // By address, not by the client's ISPConfig group: mail domains are
+            // often owned by a different ISPConfig account than the website, and
+            // those mailboxes never came back when filtered by group.
+            $remoteMailUsers = $this->ispConfig->mailUserList($sessionId, ['email' => '%@'.$domain]);
         } finally {
             $this->ispConfig->logout($sessionId);
         }
 
+        // Across every service: one parked on the wrong service is moved by
+        // MailboxReconciler, not listed twice.
         $existingEmails = MailboxRecord::query()
-            ->where('hosting_service_id', $service->id)
             ->pluck('email_address')
             ->map(fn ($email) => Str::lower($email))
             ->all();

@@ -58,6 +58,8 @@ Schedule::command('greenmail:dispatch')->everyMinute()->withoutOverlapping(10);
 Schedule::command('greenmail:push-check')->everyMinute()->withoutOverlapping(5);
 Schedule::command('greenmail:expo-push-check')->everyMinute()->withoutOverlapping(5);
 Schedule::job(new SyncMailboxesJob)->everySixHours();
+// Mailboxes made in ISPConfig's own panel appear in the client area, on their domain's service.
+Schedule::command('mailboxes:reconcile')->everySixHours()->withoutOverlapping(30);
 Schedule::job(new SyncDatabasesJob)->everySixHours();
 Schedule::job(new SyncFtpAccountsJob)->everySixHours();
 

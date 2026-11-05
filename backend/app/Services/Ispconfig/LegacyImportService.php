@@ -429,10 +429,12 @@ class LegacyImportService
                 continue;
             }
 
-            $targetService = $this->matchServiceForEmail($email, $siteResults) ?? $primaryService;
+            // By domain only: falling back to the client's first website put other
+            // customers' mailboxes in that client's dashboard.
+            $targetService = $this->matchServiceForEmail($email, $siteResults);
 
             if (! $targetService) {
-                $this->log($client, null, 'manual_renewal_date_required', "Mailbox {$email} has no destination website — skipped.", ['email' => $email]);
+                $this->log($client, null, 'manual_renewal_date_required', "Mailbox {$email} has no hosting service for its domain — skipped.", ['email' => $email]);
 
                 continue;
             }
@@ -654,7 +656,7 @@ class LegacyImportService
                 continue;
             }
 
-            $targetService = collect($siteResults)->firstWhere('domain', $domain)['hosting_service'] ?? $primaryService;
+            $targetService = $this->matchServiceForDomain($domain, $siteResults);
 
             if (! $targetService) {
                 continue;
@@ -690,7 +692,20 @@ class LegacyImportService
     private function matchServiceForEmail(string $email, array $siteResults): ?HostingService
     {
         $parts = explode('@', $email);
-        $domain = strtolower($parts[1] ?? '');
+
+        return $this->matchServiceForDomain(strtolower($parts[1] ?? ''), $siteResults);
+    }
+
+    /**
+     * The domain's service: among this ISPConfig client's websites first, then
+     * anywhere, since mail domains are often owned by another ISPConfig client
+     * than the website they belong to.
+     *
+     * @param  array<int, array<string, mixed>>  $siteResults
+     */
+    private function matchServiceForDomain(string $domain, array $siteResults): ?HostingService
+    {
+        $domain = strtolower($domain);
 
         foreach ($siteResults as $site) {
             if ($site['hosting_service'] && strtolower((string) $site['domain']) === $domain) {
@@ -698,7 +713,7 @@ class LegacyImportService
             }
         }
 
-        return null;
+        return HostingService::query()->where('primary_domain', $domain)->first();
     }
 
     /**
