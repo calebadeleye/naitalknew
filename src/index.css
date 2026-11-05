@@ -851,8 +851,10 @@
     @apply fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden;
   }
 
+  /* min-w-0: a flex child won't shrink below its content otherwise, so one wide
+     table stretched the whole page (and the top bar) past a phone's screen. */
   .admin-main {
-    @apply flex min-h-screen flex-1 flex-col lg:pl-0;
+    @apply flex min-h-screen min-w-0 flex-1 flex-col lg:pl-0;
   }
 
   .admin-topbar {
@@ -892,7 +894,12 @@
   }
 
   .admin-content {
-    @apply mx-auto flex w-full max-w-7xl flex-1 flex-col items-stretch gap-6 px-4 py-8 sm:px-6 lg:px-8;
+    @apply mx-auto flex w-full max-w-7xl min-w-0 flex-1 flex-col items-stretch gap-6 px-4 py-8 sm:px-6 lg:px-8;
+  }
+
+  /* Same for anything laid out inside a section: wide tables scroll in their own box. */
+  .admin-content :is(.grid, .flex) > * {
+    min-width: 0;
   }
 
   .admin-notification-panel {

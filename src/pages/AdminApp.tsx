@@ -6161,7 +6161,7 @@ export function AdminApp() {
         )}
 
         {isContentEditorSection && !routeClientId && !routeServiceId && (
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/[0.04] px-4 py-3">
+          <div className="flex flex-col gap-3 rounded-lg border border-primary/20 bg-primary/[0.04] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs font-bold text-white/60">
               Changes to {adminSectionLabels[activeSection]} only go live on the public site once saved here.
             </p>
