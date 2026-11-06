@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, Info, X, XCircle } from "lucide-react";
 
 export type ToastType = "success" | "error" | "warning" | "info";
@@ -78,8 +78,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // Kept stable: pages list `toast` in their loaders' dependencies, so a new
+  // object on every render made each error toast reload the page's data, and
+  // a request that kept failing looped several times a second.
+  const value = useMemo(() => ({ push, clear }), [push, clear]);
+
   return (
-    <ToastContext.Provider value={{ push, clear }}>
+    <ToastContext.Provider value={value}>
       {children}
       <div className="toast-stack" aria-live="polite" aria-atomic="false">
         {toasts.map((toast) => {

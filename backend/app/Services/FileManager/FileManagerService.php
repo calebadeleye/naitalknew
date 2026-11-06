@@ -182,6 +182,12 @@ class FileManagerService
 
         try {
             return $action();
+        } catch (\ErrorException $exception) {
+            // The SSH login worked but the server closed the SFTP channel (for
+            // example a broken jail); phpseclib surfaces that as a PHP warning.
+            report($exception);
+
+            throw new FileManagerTransportException('The SFTP session was closed by the server.', 0, $exception);
         } finally {
             $this->transport->disconnect();
         }

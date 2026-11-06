@@ -60,6 +60,23 @@ class FileManagerTest extends TestCase
         $this->assertStringNotContainsString($account->username, json_encode(['ready' => false]));
     }
 
+    public function test_a_site_whose_sftp_channel_is_closed_gets_a_clean_error_not_a_500(): void
+    {
+        $ispConfigFake = $this->fakeIspConfig();
+        $this->app->instance(FileManagerTransport::class, new class extends FakeFileManagerTransport
+        {
+            public function isDirectory(string $path): bool
+            {
+                throw new \ErrorException('Undefined array key 256');
+            }
+        });
+        $service = $this->provisionedService($ispConfigFake);
+        $token = $this->clientToken($service);
+
+        $this->withToken($token)->getJson("/api/v1/client/services/{$service->id}/files")->assertStatus(202);
+        $this->withToken($token)->getJson("/api/v1/client/services/{$service->id}/files")->assertStatus(503);
+    }
+
     public function test_second_visit_connects_and_lists_the_site_root(): void
     {
         $ispConfigFake = $this->fakeIspConfig();
