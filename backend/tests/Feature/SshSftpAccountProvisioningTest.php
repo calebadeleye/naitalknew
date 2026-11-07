@@ -50,6 +50,28 @@ class SshSftpAccountProvisioningTest extends TestCase
         $this->assertFalse(collect($fake->calls)->contains(fn ($call) => $call['method'] === 'ftpUserAdd'));
     }
 
+    public function test_a_job_that_keeps_crashing_marks_the_account_failed_instead_of_leaving_it_provisioning(): void
+    {
+        $service = $this->createProvisionableHostingService();
+
+        $account = FtpAccountRecord::query()->create([
+            'hosting_service_id' => $service->id,
+            'username' => 'sftpuser',
+            'access_type' => 'sftp',
+            'status' => 'provisioning',
+        ]);
+
+        (new FtpAccountProvisioningActionJob($account->id, 'create'))->failed(new \RuntimeException('Connection timed out'));
+
+        $this->assertSame('failed', $account->fresh()->status);
+        $this->assertDatabaseHas('provisioning_logs', ['hosting_service_id' => $service->id, 'action' => 'create_sftp_account', 'status' => 'failed']);
+
+        // An account that already finished is left alone.
+        $account->forceFill(['status' => 'active'])->save();
+        (new FtpAccountProvisioningActionJob($account->id, 'reset_password'))->failed(new \RuntimeException('Connection timed out'));
+        $this->assertSame('active', $account->fresh()->status);
+    }
+
     public function test_resetting_the_password_of_an_sftp_account_calls_shell_user_update(): void
     {
         $fake = $this->fakeIspConfig();

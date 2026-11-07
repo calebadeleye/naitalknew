@@ -160,6 +160,20 @@ class FtpAccountProvisioningActionJob implements ShouldQueue
         SyncHostingUsageSnapshotJob::dispatch($ftpAccount->hosting_service_id, 'resource_change');
     }
 
+    /**
+     * Every retry crashed with something other than an ISPConfig refusal (a
+     * timeout, a dropped connection): don't leave the account stuck on
+     * "provisioning" in the dashboard.
+     */
+    public function failed(?\Throwable $exception): void
+    {
+        $ftpAccount = FtpAccountRecord::query()->find($this->ftpAccountRecordId);
+
+        if ($ftpAccount && $ftpAccount->status === 'provisioning') {
+            $this->fail($ftpAccount, 'The server could not finish this request. Please try again.');
+        }
+    }
+
     private function fail(FtpAccountRecord $ftpAccount, string $message, array $context = []): void
     {
         $ftpAccount->forceFill(['status' => 'failed'])->save();

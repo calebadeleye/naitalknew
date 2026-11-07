@@ -495,6 +495,25 @@ export function HostingManagePanel({
     void loadAll();
   }, [loadAll]);
 
+  // Creating, changing or deleting a mailbox, database or SSH account finishes
+  // in the background. While any is still "provisioning", look again every few
+  // seconds (up to about three minutes) so the list settles without a reload.
+  // A failed load leaves the lists unchanged, so it doesn't schedule another.
+  const pendingChecks = React.useRef(0);
+  const hasPending = [mailboxes?.items, databases?.items, ftpAccounts?.items].some((items) => items?.some((item) => item.status === "provisioning"));
+  useEffect(() => {
+    if (!hasPending) {
+      pendingChecks.current = 0;
+      return;
+    }
+    if (pendingChecks.current >= 45) return;
+    const timer = window.setTimeout(() => {
+      pendingChecks.current += 1;
+      void loadAll();
+    }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [hasPending, mailboxes, databases, ftpAccounts, loadAll]);
+
   const loadWebsite = React.useCallback(async () => {
     setIsLoadingWebsite(true);
     try {
