@@ -318,6 +318,12 @@ const DEFAULT_POST_CTA: PostCta = {
 
 /** Posts about something specific end with a call to action for it, not the generic website one. */
 const POST_CTAS: Record<string, PostCta> = {
+  "introducing-nai-talk-voice-business-phone-line-in-your-browser": {
+    title: "Ready for a business line your team answers in the browser?",
+    text: "Get a Nigerian number with call queues, recordings and call logs, on prepaid per-minute billing.",
+    primary: { label: "Request a Number", href: "https://voice.naitalk.com" },
+    secondary: { label: "Read the API Docs", href: "https://voice.naitalk.com/docs" },
+  },
   "introducing-naitalk-call-voice-calls-for-developers": {
     title: "Ready to add voice calls to your app?",
     text: "Start free while you build. Paid plans from $20 a month, with Naira pricing at the CBN official rate.",
