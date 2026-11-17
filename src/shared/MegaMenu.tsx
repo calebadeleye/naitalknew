@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   Sparkles,
   Tag,
+  Wallet,
   Wrench,
 } from "lucide-react";
 import { trackCtaClick } from "../lib/analytics";
@@ -62,6 +63,7 @@ export const MEGA_MENUS: MegaMenuDef[] = [
           { label: "Get a Website Quote", href: "/get-a-website", description: "Tell us what you need, get a price", icon: FileText },
           { label: "SEO Services", href: "/seo-services", description: "Get found on Google", icon: BarChart3 },
           { label: "Naitalk Call", href: "/naitalk-call", description: "Voice calls for your app — free to test, from $20/mo", icon: PhoneCall },
+          { label: "NaiPay Escrow", href: "https://naipay.naitalk.com", description: "Safe payments for online buyers and sellers", icon: Wallet, badge: "New" },
           { label: "Portfolio", href: "/portfolio", description: "Websites we've built", icon: Sparkles },
         ],
       },

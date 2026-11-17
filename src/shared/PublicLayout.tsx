@@ -397,6 +397,7 @@ export const footerColumns: Array<{ title: string; links: Array<{ label: string;
       { label: "Green Mail", href: "/green-mail" },
       { label: "SSL Certificate", href: "/ssl-certificate" },
       { label: "Naitalk Call", href: "/naitalk-call" },
+      { label: "NaiPay Escrow", href: "https://naipay.naitalk.com", external: true },
       { label: "SEO Services", href: "/seo-services" },
     ],
   },

@@ -318,6 +318,12 @@ const DEFAULT_POST_CTA: PostCta = {
 
 /** Posts about something specific end with a call to action for it, not the generic website one. */
 const POST_CTAS: Record<string, PostCta> = {
+  "introducing-naipay-escrow-safe-payments-for-nigerian-buyers-and-sellers": {
+    title: "Buying or selling with someone you don't know?",
+    text: "NaiPay holds the money until delivery is confirmed. One 1.5% fee, shared by buyer and seller.",
+    primary: { label: "Open NaiPay", href: "https://naipay.naitalk.com" },
+    secondary: { label: "Talk to Us", href: "/contact" },
+  },
   "introducing-nai-talk-voice-business-phone-line-in-your-browser": {
     title: "Ready for a business line your team answers in the browser?",
     text: "Get a Nigerian number with call queues, recordings and call logs, on prepaid per-minute billing.",
