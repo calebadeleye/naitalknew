@@ -38,6 +38,8 @@ export default function MessageScreen() {
   const [assistant, setAssistant] = useState<{ action: AssistantAction; text: string | null } | null>(null);
   const [downloading, setDownloading] = useState<number | null>(null);
   const role = roleOf(folders, folder);
+  // Pictures show straight away, except in Spam, where they could report the open.
+  const imagesOn = showImages || role !== "junk";
 
   useEffect(() => {
     if (!account) return;
@@ -212,15 +214,15 @@ export default function MessageScreen() {
           </View>
         ) : null}
 
-        {message.has_remote_images && !showImages ? (
+        {message.has_remote_images && !imagesOn ? (
           <Pressable onPress={() => setShowImages(true)} style={{ marginHorizontal: 16, marginBottom: 8, padding: 12, borderRadius: 12, backgroundColor: colors.input, flexDirection: "row", gap: 8, alignItems: "center" }}>
             <Ionicons name="image-outline" size={18} color={colors.muted} />
-            <Text style={{ flex: 1, color: colors.muted, fontSize: 13 }}>Images from the internet are hidden to protect your privacy.</Text>
+            <Text style={{ flex: 1, color: colors.muted, fontSize: 13 }}>Images are hidden in Spam to protect your privacy.</Text>
             <Text style={{ color: colors.greenDark, fontWeight: "700" }}>Show</Text>
           </Pressable>
         ) : null}
 
-        <HtmlView html={message.html} allowRemoteImages={showImages} />
+        <HtmlView html={message.html} allowRemoteImages={imagesOn} />
 
         {message.attachments.length ? (
           <View style={{ paddingHorizontal: 16, gap: 8, marginTop: 8 }}>

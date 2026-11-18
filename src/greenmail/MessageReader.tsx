@@ -19,8 +19,8 @@ export type ReaderExtras = {
 
 /**
  * One email. Its HTML (already cleaned on the server) is shown in a sandboxed
- * frame with scripts off and a content policy that blocks remote content —
- * so tracking pixels stay silent until the reader clicks "Show images".
+ * frame with scripts off and a content policy that only lets remote images load when allowed: they show by
+ * default, except in Spam, where they wait for "Show images" (tracking pixels).
  */
 export function MessageReader({
   message,
@@ -42,15 +42,16 @@ export function MessageReader({
   /** The inline reply/forward box, shown under the header (above the email). */
   children?: React.ReactNode;
 }) {
-  const [showImages, setShowImages] = useState(false);
+  // Pictures show straight away, except in Spam, where they could report the open.
+  const [showImages, setShowImages] = useState(!isJunk);
   const [menu, setMenu] = useState<"snooze" | "remind" | "label" | null>(null);
   const [preview, setPreview] = useState<FileRef | null>(null);
   const [share, setShare] = useState<FileRef | null>(null);
 
   useEffect(() => {
-    setShowImages(false);
+    setShowImages(!isJunk);
     setMenu(null);
-  }, [message?.uid]);
+  }, [message?.uid, isJunk]);
 
   if (isLoading && !message) {
     return (
@@ -180,7 +181,7 @@ export function MessageReader({
 
         {message.has_remote_images && !showImages && (
           <div className="mx-6 mb-3 flex flex-wrap items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
-            <ImageOff className="h-4 w-4" /> Images from the internet are hidden to protect your privacy.
+            <ImageOff className="h-4 w-4" /> Images are hidden in Spam to protect your privacy.
             <button type="button" className="font-bold text-[#1f9d4c] hover:underline" onClick={() => setShowImages(true)}>
               Show images
             </button>

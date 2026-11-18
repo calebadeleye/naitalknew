@@ -17,7 +17,7 @@ web app and `backend/routes/api.php`).
   search, pull to refresh, infinite scroll, star, long-press for read/unread, archive, spam,
   delete.
 - **Reader**: sandboxed HTML (WebView with a Content-Security-Policy: no scripts, frames or
-  forms; remote images blocked until you tap *Show*; links open in the browser),
+  forms; remote images shown, except in Spam where they wait until you tap *Show*; links open in the browser),
   attachments (download and share), reply / reply all / forward / delete, and the AI
   assistant (summarise, draft reply, action items, translate to Yoruba — `POST /assistant`).
 - **Compose**: From (any signed-in account), To with contact suggestions, Cc/Bcc, subject,
