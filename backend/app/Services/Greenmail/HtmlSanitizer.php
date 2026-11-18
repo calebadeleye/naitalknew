@@ -21,13 +21,25 @@ class HtmlSanitizer
      */
     public function clean(string $html, array $inlineImages = []): string
     {
-        $html = preg_replace_callback('/(["\'])cid:([^"\']+)\1/i', function (array $match) use ($inlineImages) {
+        // Embedded (cid:) images are swapped for short placeholders while the HTML is
+        // cleaned, then for their data: URIs afterwards. The data URIs are built by us
+        // (image/* + base64), and running megabytes of them through the purifier ran
+        // out of memory (an email with 13 photos, 2026-11-18).
+        $placeholders = [];
+        $html = preg_replace_callback('/(["\'])cid:([^"\']+)\1/i', function (array $match) use ($inlineImages, &$placeholders) {
             $uri = $inlineImages[trim($match[2], '<>')] ?? null;
+            if (! $uri) {
+                return $match[0];
+            }
+            $key = 'https://inline-image.greenmail.invalid/'.count($placeholders);
+            $placeholders[$key] = $uri;
 
-            return $uri ? $match[1].$uri.$match[1] : $match[0];
+            return $match[1].$key.$match[1];
         }, $html) ?? $html;
 
-        return $this->purifier()->purify($html);
+        $clean = $this->purifier()->purify($html);
+
+        return $placeholders ? strtr($clean, $placeholders) : $clean;
     }
 
     private function purifier(): HTMLPurifier

@@ -19,8 +19,12 @@ class WebklexMailGateway implements MailGateway
 {
     private ?Client $client = null;
 
+    /** The last message read with its body in this request: [folder + uid key, message]. */
+    private ?array $lastFetched = null;
+
     public function open(string $email, string $password): void
     {
+        $this->lastFetched = null;
         $config = config('greenmail.imap');
 
         $manager = new ClientManager([
@@ -75,6 +79,7 @@ class WebklexMailGateway implements MailGateway
 
     public function close(): void
     {
+        $this->lastFetched = null;
         rescue(fn () => $this->client?->disconnect(), report: false);
         $this->client = null;
     }
@@ -204,11 +209,13 @@ class WebklexMailGateway implements MailGateway
 
     public function move(string $folder, int $uid, string $toFolder): void
     {
+        $this->lastFetched = null;
         $this->find($folder, $uid, withBody: false)?->move($toFolder, true);
     }
 
     public function delete(string $folder, int $uid): void
     {
+        $this->lastFetched = null;
         $this->find($folder, $uid, withBody: false)?->delete(true);
     }
 
@@ -374,13 +381,26 @@ class WebklexMailGateway implements MailGateway
 
     private function find(string $folder, int $uid, bool $withBody = true): ?Message
     {
+        // Opening an email reads each embedded picture with attachment(); reuse the
+        // message already fetched in this request instead of downloading it again for
+        // every picture (13 pictures meant 13 full downloads and ran out of memory).
+        $key = $folder."\0".$uid;
+        if ($withBody && $this->lastFetched !== null && $this->lastFetched[0] === $key) {
+            return $this->lastFetched[1];
+        }
+
         $query = $this->folder($folder)->query()->leaveUnread();
 
         if (! $withBody) {
             $query->setFetchBody(false);
         }
 
-        return rescue(fn () => $query->getMessageByUid($uid), null, report: false);
+        $message = rescue(fn () => $query->getMessageByUid($uid), null, report: false);
+        if ($withBody) {
+            $this->lastFetched = $message ? [$key, $message] : null;
+        }
+
+        return $message;
     }
 
     /** @return array<string, mixed> */
