@@ -127,12 +127,15 @@ class WebklexMailGateway implements MailGateway
         }
 
         $total = (clone $query)->count();
-        $messages = $query->limit($perPage, max(1, $page))->get();
+        // Headers and flags only: a page of full emails (several 6 MB ones with
+        // pictures) ran past PHP's memory limit. Bodies are read one at a time below.
+        $messages = $query->setFetchBody(false)->limit($perPage, max(1, $page))->get();
 
         return [
             // webklex picks the newest page, but returns it in the server's
             // ascending FETCH order — newest first within the page too.
-            'messages' => $messages->map(fn (Message $message) => $this->summary($message))->sortByDesc('uid')->values()->all(),
+            'messages' => collect($this->oneAtATime($folder, $messages, fn (Message $message) => $this->summary($message)))
+                ->sortByDesc('uid')->values()->all(),
             'total' => $total,
         ];
     }
@@ -315,13 +318,11 @@ class WebklexMailGateway implements MailGateway
             $query->where('CUSTOM UID '.(($aboveUid ?? 0) + 1).':*');
         }
 
-        $messages = rescue(fn () => $query->limit($limit, 1)->get(), collect(), report: true);
+        $messages = rescue(fn () => $query->setFetchBody(false)->limit($limit, 1)->get(), collect(), report: true);
+        // "UID n:*" still matches the last message when n is past the end.
+        $messages = collect($messages)->filter(fn (Message $message) => ! $newMail || (int) $message->getUid() > $aboveUid)->values();
 
-        return collect($messages)
-            // "UID n:*" still matches the last message when n is past the end.
-            ->filter(fn (Message $message) => ! $newMail || (int) $message->getUid() > $aboveUid)
-            ->values()
-            ->map(function (Message $message) {
+        return collect($this->oneAtATime($folder, $messages, function (Message $message) {
                 $attachments = [];
                 foreach ($message->getAttachments()->values() as $index => $attachment) {
                     // Images shown inside the email (cid:) aren't files the reader thinks of as attachments.
@@ -345,12 +346,38 @@ class WebklexMailGateway implements MailGateway
                     'date' => $date?->toIso8601String(),
                     'attachments' => $attachments,
                 ];
-            })
+            }))
             // "UID n:*" also returns the newest email when n is past the end.
             ->filter(fn (array $m) => ($aboveUid === null || $m['uid'] > $aboveUid) && ($belowUid === null || $m['uid'] < $belowUid))
             ->sortBy('uid', descending: ! $newMail)
             ->values()
             ->all();
+    }
+
+    /**
+     * Runs $map on each message with its body, fetching the bodies one at a time
+     * so only one full email is in memory at once.
+     *
+     * @param  iterable<Message>  $messages  fetched without bodies
+     * @return array<int, mixed>
+     */
+    private function oneAtATime(string $folder, iterable $messages, \Closure $map): array
+    {
+        $box = $this->folder($folder);
+        $results = [];
+
+        foreach ($messages as $message) {
+            $uid = (int) $message->getUid();
+            $full = rescue(fn () => $box->query()->leaveUnread()->getMessageByUid($uid), null, report: false);
+            $results[] = $map($full ?? $message);
+            unset($full);
+
+            if (memory_get_usage() > 48 * 1024 * 1024) {
+                gc_collect_cycles();
+            }
+        }
+
+        return $results;
     }
 
     /** An IMAP quoted string. */
