@@ -261,13 +261,13 @@ function TimeMenu({ title, action, onPick }: { title: string; action: string; on
 
 function EmailBody({ html, allowRemoteImages }: { html: string; allowRemoteImages: boolean }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
-  const [height, setHeight] = useState(200);
+  const [height, setHeight] = useState(80);
 
   const imageSources = allowRemoteImages ? "data: https: http:" : "data:";
   const srcDoc = `<!doctype html><html><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src ${imageSources}; font-src data:">
 <base target="_blank">
-<style>html,body{height:auto!important;min-height:0!important;max-height:none!important;overflow-y:visible!important}html{background:#fff}body{margin:0;padding:12px 24px 16px;background:#fff;font:14px/1.6 Manrope,system-ui,sans-serif;color:#1e293b;word-wrap:break-word}img{max-width:100%;height:auto}${allowRemoteImages ? "" : "img[src^='http']{display:none}"}blockquote{margin:0 0 0 8px;padding-left:12px;border-left:3px solid #e2e8f0;color:#475569}table{max-width:100%}a{color:#1a7f3f}</style>
+<style>html,body{height:auto!important;min-height:0!important;max-height:none!important;overflow-y:visible!important}html{background:#fff}body{display:flow-root;margin:0;padding:12px 24px 16px;background:#fff;font:14px/1.6 Manrope,system-ui,sans-serif;color:#1e293b;word-wrap:break-word}img{max-width:100%;height:auto}${allowRemoteImages ? "" : "img[src^='http']{display:none}"}blockquote{margin:0 0 0 8px;padding-left:12px;border-left:3px solid #e2e8f0;color:#475569}table{max-width:100%}a{color:#1a7f3f}</style>
 </head><body>${html}</body></html>`;
 
   // Same-origin (but no scripts) only so the frame can be sized to its content.
@@ -277,8 +277,11 @@ function EmailBody({ html, allowRemoteImages }: { html: string; allowRemoteImage
   const resize = () => {
     const doc = frameRef.current?.contentDocument;
     if (!doc?.body) return;
-    const content = Math.max(doc.body.scrollHeight, doc.body.offsetHeight, doc.documentElement.scrollHeight, doc.documentElement.offsetHeight);
-    setHeight(Math.max(120, Math.ceil(content) + 16));
+    // The body's own box (flow-root, so it holds its children's margins), not the
+    // document's scroll height: that is never less than the frame itself, so each
+    // measurement grew the frame and a one-line email ended in a tall blank gap.
+    const content = doc.body.getBoundingClientRect().height;
+    setHeight(Math.max(48, Math.ceil(content)));
   };
 
   const startWatching = () => {

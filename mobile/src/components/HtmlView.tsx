@@ -15,11 +15,13 @@ export function emailDocument(html: string, opts: { allowRemoteImages: boolean; 
   const csp = `default-src 'none'; img-src ${img}; style-src 'unsafe-inline'; font-src data:; media-src data:`;
   const darkCss = opts.dark ? "html{background:#111a2b} body{filter:invert(1) hue-rotate(180deg);background:#fff} img,video{filter:invert(1) hue-rotate(180deg)}" : "";
   return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1"><base target="_blank">
-<style>html,body{margin:0;padding:0}body{font-family:-apple-system,Roboto,Segoe UI,sans-serif;font-size:15px;line-height:1.5;color:#0f172a;padding:4px 16px 16px;word-wrap:break-word;overflow-wrap:anywhere}img{max-width:100%!important;height:auto!important}table{max-width:100%!important}blockquote{margin:8px 0;padding-left:12px;border-left:3px solid #cbd5e1;color:#475569}pre{white-space:pre-wrap}a{color:#15803d}${darkCss}</style></head><body>${html}</body></html>`;
+<style>html,body{margin:0;padding:0}body{display:flow-root;font-family:-apple-system,Roboto,Segoe UI,sans-serif;font-size:15px;line-height:1.5;color:#0f172a;padding:4px 16px 16px;word-wrap:break-word;overflow-wrap:anywhere}img{max-width:100%!important;height:auto!important}table{max-width:100%!important}blockquote{margin:8px 0;padding-left:12px;border-left:3px solid #cbd5e1;color:#475569}pre{white-space:pre-wrap}a{color:#15803d}${darkCss}</style></head><body>${html}</body></html>`;
 }
 
 // Reports the content height so the WebView can sit inside the reader's scroll view.
-const MEASURE = `(function(){function post(){window.ReactNativeWebView.postMessage(String(Math.ceil(document.documentElement.scrollHeight)))}
+// It measures the body, not the document: the document is never shorter than the
+// WebView, so measuring it only ever grew the reader and left blank space under short emails.
+const MEASURE = `(function(){function post(){window.ReactNativeWebView.postMessage(String(Math.ceil(document.body.getBoundingClientRect().height)))}
 window.addEventListener('load',post);new ResizeObserver(post).observe(document.body);setTimeout(post,50);setTimeout(post,600)})();true;`;
 
 export function HtmlView({ html, allowRemoteImages }: { html: string; allowRemoteImages: boolean }): React.ReactElement {
@@ -40,7 +42,7 @@ export function HtmlView({ html, allowRemoteImages }: { html: string; allowRemot
         injectedJavaScript={MEASURE}
         onMessage={(e: WebViewMessageEvent): void => {
           const h = Number(e.nativeEvent.data);
-          if (h > 0) setHeight(Math.min(h + 8, 40000));
+          if (h > 0) setHeight(Math.min(h + 4, 40000));
         }}
         onShouldStartLoadWithRequest={(request: { url: string }): boolean => {
           if (request.url.startsWith("about:") || request.url.startsWith("data:")) return true;
