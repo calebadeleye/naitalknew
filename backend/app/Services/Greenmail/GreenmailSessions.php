@@ -10,7 +10,8 @@ use Illuminate\Support\Str;
 /**
  * Signed-in Greenmail browsers. The browser holds only a random token; the
  * mailbox password it unlocks is kept encrypted server-side and deleted on
- * sign-out, after inactivity, or at the absolute limit.
+ * sign-out, after inactivity, or at the absolute limit. "Keep me signed in"
+ * sessions get the longer remembered_* limits.
  */
 class GreenmailSessions
 {
@@ -19,7 +20,7 @@ class GreenmailSessions
     }
 
     /** @return array{token: string, session: GreenmailSession} */
-    public function signIn(string $email, string $password, Request $request): array
+    public function signIn(string $email, string $password, Request $request, bool $remember = false): array
     {
         $email = strtolower(trim($email));
 
@@ -33,8 +34,9 @@ class GreenmailSessions
             'password_encrypted' => Crypt::encryptString($password),
             'ip_address' => $request->ip(),
             'user_agent' => mb_substr((string) $request->userAgent(), 0, 500),
+            'remember' => $remember,
             'last_used_at' => now(),
-            'expires_at' => now()->addDays((int) config('greenmail.session_max_days')),
+            'expires_at' => now()->addDays((int) config($remember ? 'greenmail.remembered_max_days' : 'greenmail.session_max_days')),
         ]);
 
         return ['token' => $token, 'session' => $session];
@@ -52,9 +54,7 @@ class GreenmailSessions
             return null;
         }
 
-        $idleLimit = now()->subMinutes((int) config('greenmail.session_idle_minutes'));
-
-        if ($session->expires_at->isPast() || $session->last_used_at->lt($idleLimit)) {
+        if ($session->expires_at->isPast() || $session->last_used_at->lt($this->idleLimit($session->remember))) {
             $session->delete();
 
             return null;
@@ -77,7 +77,16 @@ class GreenmailSessions
     {
         return GreenmailSession::query()
             ->where('expires_at', '<', now())
-            ->orWhere('last_used_at', '<', now()->subMinutes((int) config('greenmail.session_idle_minutes')))
+            ->orWhere(fn ($q) => $q->where('remember', false)->where('last_used_at', '<', $this->idleLimit(false)))
+            ->orWhere(fn ($q) => $q->where('remember', true)->where('last_used_at', '<', $this->idleLimit(true)))
             ->delete();
+    }
+
+    /** Sessions not used since this time are signed out. */
+    private function idleLimit(bool $remember): \Illuminate\Support\Carbon
+    {
+        return $remember
+            ? now()->subDays((int) config('greenmail.remembered_idle_days'))
+            : now()->subMinutes((int) config('greenmail.session_idle_minutes'));
     }
 }

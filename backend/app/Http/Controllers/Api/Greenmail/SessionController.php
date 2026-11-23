@@ -19,10 +19,11 @@ class SessionController extends Controller
         $data = $request->validate([
             'email' => ['required', 'email', 'max:190'],
             'password' => ['required', 'string', 'max:200'],
+            'remember' => ['sometimes', 'boolean'],
         ]);
 
         try {
-            ['token' => $token, 'session' => $session] = $sessions->signIn($data['email'], $data['password'], $request);
+            ['token' => $token, 'session' => $session] = $sessions->signIn($data['email'], $data['password'], $request, (bool) ($data['remember'] ?? false));
         } catch (MailAuthenticationFailed) {
             throw ValidationException::withMessages(['email' => ['Wrong email address or password.']]);
         } catch (MailServerUnavailable) {

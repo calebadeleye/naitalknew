@@ -7,13 +7,13 @@ use Illuminate\Support\Facades\Crypt;
 
 class GreenmailSession extends Model
 {
-    protected $fillable = ['token_hash', 'email', 'password_encrypted', 'previous_password_encrypted', 'password_changed_at', 'ip_address', 'user_agent', 'last_used_at', 'expires_at'];
+    protected $fillable = ['token_hash', 'email', 'password_encrypted', 'previous_password_encrypted', 'password_changed_at', 'ip_address', 'user_agent', 'remember', 'last_used_at', 'expires_at'];
 
     protected $hidden = ['token_hash', 'password_encrypted', 'previous_password_encrypted'];
 
     protected function casts(): array
     {
-        return ['last_used_at' => 'datetime', 'expires_at' => 'datetime', 'password_changed_at' => 'datetime'];
+        return ['remember' => 'boolean', 'last_used_at' => 'datetime', 'expires_at' => 'datetime', 'password_changed_at' => 'datetime'];
     }
 
     public function password(): string

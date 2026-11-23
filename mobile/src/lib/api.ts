@@ -165,7 +165,7 @@ export function createClient(config: ClientConfig) {
     url: (path: string, query?: RequestOptions["query"]) => `${base}${path}${buildQuery(query)}`,
 
     signIn: (email: string, password: string) =>
-      request<{ token: string; email: string; expires_at: string }>("/session", null, { method: "POST", body: { email: email.trim(), password } }),
+      request<{ token: string; email: string; expires_at: string }>("/session", null, { method: "POST", body: { email: email.trim(), password, remember: true } }),
     me: (token: string) => request<Me>("/session", token),
     signOut: (token: string) => request<{ message: string }>("/session", token, { method: "DELETE" }),
     forgotPassword: (email: string) => request<{ message: string }>("/password/forgot", null, { method: "POST", body: { email } }),

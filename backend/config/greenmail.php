@@ -26,6 +26,11 @@ return [
     // this much inactivity, and after the absolute limit regardless.
     'session_idle_minutes' => (int) env('GREENMAIL_SESSION_IDLE_MINUTES', 480),
     'session_max_days' => (int) env('GREENMAIL_SESSION_MAX_DAYS', 7),
+    // "Keep me signed in on this device" (and the phone app): much longer, so
+    // opening the app the next morning or from a notification doesn't ask for
+    // the password again.
+    'remembered_idle_days' => (int) env('GREENMAIL_REMEMBERED_IDLE_DAYS', 30),
+    'remembered_max_days' => (int) env('GREENMAIL_REMEMBERED_MAX_DAYS', 90),
 
     'per_page' => 25,
     'max_attachment_mb' => 20,

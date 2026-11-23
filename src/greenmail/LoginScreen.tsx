@@ -52,7 +52,7 @@ export function LoginScreen({
     setBusy(true);
     setError(null);
     try {
-      const response = await gm<{ token: string; email: string }>("/session", "", { method: "POST", body: JSON.stringify({ email: email.trim(), password }) });
+      const response = await gm<{ token: string; email: string }>("/session", "", { method: "POST", body: JSON.stringify({ email: email.trim(), password, remember }) });
       storeToken(response.token, remember, response.email);
       rememberSignIn(email);
       onSignedIn(response.token);

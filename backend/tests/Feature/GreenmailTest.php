@@ -105,6 +105,23 @@ class GreenmailTest extends TestCase
         $this->assertSame(0, GreenmailSession::count());
     }
 
+    public function test_keep_me_signed_in_lasts_for_weeks_and_ordinary_sessions_still_time_out(): void
+    {
+        $plain = $this->signIn();
+        $kept = $this->postJson('/api/v1/greenmail/session', ['email' => 'caleb@calebadeleye.com', 'password' => 'mailbox-pass', 'remember' => true])->assertCreated();
+        $this->assertTrue(now()->addDays(80)->lt($kept->json('expires_at')));
+
+        // A night away from the app: the remembered one is still signed in.
+        GreenmailSession::query()->update(['last_used_at' => now()->subHours(14)]);
+        $this->gm($plain)->getJson('/api/v1/greenmail/folders')->assertUnauthorized();
+        $this->gm($kept->json('token'))->getJson('/api/v1/greenmail/folders')->assertOk();
+
+        // Unused for longer than the remembered limit, it ends too.
+        GreenmailSession::query()->update(['last_used_at' => now()->subDays(config('greenmail.remembered_idle_days') + 1)]);
+        $this->assertSame(1, app(\App\Services\Greenmail\GreenmailSessions::class)->pruneExpired());
+        $this->assertSame(0, GreenmailSession::count());
+    }
+
     public function test_folders_come_in_a_familiar_order_and_the_list_can_be_filtered_and_searched(): void
     {
         $this->mail->deliver('caleb@calebadeleye.com', ['subject' => 'Website Update', 'text' => 'The new design looks great']);
