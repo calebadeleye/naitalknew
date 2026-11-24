@@ -342,6 +342,18 @@ function CampaignDetail({ token, id, onSessionError, onBack, onEdit }: { token: 
     }
   };
 
+  const retry = async () => {
+    if (!(await confirm({ title: `Send again to the ${campaign.failed_count} that failed?`, message: "Only the failed recipients get it. Those already sent don't get a second copy.", confirmLabel: "Send again" }))) return;
+    try {
+      const result = await gm<{ message: string }>(`/campaigns/${campaign.id}/retry`, token, { method: "POST" });
+      toast(result.message);
+      announceChange("campaigns");
+    } catch (error) {
+      onSessionError(error);
+      toast(error instanceof Error ? error.message : "That did not work.", "error");
+    }
+  };
+
   const remove = async () => {
     if (!(await confirm({ title: "Delete this campaign?", message: campaign.name, confirmLabel: "Delete", danger: true }))) return;
     try {
@@ -397,6 +409,11 @@ function CampaignDetail({ token, id, onSessionError, onBack, onEdit }: { token: 
           {campaign.status === "sending" && (
             <button type="button" className="rounded-lg border border-red-200 px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-50" onClick={() => void stop()}>
               Stop sending
+            </button>
+          )}
+          {campaign.status !== "sending" && campaign.status !== "draft" && campaign.failed_count > 0 && (
+            <button type="button" className="rounded-lg bg-[#1f9d4c] px-4 py-2 text-sm font-bold text-white" onClick={() => void retry()}>
+              Send again to {campaign.failed_count} failed
             </button>
           )}
           {campaign.status !== "sending" && (

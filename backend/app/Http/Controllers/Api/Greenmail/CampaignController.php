@@ -86,15 +86,52 @@ class CampaignController extends Controller
             'last_error' => null,
         ]);
 
-        $perMinute = max(1, (int) config('greenmail.campaign_per_minute'));
-        $minutes = (int) ceil($campaign->total / $perMinute);
-
         return response()->json([
             'campaign' => $this->present($campaign->fresh()),
             'message' => $sendAt
                 ? 'Campaign scheduled for '.Carbon::parse($sendAt)->diffForHumans().'.'
-                : "Campaign started. {$campaign->total} ".($campaign->total === 1 ? 'email goes' : 'emails go')." out over about {$minutes} minute".($minutes === 1 ? '' : 's').'.',
+                : "Campaign started. {$campaign->total} ".($campaign->total === 1 ? 'email goes' : 'emails go').' out over about '.$this->duration($campaign->total).'.',
         ]);
+    }
+
+    /** Send again to the recipients that failed (e.g. after the mail server's hourly limit). */
+    public function retry(Request $request, GreenmailCampaign $campaign)
+    {
+        $this->authorizeOwner($request, $campaign);
+        abort_if(in_array($campaign->status, ['draft', 'sending'], true), 422, 'This campaign is not finished yet.');
+        $failed = $campaign->recipients()->where('status', 'failed');
+        $count = (clone $failed)->count();
+        abort_if($count === 0, 422, 'No emails in this campaign failed.');
+
+        $failed->update(['status' => 'pending', 'error' => null]);
+        $campaign->update([
+            'status' => 'sending',
+            'send_at' => now(),
+            'failed_count' => max(0, $campaign->failed_count - $count),
+            'password_encrypted' => Crypt::encryptString($request->attributes->get('greenmail_session')->password()),
+            'finished_at' => null,
+            'last_error' => null,
+        ]);
+
+        return response()->json([
+            'campaign' => $this->present($campaign->fresh()),
+            'message' => "Sending again to {$count} ".($count === 1 ? 'recipient' : 'recipients').' over about '.$this->duration($count).'.',
+        ]);
+    }
+
+    /** Roughly how long a number of emails takes at the per-minute and hourly pace. */
+    private function duration(int $emails): string
+    {
+        $perMinute = max(1, (int) config('greenmail.campaign_per_minute'));
+        $perHour = max(1, min($perMinute * 60, (int) config('greenmail.campaign_hourly_limit')));
+        $minutes = $emails <= $perHour ? (int) ceil($emails / $perMinute) : (int) ceil($emails / $perHour * 60);
+
+        if ($minutes < 60) {
+            return $minutes.' minute'.($minutes === 1 ? '' : 's');
+        }
+        $hours = (int) ceil($minutes / 60);
+
+        return $hours.' hour'.($hours === 1 ? '' : 's');
     }
 
     /** Send one copy to yourself, personalised as the first recipient would see it. */

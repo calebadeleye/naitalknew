@@ -260,6 +260,81 @@ class GreenmailToolsTest extends TestCase
         $this->get('/api/v1/greenmail/unsubscribe/'.$recipient->id.'.forged')->assertNotFound();
     }
 
+    public function test_a_campaign_waits_out_the_mail_servers_hourly_limit_instead_of_failing_everyone(): void
+    {
+        config(['greenmail.campaign_per_minute' => 10, 'greenmail.campaign_hourly_limit' => 40]);
+        // The mail server accepts two, then answers like rspamd's ratelimit does.
+        $accepted = 0;
+        $this->app->instance(MailSender::class, new class($accepted) extends MailSender
+        {
+            public function __construct(private int &$accepted) {}
+
+            protected function transmit(RawMessage $message, ?Envelope $envelope, string $username, string $password): void
+            {
+                if ($this->accepted >= 2) {
+                    throw new \Symfony\Component\Mailer\Exception\TransportException('Expected response code "250" but got code "451", with message "451 4.7.1 Ratelimit "user" exceeded".');
+                }
+                $this->accepted++;
+            }
+        });
+
+        $token = $this->token();
+        $campaign = $this->withHeader('X-Greenmail-Token', $token)->postJson('/api/v1/greenmail/campaigns', [
+            'name' => 'Welcome', 'subject' => 'Hi', 'body_html' => '<p>Hello</p>',
+            'recipients' => collect(range(1, 5))->map(fn ($i) => ['email' => "r{$i}@example.com"])->all(),
+        ])->assertCreated()->json('campaign');
+        $this->withHeader('X-Greenmail-Token', $token)->postJson("/api/v1/greenmail/campaigns/{$campaign['id']}/send")->assertOk();
+
+        $this->artisan('greenmail:dispatch');
+        $c = GreenmailCampaign::findOrFail($campaign['id']);
+        $this->assertSame(['sending', 2, 0], [$c->status, $c->sent_count, $c->failed_count]);
+        $this->assertSame(3, $c->recipients()->where('status', 'pending')->count());
+        $this->assertTrue($c->send_at->isFuture(), 'it pauses before trying again');
+        $this->assertStringContainsString('an hour', (string) $c->last_error);
+
+        // Paused: nothing is tried until the pause is over; then the rest go out.
+        $this->artisan('greenmail:dispatch');
+        $this->assertSame(2, $accepted);
+        $accepted = -10;
+        $this->travel(16)->minutes();
+        $this->artisan('greenmail:dispatch');
+        $c->refresh();
+        $this->assertSame(['sent', 5, 0], [$c->status, $c->sent_count, $c->failed_count]);
+
+        // Our own hourly cap: past it, the campaign waits rather than calling the server.
+        config(['greenmail.campaign_hourly_limit' => 5]);
+        $second = $this->withHeader('X-Greenmail-Token', $token)->postJson('/api/v1/greenmail/campaigns', [
+            'name' => 'More', 'subject' => 'Hi', 'body_html' => '<p>Hello</p>', 'recipients' => [['email' => 'x@example.com']],
+        ])->json('campaign');
+        $this->withHeader('X-Greenmail-Token', $token)->postJson("/api/v1/greenmail/campaigns/{$second['id']}/send")->assertOk();
+        $this->artisan('greenmail:dispatch');
+        $this->assertSame(1, GreenmailCampaign::findOrFail($second['id'])->recipients()->where('status', 'pending')->count());
+    }
+
+    public function test_failed_recipients_of_a_finished_campaign_can_be_sent_again(): void
+    {
+        $token = $this->token();
+        $campaign = $this->withHeader('X-Greenmail-Token', $token)->postJson('/api/v1/greenmail/campaigns', [
+            'name' => 'Welcome', 'subject' => 'Hi', 'body_html' => '<p>Hello</p>',
+            'recipients' => [['email' => 'a@example.com'], ['email' => 'b@example.com']],
+        ])->json('campaign');
+        $this->withHeader('X-Greenmail-Token', $token)->postJson("/api/v1/greenmail/campaigns/{$campaign['id']}/retry")->assertStatus(422);
+
+        $c = GreenmailCampaign::findOrFail($campaign['id']);
+        $c->update(['status' => 'sent', 'sent_count' => 1, 'failed_count' => 1, 'finished_at' => now()]);
+        $c->recipients()->where('email', 'a@example.com')->update(['status' => 'sent', 'sent_at' => now()]);
+        $c->recipients()->where('email', 'b@example.com')->update(['status' => 'failed', 'error' => '451 4.7.1 Ratelimit']);
+
+        $this->withHeader('X-Greenmail-Token', $token)->postJson("/api/v1/greenmail/campaigns/{$campaign['id']}/retry")
+            ->assertOk()->assertJsonPath('campaign.status', 'sending')->assertJsonPath('message', fn ($m) => str_contains($m, '1 recipient'));
+        $this->artisan('greenmail:dispatch');
+
+        $this->assertSame(['b@example.com'], collect($this->sent)->flatMap(fn ($s) => array_map(fn ($a) => $a->getAddress(), $s['message']->getTo()))->all());
+        $c->refresh();
+        $this->assertSame(['sent', 2, 0], [$c->status, $c->sent_count, $c->failed_count]);
+        $this->withHeader('X-Greenmail-Token', 'gm_nope')->postJson("/api/v1/greenmail/campaigns/{$campaign['id']}/retry")->assertUnauthorized();
+    }
+
     public function test_template_placeholders_in_an_ordinary_email_use_the_recipients_name(): void
     {
         $token = $this->token();

@@ -44,6 +44,11 @@ return [
     // Campaigns go out a few at a time so the server's reputation (and every
     // other customer's mail) isn't put at risk by one big send.
     'campaign_per_minute' => (int) env('GREENMAIL_CAMPAIGN_PER_MINUTE', 20),
+    // The mail server (rspamd ratelimit.conf) lets each mailbox send 50 emails an
+    // hour; campaigns stay under it and leave room for ordinary mail.
+    'campaign_hourly_limit' => (int) env('GREENMAIL_CAMPAIGN_HOURLY_LIMIT', 40),
+    // When the mail server still says "try later" (4xx), wait this long and carry on.
+    'campaign_retry_minutes' => (int) env('GREENMAIL_CAMPAIGN_RETRY_MINUTES', 15),
     'campaign_daily_limit' => (int) env('GREENMAIL_CAMPAIGN_DAILY_LIMIT', 500),
     'campaign_max_recipients' => (int) env('GREENMAIL_CAMPAIGN_MAX_RECIPIENTS', 1000),
     'max_scheduled' => 50,

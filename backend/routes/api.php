@@ -199,6 +199,7 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/campaigns/{campaign}/send', [GreenmailCampaignController::class, 'send']);
             Route::post('/campaigns/{campaign}/test', [GreenmailCampaignController::class, 'test'])->middleware('throttle:greenmail-send');
             Route::post('/campaigns/{campaign}/cancel', [GreenmailCampaignController::class, 'cancel']);
+            Route::post('/campaigns/{campaign}/retry', [GreenmailCampaignController::class, 'retry']);
         });
     });
     Route::post('/auth/reset-password', [AuthController::class, 'resetPassword']);

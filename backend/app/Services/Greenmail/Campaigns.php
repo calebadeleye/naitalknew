@@ -35,6 +35,19 @@ class Campaigns
         return $sent;
     }
 
+    public const HOURLY_NOTE = 'Your mailbox can send a limited number of emails an hour, so the rest go out automatically over the next few hours. You can close Green Mail.';
+
+    /** An SMTP reply that means "not now" rather than "never" (4xx). */
+    public static function isTemporary(string $error): bool
+    {
+        // Symfony Mailer: 'Expected response code "250" but got code "451", with message "451 4.7.1 …"'.
+        if (preg_match('/got code "(\d{3})"/', $error, $m) || preg_match('/^\s*(\d{3})[\s-]/', $error, $m)) {
+            return $m[1][0] === '4';
+        }
+
+        return false;
+    }
+
     public function sendSome(GreenmailCampaign $campaign): int
     {
         try {
@@ -45,13 +58,21 @@ class Campaigns
             return 0;
         }
 
-        $sentToday = GreenmailCampaignRecipient::query()
+        $sentSince = fn ($time) => GreenmailCampaignRecipient::query()
             ->whereHas('campaign', fn ($query) => $query->where('owner_email', $campaign->owner_email))
-            ->where('status', 'sent')->where('sent_at', '>=', now()->startOfDay())->count();
-        $room = min((int) config('greenmail.campaign_per_minute'), (int) config('greenmail.campaign_daily_limit') - $sentToday);
+            ->where('status', 'sent')->where('sent_at', '>=', $time)->count();
+        $leftToday = (int) config('greenmail.campaign_daily_limit') - $sentSince(now()->startOfDay());
+        $leftThisHour = (int) config('greenmail.campaign_hourly_limit') - $sentSince(now()->subHour());
+        $room = min((int) config('greenmail.campaign_per_minute'), $leftToday, $leftThisHour);
+
+        if ($leftToday <= 0) {
+            $campaign->update(['last_error' => 'Daily sending limit reached — the rest go out tomorrow.']);
+
+            return 0;
+        }
 
         if ($room <= 0) {
-            $campaign->update(['last_error' => 'Daily sending limit reached — the rest go out tomorrow.']);
+            $campaign->update(['last_error' => self::HOURLY_NOTE]);
 
             return 0;
         }
@@ -89,6 +110,14 @@ class Campaigns
             } catch (TransportExceptionInterface $exception) {
                 if (preg_match('/\b535\b|authenticat/i', $exception->getMessage())) {
                     $campaign->update(['status' => 'failed', 'last_error' => 'The mailbox password has changed. Sign in again and restart the campaign.', 'password_encrypted' => null, 'finished_at' => now()]);
+
+                    return $sent;
+                }
+
+                // "Try again later" (4xx, e.g. 451 rate limit): this one stays waiting and
+                // the campaign carries on after a pause, instead of failing everyone left.
+                if (self::isTemporary($exception->getMessage())) {
+                    $campaign->update(['send_at' => now()->addMinutes((int) config('greenmail.campaign_retry_minutes')), 'last_error' => self::HOURLY_NOTE]);
 
                     return $sent;
                 }
