@@ -8,6 +8,7 @@ use App\Models\Greenmail\GreenmailContact;
 use App\Models\Greenmail\GreenmailSetting;
 use App\Models\Greenmail\GreenmailUnsubscribe;
 use App\Services\Greenmail\Campaigns;
+use App\Services\Greenmail\CampaignTracking;
 use App\Services\Greenmail\HtmlSanitizer;
 use App\Services\Greenmail\MailSender;
 use Illuminate\Http\Request;
@@ -25,7 +26,9 @@ class CampaignController extends Controller
 {
     public function index(Request $request)
     {
-        $campaigns = GreenmailCampaign::query()->where('owner_email', $this->owner($request))->latest()->limit(100)->get()
+        $campaigns = GreenmailCampaign::query()->where('owner_email', $this->owner($request))->latest()->limit(100)
+            ->withCount(['recipients as opened_count' => fn ($q) => $q->whereNotNull('opened_at'), 'recipients as clicked_count' => fn ($q) => $q->whereNotNull('clicked_at')])
+            ->get()
             ->map(fn (GreenmailCampaign $campaign) => $this->present($campaign, withBody: false));
 
         return response()->json(['campaigns' => $campaigns, 'limits' => $this->limits()]);
@@ -36,7 +39,8 @@ class CampaignController extends Controller
         $this->authorizeOwner($request, $campaign);
 
         return response()->json(['campaign' => $this->present($campaign) + [
-            'recipients' => $campaign->recipients()->orderBy('id')->limit(2000)->get(['id', 'email', 'name', 'status', 'error', 'sent_at']),
+            'recipients' => $campaign->recipients()->orderBy('id')->limit(2000)->get(['id', 'email', 'name', 'status', 'error', 'sent_at', 'opened_at', 'open_count', 'clicked_at', 'click_count', 'unsubscribed_at']),
+            'report' => app(CampaignTracking::class)->report($campaign),
         ]]);
     }
 
@@ -190,6 +194,7 @@ class CampaignController extends Controller
             'contact_ids' => ['nullable', 'array'],
             'contact_ids.*' => ['integer'],
             'all_contacts' => ['nullable', 'boolean'],
+            'track' => ['nullable', 'boolean'],
         ], ['recipients.max' => "A campaign can go to at most {$max} people."]);
 
         $people = collect($data['recipients'] ?? []);
@@ -208,6 +213,7 @@ class CampaignController extends Controller
             'name' => $data['name'],
             'subject' => $data['subject'],
             'body_html' => $sanitizer->clean($data['body_html']),
+            'track' => (bool) ($data['track'] ?? true),
             'recipients' => $people->all(),
         ];
     }
@@ -223,7 +229,10 @@ class CampaignController extends Controller
 
     private function present(GreenmailCampaign $campaign, bool $withBody = true): array
     {
-        $data = $campaign->only(['id', 'name', 'subject', 'status', 'send_at', 'total', 'sent_count', 'failed_count', 'skipped_count', 'started_at', 'finished_at', 'last_error', 'created_at', 'updated_at']);
+        $data = $campaign->only(['id', 'name', 'subject', 'track', 'status', 'send_at', 'total', 'sent_count', 'failed_count', 'skipped_count', 'started_at', 'finished_at', 'last_error', 'created_at', 'updated_at']);
+        // For the list: how many opened / clicked (withCount in index, else counted here).
+        $data['opened_count'] = (int) ($campaign->opened_count ?? $campaign->recipients()->whereNotNull('opened_at')->count());
+        $data['clicked_count'] = (int) ($campaign->clicked_count ?? $campaign->recipients()->whereNotNull('clicked_at')->count());
 
         if ($withBody) {
             $data['body_html'] = $campaign->body_html;

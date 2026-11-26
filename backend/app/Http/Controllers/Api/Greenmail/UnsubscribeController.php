@@ -35,6 +35,9 @@ class UnsubscribeController extends Controller
         abort_unless($recipient, 404);
 
         GreenmailUnsubscribe::query()->firstOrCreate(['owner_email' => $recipient->campaign->owner_email, 'email' => $recipient->email]);
+        if (! $recipient->unsubscribed_at) {
+            $recipient->forceFill(['unsubscribed_at' => now()])->save(); // for this campaign's report
+        }
 
         return $this->page('Unsubscribed', '<p>Done — <strong>'.e($recipient->email).'</strong> will not get these emails from '.e($recipient->campaign->owner_email).' any more.</p>');
     }

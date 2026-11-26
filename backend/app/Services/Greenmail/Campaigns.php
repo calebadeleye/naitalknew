@@ -18,7 +18,7 @@ use Throwable;
  */
 class Campaigns
 {
-    public function __construct(private readonly MailSender $sender)
+    public function __construct(private readonly MailSender $sender, private readonly CampaignTracking $tracking)
     {
     }
 
@@ -84,6 +84,7 @@ class Campaigns
         $batch = $campaign->recipients()->where('status', 'pending')->orderBy('id')->limit($room)->get();
         $unsubscribed = GreenmailUnsubscribe::query()->where('owner_email', $campaign->owner_email)->whereIn('email', $batch->pluck('email'))->pluck('email')->flip();
         $fromName = GreenmailSetting::query()->where('owner_email', $campaign->owner_email)->value('display_name');
+        $body = $this->tracking->prepare($campaign, $campaign->body_html);
         $sent = 0;
 
         foreach ($batch as $recipient) {
@@ -100,7 +101,7 @@ class Campaigns
                 $this->sender->send($campaign->owner_email, $fromName, $password, [
                     'to' => [$recipient->email],
                     'subject' => $this->personalise($campaign->subject, $recipient->name, $recipient->email, html: false),
-                    'html' => $this->personalise($campaign->body_html, $recipient->name, $recipient->email).$this->footer($campaign->owner_email, $url),
+                    'html' => $this->tracking->forRecipient($this->personalise($body, $recipient->name, $recipient->email), $recipient).$this->footer($campaign->owner_email, $url),
                     'headers' => [
                         'List-Unsubscribe' => "<{$url}>",
                         'List-Unsubscribe-Post' => 'List-Unsubscribe=One-Click',

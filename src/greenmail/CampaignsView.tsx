@@ -5,6 +5,7 @@ import { useFeedback } from "./feedback";
 import { RichText } from "./RichText";
 import { announceChange, useOnChange } from "./sync";
 import { useTemplates } from "./TemplatesView";
+import { CampaignReportView } from "./CampaignReport";
 
 const STATUS: Record<Campaign["status"], { label: string; tone: string }> = {
   draft: { label: "Draft", tone: "bg-slate-100 text-slate-700" },
@@ -15,7 +16,7 @@ const STATUS: Record<Campaign["status"], { label: string; tone: string }> = {
 };
 
 type Person = { email: string; name: string | null };
-type Draft = { id?: number; name: string; subject: string; body_html: string; key: number; allContacts: boolean; contactIds: number[]; pasted: string };
+type Draft = { id?: number; name: string; subject: string; body_html: string; track: boolean; key: number; allContacts: boolean; contactIds: number[]; pasted: string };
 
 /** "Ada Obi <ada@x.com>, bola@y.com" → people. */
 export function parsePeople(text: string): Person[] {
@@ -33,6 +34,7 @@ export function parsePeople(text: string): Person[] {
 }
 
 const input = "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#1f9d4c]";
+const pct = (n: number, of: number) => `${of ? Math.round((n / of) * 100) : 0}%`;
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "");
 
 /** Campaigns: one email sent separately to each person on a list. */
@@ -69,7 +71,7 @@ export function CampaignsView({ token, onSessionError }: { token: string; onSess
   }
 
   if (openId) {
-    return <CampaignDetail token={token} id={openId} onSessionError={onSessionError} onBack={() => setOpenId(null)} onEdit={(campaign) => setDraft({ id: campaign.id, name: campaign.name, subject: campaign.subject, body_html: campaign.body_html ?? "", key: Date.now(), allContacts: false, contactIds: [], pasted: (campaign.recipients ?? []).map((r) => (r.name ? `${r.name} <${r.email}>` : r.email)).join("\n") })} />;
+    return <CampaignDetail token={token} id={openId} onSessionError={onSessionError} onBack={() => setOpenId(null)} onEdit={(campaign) => setDraft({ id: campaign.id, name: campaign.name, subject: campaign.subject, body_html: campaign.body_html ?? "", track: campaign.track, key: Date.now(), allContacts: false, contactIds: [], pasted: (campaign.recipients ?? []).map((r) => (r.name ? `${r.name} <${r.email}>` : r.email)).join("\n") })} />;
   }
 
   return (
@@ -80,7 +82,7 @@ export function CampaignsView({ token, onSessionError }: { token: string; onSess
             <h1 className="flex items-center gap-2 text-xl font-black text-slate-900 sm:text-2xl"><Megaphone className="h-6 w-6 text-[#1f9d4c]" /> Campaigns</h1>
             <p className="text-sm text-slate-500">Send one email to many people — each gets their own copy, with an unsubscribe link.</p>
           </div>
-          <button type="button" className="inline-flex items-center gap-1.5 rounded-lg bg-[#1f9d4c] px-3 py-2 text-sm font-bold text-white" onClick={() => setDraft({ name: "", subject: "", body_html: "<p>Hi {{first_name}},</p><p><br></p>", key: Date.now(), allContacts: false, contactIds: [], pasted: "" })}>
+          <button type="button" className="inline-flex items-center gap-1.5 rounded-lg bg-[#1f9d4c] px-3 py-2 text-sm font-bold text-white" onClick={() => setDraft({ name: "", subject: "", body_html: "<p>Hi {{first_name}},</p><p><br></p>", track: true, key: Date.now(), allContacts: false, contactIds: [], pasted: "" })}>
             <Plus className="h-4 w-4" /> New campaign
           </button>
         </div>
@@ -111,6 +113,7 @@ export function CampaignsView({ token, onSessionError }: { token: string; onSess
                         <span className="block h-1.5 overflow-hidden rounded-full bg-slate-100"><span className="block h-full bg-[#22a04f]" style={{ width: `${percent}%` }} /></span>
                         <span className="mt-1 block text-xs text-slate-500">
                           {campaign.sent_count} of {campaign.total} sent{campaign.failed_count ? ` · ${campaign.failed_count} failed` : ""}{campaign.skipped_count ? ` · ${campaign.skipped_count} unsubscribed` : ""}
+                          {campaign.track && campaign.sent_count > 0 ? ` · ${pct(campaign.opened_count, campaign.sent_count)} opened · ${pct(campaign.clicked_count, campaign.sent_count)} clicked` : ""}
                           {campaign.status === "sending" && campaign.send_at && new Date(campaign.send_at) > new Date() ? ` · starts ${when(campaign.send_at)}` : ""}
                         </span>
                       </span>
@@ -155,7 +158,7 @@ function CampaignEditor({ token, draft: initial, limits, onSessionError, onDone,
     try {
       const result = await gm<{ campaign: Campaign; message: string }>(draft.id ? `/campaigns/${draft.id}` : "/campaigns", token, {
         method: draft.id ? "PUT" : "POST",
-        body: JSON.stringify({ name: draft.name, subject: draft.subject, body_html: draft.body_html, recipients: pasted, contact_ids: draft.contactIds, all_contacts: draft.allContacts }),
+        body: JSON.stringify({ name: draft.name, subject: draft.subject, body_html: draft.body_html, track: draft.track, recipients: pasted, contact_ids: draft.contactIds, all_contacts: draft.allContacts }),
       });
       setDraft((current) => ({ ...current, id: result.campaign.id }));
       announceChange("campaigns");
@@ -276,6 +279,14 @@ function CampaignEditor({ token, draft: initial, limits, onSessionError, onDone,
           <p className="mt-2 text-xs text-slate-500">Only email people who expect to hear from you. People who unsubscribed are skipped automatically.</p>
         </fieldset>
 
+        <label className="flex items-start gap-2 rounded-xl border border-slate-200 p-3 text-sm text-slate-700">
+          <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[#1f9d4c]" checked={draft.track} onChange={(event) => setDraft({ ...draft, track: event.target.checked })} />
+          <span>
+            <span className="font-semibold">Track opens and link clicks</span>
+            <span className="block text-xs text-slate-500">See who opened the email and which links they clicked in the campaign report. Adds an invisible picture, and links go through Green Mail on the way to their address.</span>
+          </span>
+        </label>
+
         {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
         <div className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 p-3">
@@ -316,11 +327,12 @@ function CampaignDetail({ token, id, onSessionError, onBack, onEdit }: { token: 
 
   useEffect(load, [load]);
   useOnChange("campaigns", load);
+  // Sending: refresh often. Sent: opens and clicks keep coming in for days.
   useEffect(() => {
-    if (campaign?.status !== "sending") return;
-    const timer = window.setInterval(load, 15000);
+    if (!campaign || campaign.status === "draft") return;
+    const timer = window.setInterval(load, campaign.status === "sending" ? 15000 : 60000);
     return () => window.clearInterval(timer);
-  }, [campaign?.status, load]);
+  }, [campaign?.status, load]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!campaign) {
     return (
@@ -423,19 +435,7 @@ function CampaignDetail({ token, id, onSessionError, onBack, onEdit }: { token: 
           )}
         </div>
 
-        <div>
-          <h2 className="mb-2 text-sm font-bold text-slate-900">Recipients ({campaign.total})</h2>
-          <ul className="max-h-[420px] divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200 text-sm">
-            {(campaign.recipients ?? []).map((r) => (
-              <li key={r.id} className="flex items-center gap-2 px-3 py-2">
-                <span className="min-w-0 flex-1 truncate text-slate-800">{r.name ? `${r.name} — ${r.email}` : r.email}</span>
-                <span className={`shrink-0 text-xs font-semibold ${r.status === "sent" ? "text-[#15803d]" : r.status === "failed" ? "text-red-600" : r.status === "skipped" ? "text-amber-700" : "text-slate-400"}`} title={r.error ?? undefined}>
-                  {r.status === "sent" ? "Sent" : r.status === "failed" ? "Failed" : r.status === "skipped" ? "Unsubscribed" : "Waiting"}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <CampaignReportView campaign={campaign} />
       </div>
     </section>
   );

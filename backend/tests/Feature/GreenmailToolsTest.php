@@ -335,6 +335,82 @@ class GreenmailToolsTest extends TestCase
         $this->withHeader('X-Greenmail-Token', 'gm_nope')->postJson("/api/v1/greenmail/campaigns/{$campaign['id']}/retry")->assertUnauthorized();
     }
 
+    public function test_campaign_reports_count_opens_clicks_and_unsubscribes(): void
+    {
+        $token = $this->token();
+        $campaign = $this->withHeader('X-Greenmail-Token', $token)->postJson('/api/v1/greenmail/campaigns', [
+            'name' => 'Launch', 'subject' => 'Hi {{first_name}}',
+            'body_html' => '<p>Hello</p><p><a href="https://example.com/offer?a=1&amp;b=2">Offer</a> <a href="https://example.com/offer?a=1&amp;b=2">again</a> <a href="mailto:x@example.com">mail</a> <a href="https://shop.example.com/">Shop</a></p>',
+            'recipients' => [['email' => 'ada@example.com', 'name' => 'Ada Obi'], ['email' => 'bola@example.com'], ['email' => 'chi@example.com']],
+        ])->assertCreated()->assertJsonPath('campaign.track', true)->json('campaign');
+        $this->withHeader('X-Greenmail-Token', $token)->postJson("/api/v1/greenmail/campaigns/{$campaign['id']}/send")->assertOk();
+        $this->artisan('greenmail:dispatch');
+        $this->assertCount(3, $this->sent);
+
+        /** @var Email $email */
+        $email = $this->sent[0]['message'];
+        $html = $email->getHtmlBody();
+        $this->assertStringNotContainsString('https://example.com/offer', $html, 'links go through Green Mail');
+        $this->assertStringContainsString('mailto:x@example.com', $html);
+        $this->assertStringContainsString('/api/v1/greenmail/unsubscribe/', $html, 'the unsubscribe link is not tracked');
+        preg_match('#/api/v1/greenmail/t/o/([0-9]+\.[0-9a-f]{24})\.gif#', $html, $pixel);
+        preg_match_all('#/api/v1/greenmail/t/c/([0-9]+\.[0-9a-f]{24})/([0-9]+)#', $html, $links, PREG_SET_ORDER);
+        $this->assertNotEmpty($pixel);
+        $this->assertCount(3, $links, 'two tracked offer links (same link) and the shop link');
+        $this->assertSame($links[0][2], $links[1][2]);
+        $ada = $pixel[1];
+
+        // Ada opens twice and clicks the offer twice; Bola clicks the shop with pictures blocked.
+        $this->get("/api/v1/greenmail/t/o/{$ada}.gif")->assertOk()->assertHeader('Content-Type', 'image/gif');
+        $this->get("/api/v1/greenmail/t/o/{$ada}.gif")->assertOk();
+        $this->get("/api/v1/greenmail/t/c/{$ada}/{$links[0][2]}")->assertRedirect('https://example.com/offer?a=1&b=2');
+        $this->get("/api/v1/greenmail/t/c/{$ada}/{$links[0][2]}")->assertRedirect();
+        preg_match_all('#/api/v1/greenmail/t/c/([0-9]+\.[0-9a-f]{24})/([0-9]+)#', $this->sent[1]['message']->getHtmlBody(), $bolaLinks, PREG_SET_ORDER);
+        $this->get("/api/v1/greenmail/t/c/{$bolaLinks[2][1]}/{$bolaLinks[2][2]}")->assertRedirect('https://shop.example.com/');
+        // A mail scanner following every link isn't a person.
+        $this->withHeader('User-Agent', 'Mimecast URL protect')->get("/api/v1/greenmail/t/c/{$bolaLinks[0][1]}/{$bolaLinks[0][2]}")->assertRedirect();
+        $this->withHeader('User-Agent', 'Mozilla/5.0');
+        // Forged tokens and other campaigns' links go nowhere.
+        $this->get("/api/v1/greenmail/t/c/{$ada}/999999")->assertNotFound();
+        $this->get('/api/v1/greenmail/t/c/'.explode('.', $ada)[0].'.000000000000000000000000/'.$links[0][2])->assertNotFound();
+        $this->get('/api/v1/greenmail/t/o/'.explode('.', $ada)[0].'.000000000000000000000000.gif')->assertOk();
+
+        // Chi unsubscribes.
+        $chi = GreenmailCampaignRecipient::query()->where('email', 'chi@example.com')->firstOrFail();
+        $this->post('/api/v1/greenmail/unsubscribe/'.$chi->unsubscribeToken())->assertOk();
+
+        $report = $this->withHeader('X-Greenmail-Token', $token)->getJson("/api/v1/greenmail/campaigns/{$campaign['id']}")->assertOk()->json('campaign');
+        $r = $report['report'];
+        $this->assertSame([3, 2, 3, 2, 3, 1], [$r['sent'], $r['opened'], $r['opens'], $r['clicked'], $r['clicks'], $r['unsubscribed']]);
+        $this->assertEquals(66.7, $r['open_rate']);
+        $this->assertEquals(100, $r['click_to_open_rate']);
+        $this->assertSame([['url' => 'https://example.com/offer?a=1&b=2', 'clicks' => 2, 'people' => 1], ['url' => 'https://shop.example.com/', 'clicks' => 1, 'people' => 1]], array_map(fn ($l) => array_diff_key($l, ['id' => 1]), $r['links']));
+        $this->assertSame('hour', $r['timeline']['unit']);
+        $this->assertSame(2, array_sum(array_column($r['timeline']['points'], 'opens')));
+        $byEmail = collect($report['recipients'])->keyBy('email');
+        $this->assertSame([2, 2], [$byEmail['ada@example.com']['open_count'], $byEmail['ada@example.com']['click_count']]);
+        $this->assertNotNull($byEmail['bola@example.com']['opened_at'], 'a click counts as an open');
+        $this->assertNotNull($byEmail['chi@example.com']['unsubscribed_at']);
+
+        $list = $this->withHeader('X-Greenmail-Token', $token)->getJson('/api/v1/greenmail/campaigns')->json('campaigns.0');
+        $this->assertSame([2, 2], [$list['opened_count'], $list['clicked_count']]);
+    }
+
+    public function test_a_campaign_can_be_sent_without_tracking(): void
+    {
+        $token = $this->token();
+        $campaign = $this->withHeader('X-Greenmail-Token', $token)->postJson('/api/v1/greenmail/campaigns', [
+            'name' => 'Plain', 'subject' => 'Hi', 'body_html' => '<p><a href="https://example.com/">Site</a></p>', 'track' => false,
+            'recipients' => [['email' => 'ada@example.com']],
+        ])->assertCreated()->assertJsonPath('campaign.track', false)->json('campaign');
+        $this->withHeader('X-Greenmail-Token', $token)->postJson("/api/v1/greenmail/campaigns/{$campaign['id']}/send")->assertOk();
+        $this->artisan('greenmail:dispatch');
+
+        $html = $this->sent[0]['message']->getHtmlBody();
+        $this->assertStringContainsString('href="https://example.com/"', $html);
+        $this->assertStringNotContainsString('/greenmail/t/', $html);
+    }
+
     public function test_template_placeholders_in_an_ordinary_email_use_the_recipients_name(): void
     {
         $token = $this->token();

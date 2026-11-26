@@ -112,6 +112,9 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/session', [GreenmailSessionController::class, 'store'])->middleware('throttle:greenmail-login');
         Route::get('/signature-images/{owner}/{name}', [GreenmailSettingsController::class, 'signatureImage']);
         Route::get('/unsubscribe/{token}', [GreenmailUnsubscribeController::class, 'show'])->middleware('throttle:30,1');
+        // Campaign reports: the open picture and tracked links (public, in the emails).
+        Route::get('/t/o/{token}.gif', [\App\Http\Controllers\Api\Greenmail\CampaignTrackingController::class, 'open'])->where('token', '[0-9]+\.[0-9a-f]{24}')->middleware('throttle:120,1');
+        Route::get('/t/c/{token}/{link}', [\App\Http\Controllers\Api\Greenmail\CampaignTrackingController::class, 'click'])->where(['token' => '[0-9]+\.[0-9a-f]{24}', 'link' => '[0-9]+'])->middleware('throttle:120,1');
         Route::get('/push/key', [GreenmailPushController::class, 'key']);
         Route::post('/password/forgot', [GreenmailPasswordResetController::class, 'forgot'])->middleware('throttle:greenmail-recovery');
         Route::post('/password/reset', [GreenmailPasswordResetController::class, 'reset'])->middleware('throttle:greenmail-recovery');

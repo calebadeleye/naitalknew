@@ -257,9 +257,44 @@ export type Campaign = {
   finished_at: string | null;
   last_error: string | null;
   created_at: string;
+  track: boolean;
+  opened_count: number;
+  clicked_count: number;
   body_html?: string;
   unsubscribed?: number;
-  recipients?: Array<{ id: number; email: string; name: string | null; status: "pending" | "sent" | "failed" | "skipped"; error: string | null; sent_at: string | null }>;
+  recipients?: CampaignRecipient[];
+  report?: CampaignReport;
+};
+
+export type CampaignRecipient = {
+  id: number;
+  email: string;
+  name: string | null;
+  status: "pending" | "sent" | "failed" | "skipped";
+  error: string | null;
+  sent_at: string | null;
+  opened_at: string | null;
+  open_count: number;
+  clicked_at: string | null;
+  click_count: number;
+  unsubscribed_at: string | null;
+};
+
+/** Opens, clicks and unsubscribes for one campaign (rates are percentages of emails sent). */
+export type CampaignReport = {
+  tracked: boolean;
+  sent: number;
+  opened: number;
+  opens: number;
+  clicked: number;
+  clicks: number;
+  unsubscribed: number;
+  open_rate: number;
+  click_rate: number;
+  click_to_open_rate: number;
+  unsubscribe_rate: number;
+  links: Array<{ id: number; url: string; clicks: number; people: number }>;
+  timeline: { unit: "hour" | "day"; points: Array<{ at: string; opens: number; clicks: number }> };
 };
 
 export type CampaignLimits = { per_minute: number; per_day: number; max_recipients: number };
