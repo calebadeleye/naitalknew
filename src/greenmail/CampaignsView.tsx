@@ -6,6 +6,7 @@ import { RichText } from "./RichText";
 import { announceChange, useOnChange } from "./sync";
 import { useTemplates } from "./TemplatesView";
 import { CampaignReportView } from "./CampaignReport";
+import { useHoldReload } from "./appUpdate";
 
 const STATUS: Record<Campaign["status"], { label: string; tone: string }> = {
   draft: { label: "Draft", tone: "bg-slate-100 text-slate-700" },
@@ -132,6 +133,7 @@ export function CampaignsView({ token, onSessionError }: { token: string; onSess
 
 function CampaignEditor({ token, draft: initial, limits, onSessionError, onDone, onCancel }: { token: string; draft: Draft; limits: CampaignLimits | null; onSessionError: (error: unknown) => void; onDone: (id: number) => void; onCancel: () => void }) {
   const [draft, setDraft] = useState(initial);
+  useHoldReload("campaign-editor", true);
   const [contacts, setContacts] = useState<Contact[] | null>(null);
   const [contactQuery, setContactQuery] = useState("");
   const [busy, setBusy] = useState<"save" | "test" | "send" | null>(null);

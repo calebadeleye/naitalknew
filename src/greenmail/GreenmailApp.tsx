@@ -50,6 +50,7 @@ import { FeedbackProvider, useFeedback } from "./feedback";
 import { GreenmailThemeProvider, useVisibleViewport } from "./theme";
 import { playNewMailSound } from "./sound";
 import { NotificationPrompt } from "./NotificationPrompt";
+import { useAppUpdate, useHoldReload } from "./appUpdate";
 import { InstallHelp } from "./InstallHelp";
 import { LoginScreen } from "./LoginScreen";
 import { currentDomain, useGreenmailAppShell, useInstall } from "./pwa";
@@ -277,6 +278,9 @@ function Mailbox({
   const [message, setMessage] = useState<FullMessage | null>(null);
   const [isLoadingMessage, setIsLoadingMessage] = useState(false);
   const [compose, setCompose] = useState<Compose | null>(null);
+  // A new version reloads itself, but never while an email is being written.
+  const update = useAppUpdate();
+  useHoldReload("compose", compose !== null);
   // Open beside the reader on wide screens; on smaller ones it slides in when asked for.
   const [showSidePanel, setShowSidePanel] = useState(() => window.matchMedia?.("(min-width: 1536px)").matches ?? false);
   const [collapsed, setCollapsed] = useState(false);
@@ -1168,6 +1172,15 @@ function Mailbox({
             onSignOutAll={onSignOutAll}
           />
         </header>
+        {update.ready && (
+          <div className="flex items-center gap-3 border-b border-[#1f9d4c]/30 bg-[#eef8f1] px-4 py-2 text-sm">
+            <RefreshCw className="h-4 w-4 shrink-0 text-[#15803d]" />
+            <p className="min-w-0 flex-1 text-slate-700">A new version of Green Mail is ready.{compose ? " Finish or save your email first." : ""}</p>
+            <button type="button" onClick={update.reload} className="shrink-0 rounded-lg bg-[#1f9d4c] px-3 py-1.5 text-xs font-bold text-white">
+              Reload
+            </button>
+          </div>
+        )}
         {myEmail && <NotificationPrompt token={token} email={myEmail} />}
 
         <div className="flex min-h-0 flex-1">
