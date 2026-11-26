@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, CalendarClock, Loader2, Megaphone, Plus, Send, Trash2, Users } from "lucide-react";
-import { gm, type Campaign, type CampaignLimits, type Contact } from "./api";
+import { gm, type Campaign, type CampaignLimits, type CampaignQuota, type Contact } from "./api";
+import { BuyEmailsDialog, QuotaMeter } from "./CampaignCredits";
 import { useFeedback } from "./feedback";
 import { RichText } from "./RichText";
 import { announceChange, useOnChange } from "./sync";
@@ -42,14 +43,17 @@ const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString("en-US"
 export function CampaignsView({ token, onSessionError }: { token: string; onSessionError: (error: unknown) => void }) {
   const [campaigns, setCampaigns] = useState<Campaign[] | null>(null);
   const [limits, setLimits] = useState<CampaignLimits | null>(null);
+  const [quota, setQuota] = useState<CampaignQuota | null>(null);
+  const [buying, setBuying] = useState(false);
   const [openId, setOpenId] = useState<number | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
 
   const load = useCallback(() => {
-    gm<{ campaigns: Campaign[]; limits: CampaignLimits }>("/campaigns", token)
+    gm<{ campaigns: Campaign[]; limits: CampaignLimits; quota: CampaignQuota }>("/campaigns", token)
       .then((response) => {
         setCampaigns(response.campaigns);
         setLimits(response.limits);
+        setQuota(response.quota);
       })
       .catch((error) => {
         onSessionError(error);
@@ -67,8 +71,10 @@ export function CampaignsView({ token, onSessionError }: { token: string; onSess
     return () => window.clearInterval(timer);
   }, [sending, load]);
 
+  const buyDialog = buying && quota && <BuyEmailsDialog token={token} quota={quota} onClose={() => setBuying(false)} onSessionError={onSessionError} />;
+
   if (draft) {
-    return <CampaignEditor token={token} draft={draft} limits={limits} onSessionError={onSessionError} onDone={(id) => { setDraft(null); setOpenId(id); }} onCancel={() => setDraft(null)} />;
+    return <>{buyDialog}<CampaignEditor token={token} draft={draft} limits={limits} quota={quota} onBuy={() => setBuying(true)} onSessionError={onSessionError} onDone={(id) => { setDraft(null); setOpenId(id); }} onCancel={() => setDraft(null)} /></>;
   }
 
   if (openId) {
@@ -87,6 +93,8 @@ export function CampaignsView({ token, onSessionError }: { token: string; onSess
             <Plus className="h-4 w-4" /> New campaign
           </button>
         </div>
+        {buyDialog}
+        {quota && <QuotaMeter quota={quota} onBuy={() => setBuying(true)} />}
         {limits && <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">To protect your domain's reputation, campaigns send up to {limits.per_minute} emails a minute and {limits.per_day} a day, to at most {limits.max_recipients} people each.</p>}
 
         {campaigns === null ? (
@@ -131,7 +139,7 @@ export function CampaignsView({ token, onSessionError }: { token: string; onSess
   );
 }
 
-function CampaignEditor({ token, draft: initial, limits, onSessionError, onDone, onCancel }: { token: string; draft: Draft; limits: CampaignLimits | null; onSessionError: (error: unknown) => void; onDone: (id: number) => void; onCancel: () => void }) {
+function CampaignEditor({ token, draft: initial, limits, quota, onBuy, onSessionError, onDone, onCancel }: { token: string; draft: Draft; limits: CampaignLimits | null; quota: CampaignQuota | null; onBuy: () => void; onSessionError: (error: unknown) => void; onDone: (id: number) => void; onCancel: () => void }) {
   const [draft, setDraft] = useState(initial);
   useHoldReload("campaign-editor", true);
   const [contacts, setContacts] = useState<Contact[] | null>(null);
@@ -172,6 +180,10 @@ function CampaignEditor({ token, draft: initial, limits, onSessionError, onDone,
     }
   };
 
+  // What sending this campaign uses from the month's emails and bought credits.
+  const available = quota && !quota.unlimited ? quota.available : null;
+  const shortBy = available === null ? 0 : Math.max(0, recipientCount - available);
+
   const run = async (action: "save" | "test" | "send") => {
     setBusy(action);
     try {
@@ -187,7 +199,7 @@ function CampaignEditor({ token, draft: initial, limits, onSessionError, onDone,
         const sendAt = scheduleAt ? new Date(scheduleAt).toISOString() : null;
         const ok = await confirm({
           title: sendAt ? `Schedule this campaign for ${when(sendAt)}?` : `Send this campaign to ${recipientCount} ${recipientCount === 1 ? "person" : "people"}?`,
-          message: "Each person gets their own copy. You can stop it while it is sending.",
+          message: `Each person gets their own copy. You can stop it while it is sending.${shortBy > 0 ? ` You have ${available} campaign emails left, so it will pause after ${available} until you buy more.` : ""}`,
           confirmLabel: sendAt ? "Schedule" : "Send now",
         });
         if (!ok) return;
@@ -288,6 +300,21 @@ function CampaignEditor({ token, draft: initial, limits, onSessionError, onDone,
             <span className="block text-xs text-slate-500">See who opened the email and which links they clicked in the campaign report. Adds an invisible picture, and links go through Green Mail on the way to their address.</span>
           </span>
         </label>
+
+        {quota && quota.unlimited === false && recipientCount > 0 && (
+          <div className={`flex flex-wrap items-center gap-2 rounded-xl px-3 py-2 text-sm ${shortBy > 0 ? "bg-amber-50 text-amber-900" : "bg-slate-50 text-slate-600"}`}>
+            <p className="mr-auto">
+              This campaign uses <strong>{recipientCount.toLocaleString()}</strong> {recipientCount === 1 ? "email" : "emails"}. You have {quota.left.toLocaleString()} left this month
+              {quota.credits > 0 ? ` and ${quota.credits.toLocaleString()} bought` : ""}.
+              {shortBy > 0 ? ` ${shortBy.toLocaleString()} more needed: it will pause until you buy more or the month resets.` : ""}
+            </p>
+            {shortBy > 0 && quota.can_buy && (
+              <button type="button" onClick={onBuy} className="rounded-lg bg-[#1f9d4c] px-3 py-1.5 text-xs font-bold text-white">
+                Buy more emails
+              </button>
+            )}
+          </div>
+        )}
 
         {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 

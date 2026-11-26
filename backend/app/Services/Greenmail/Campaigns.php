@@ -18,7 +18,7 @@ use Throwable;
  */
 class Campaigns
 {
-    public function __construct(private readonly MailSender $sender, private readonly CampaignTracking $tracking)
+    public function __construct(private readonly MailSender $sender, private readonly CampaignTracking $tracking, private readonly CampaignQuota $quota)
     {
     }
 
@@ -34,6 +34,8 @@ class Campaigns
 
         return $sent;
     }
+
+    public const OUT_OF_EMAILS_NOTE = 'Paused: this month\'s campaign emails are used up. Buy more emails to carry on now, or it continues when the allowance resets.';
 
     public const HOURLY_NOTE = 'Your mailbox can send a limited number of emails an hour, so the rest go out automatically over the next few hours. You can close Green Mail.';
 
@@ -75,6 +77,18 @@ class Campaigns
             $campaign->update(['last_error' => self::HOURLY_NOTE]);
 
             return 0;
+        }
+
+        // The plan's monthly emails and bought credits (null: no cap).
+        $domain = CampaignQuota::domainOf($campaign->owner_email);
+        $available = $this->quota->available($domain);
+        if ($available !== null && $available <= 0) {
+            $campaign->update(['last_error' => self::OUT_OF_EMAILS_NOTE]);
+
+            return 0;
+        }
+        if ($available !== null) {
+            $room = min($room, $available);
         }
 
         if (! $campaign->started_at) {
@@ -129,13 +143,16 @@ class Campaigns
                 continue;
             }
 
-            $recipient->update(['status' => 'sent', 'sent_at' => now(), 'error' => null]);
+            $recipient->update(['status' => 'sent', 'sent_at' => now(), 'error' => null, 'charged_to' => $this->quota->charge($domain)]);
             $campaign->increment('sent_count');
             $sent++;
         }
 
         if (! $campaign->recipients()->where('status', 'pending')->exists()) {
             $campaign->update(['status' => 'sent', 'finished_at' => now(), 'password_encrypted' => null, 'last_error' => null]);
+        } elseif ($available !== null && $this->quota->available($domain) <= 0) {
+            // More people to go, but this batch used the last of the emails.
+            $campaign->update(['last_error' => self::OUT_OF_EMAILS_NOTE]);
         } elseif ($campaign->last_error) {
             $campaign->update(['last_error' => null]);
         }

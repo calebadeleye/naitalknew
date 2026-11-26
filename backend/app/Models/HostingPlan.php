@@ -22,6 +22,7 @@ class HostingPlan extends Model
     public const TYPE_EMAIL = 'email';
 
     protected $fillable = [
+        'campaign_emails_monthly',
         'name',
         'slug',
         'plan_type',

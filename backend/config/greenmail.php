@@ -49,7 +49,23 @@ return [
     'campaign_hourly_limit' => (int) env('GREENMAIL_CAMPAIGN_HOURLY_LIMIT', 40),
     // When the mail server still says "try later" (4xx), wait this long and carry on.
     'campaign_retry_minutes' => (int) env('GREENMAIL_CAMPAIGN_RETRY_MINUTES', 15),
-    'campaign_daily_limit' => (int) env('GREENMAIL_CAMPAIGN_DAILY_LIMIT', 500),
+    // Raised from 500 with credit packs, so a bought 1,000 isn't spread over days;
+    // the hourly limit above still paces sending.
+    'campaign_daily_limit' => (int) env('GREENMAIL_CAMPAIGN_DAILY_LIMIT', 2000),
+
+    // Campaign emails each month come free with the hosting plan
+    // (hosting_plans.campaign_emails_monthly); this is the amount for a domain
+    // with no plan set (e.g. legacy hosting). After that, prepaid packs.
+    'campaign_free_monthly' => (int) env('GREENMAIL_CAMPAIGN_FREE_MONTHLY', 500),
+    'campaign_credit_packs' => [
+        // emails => price in kobo (VAT inclusive)
+        1000 => 250_000,
+        5000 => 1_000_000,
+        10000 => 1_750_000,
+    ],
+    'campaign_credit_valid_months' => 12,
+    // NAI TALK's own domains: no cap.
+    'campaign_unlimited_domains' => array_filter(explode(',', (string) env('GREENMAIL_CAMPAIGN_UNLIMITED_DOMAINS', 'naitalk.com'))),
     'campaign_max_recipients' => (int) env('GREENMAIL_CAMPAIGN_MAX_RECIPIENTS', 1000),
     'max_scheduled' => 50,
 

@@ -290,6 +290,18 @@ function Mailbox({
   const [mobileNav, setMobileNav] = useState(false);
   const [view, setView] = useState<View>("mail");
   const { toast, confirm } = useFeedback();
+
+  // Back from paying for campaign emails: say how it went and show Campaigns.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get("credits");
+    if (!result) return;
+    params.delete("credits");
+    window.history.replaceState(null, "", `${window.location.pathname}${params.toString() ? `?${params}` : ""}`);
+    setView("campaigns");
+    if (result === "success") toast("Payment received. Your campaign emails have been added, and paused campaigns carry on.");
+    else toast("The payment did not go through, so no emails were added. You can try again.", "error");
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const visible = useVisibleViewport();
   // Offline: when the list on screen is the copy kept on this device, when it was saved.
   const [offlineCopy, setOfflineCopy] = useState<number | null>(null);

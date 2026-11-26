@@ -31,7 +31,7 @@ class CampaignController extends Controller
             ->get()
             ->map(fn (GreenmailCampaign $campaign) => $this->present($campaign, withBody: false));
 
-        return response()->json(['campaigns' => $campaigns, 'limits' => $this->limits()]);
+        return response()->json(['campaigns' => $campaigns, 'limits' => $this->limits(), 'quota' => app(\App\Services\Greenmail\CampaignQuota::class)->status(\App\Services\Greenmail\CampaignQuota::domainOf($this->owner($request)))]);
     }
 
     public function show(Request $request, GreenmailCampaign $campaign)

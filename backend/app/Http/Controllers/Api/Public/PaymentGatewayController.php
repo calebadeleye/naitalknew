@@ -172,7 +172,28 @@ class PaymentGatewayController extends Controller
             return $payment->fresh();
         }
 
-        if ($payment->purpose === 'wallet_topup') {
+        if ($payment->purpose === 'greenmail_credits') {
+            // Green Mail campaign emails: add the pack once (callback and webhook may both arrive).
+            DB::transaction(function () use ($payment, $result) {
+                $payment = Payment::query()->whereKey($payment->id)->lockForUpdate()->firstOrFail();
+                if ($payment->reconciled_at !== null) {
+                    return;
+                }
+                $pack = (array) data_get($payment->gateway_payload, 'greenmail_credits', []);
+                $paidInFull = $result['amount_kobo'] >= (int) $payment->amount_kobo;
+
+                $payment->forceFill([
+                    'status' => $paidInFull ? 'paid' : 'failed',
+                    'paid_at' => now(),
+                    'reconciled_at' => now(),
+                    'gateway_payload' => ['greenmail_credits' => $pack, 'gateway' => $result['raw'] ?? []],
+                ])->save();
+
+                if ($paidInFull && ! empty($pack['domain']) && (int) ($pack['emails'] ?? 0) > 0) {
+                    app(\App\Services\Greenmail\CampaignQuota::class)->addCredits($pack['domain'], (int) $pack['emails'], 'purchase', $payment, 'Bought by '.($pack['mailbox'] ?? 'Green Mail'));
+                }
+            });
+        } elseif ($payment->purpose === 'wallet_topup') {
             $transaction = DB::transaction(function () use ($payment, $result, $gateway, $wallet) {
                 $payment = Payment::query()->whereKey($payment->id)->lockForUpdate()->firstOrFail();
 
@@ -234,6 +255,12 @@ class PaymentGatewayController extends Controller
 
         if ($payment->purpose === 'wallet_topup') {
             return redirect()->away($frontendUrl.'/client/wallet?funding='.$status);
+        }
+
+        if ($payment->purpose === 'greenmail_credits') {
+            $domain = (string) data_get($payment->gateway_payload, 'greenmail_credits.domain', '');
+
+            return redirect()->away($frontendUrl.'/greenmail?'.http_build_query(['domain' => $domain, 'credits' => $status]));
         }
 
         return redirect()->away($frontendUrl.'/client/orders?payment='.$status.'&invoice='.$payment->invoice->invoice_number);

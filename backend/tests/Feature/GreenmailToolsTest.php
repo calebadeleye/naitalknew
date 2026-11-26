@@ -411,6 +411,96 @@ class GreenmailToolsTest extends TestCase
         $this->assertStringNotContainsString('/greenmail/t/', $html);
     }
 
+    public function test_campaigns_use_the_plans_monthly_emails_then_credits_and_pause_when_none_are_left(): void
+    {
+        $service = \App\Models\MailboxRecord::query()->where('email_address', 'caleb@calebadeleye.com')->firstOrFail()->hostingService;
+        $service->hostingPlan->update(['campaign_emails_monthly' => 2]);
+        $token = $this->token();
+
+        $quota = $this->withHeader('X-Greenmail-Token', $token)->getJson('/api/v1/greenmail/campaigns/quota')->assertOk()->json('quota');
+        $this->assertSame([false, 2, 0, 2, 0], [$quota['unlimited'], $quota['allowance'], $quota['used'], $quota['left'], $quota['credits']]);
+        $this->assertSame([1000, 5000, 10000], array_column($quota['packs'], 'emails'));
+
+        $campaign = $this->withHeader('X-Greenmail-Token', $token)->postJson('/api/v1/greenmail/campaigns', [
+            'name' => 'Big', 'subject' => 'Hi', 'body_html' => '<p>Hello</p>',
+            'recipients' => collect(range(1, 4))->map(fn ($i) => ['email' => "p{$i}@example.com"])->all(),
+        ])->json('campaign');
+        // A test email to yourself is never counted.
+        $this->withHeader('X-Greenmail-Token', $token)->postJson("/api/v1/greenmail/campaigns/{$campaign['id']}/test")->assertOk();
+        $this->sent = [];
+        $this->withHeader('X-Greenmail-Token', $token)->postJson("/api/v1/greenmail/campaigns/{$campaign['id']}/send")->assertOk();
+
+        $this->artisan('greenmail:dispatch');
+        $c = GreenmailCampaign::findOrFail($campaign['id']);
+        $this->assertCount(2, $this->sent, 'only the two free emails go out');
+        $this->assertSame(['sending', 2], [$c->status, $c->sent_count]);
+        $this->assertStringContainsString('used up', (string) $c->last_error);
+        $this->assertSame(['plan', 'plan'], $c->recipients()->where('status', 'sent')->pluck('charged_to')->all());
+
+        // Paused: nothing more goes out…
+        $this->artisan('greenmail:dispatch');
+        $this->assertCount(2, $this->sent);
+
+        // …until credits arrive (here given by NAI TALK); then it carries on and uses them.
+        $this->artisan('greenmail:campaign-credits', ['domain' => 'calebadeleye.com', '--add' => 5])->assertSuccessful();
+        $this->artisan('greenmail:dispatch');
+        $c->refresh();
+        $this->assertSame(['sent', 4, null], [$c->status, $c->sent_count, $c->last_error]);
+        $this->assertSame(2, $c->recipients()->where('charged_to', 'credit')->count());
+
+        $quota = $this->withHeader('X-Greenmail-Token', $token)->getJson('/api/v1/greenmail/campaigns')->json('quota');
+        $this->assertSame([2, 0, 3, 3], [$quota['used'], $quota['left'], $quota['credits'], $quota['available']]);
+
+        // Next billing month the free emails are back.
+        $this->travel(32)->days();
+        $next = app(\App\Services\Greenmail\CampaignQuota::class)->status('calebadeleye.com');
+        $this->assertSame([0, 2, 3], [$next['used'], $next['left'], $next['credits']]);
+    }
+
+    public function test_a_domain_without_a_plan_allowance_gets_the_starter_500_and_naitalk_has_no_cap(): void
+    {
+        $quota = app(\App\Services\Greenmail\CampaignQuota::class);
+        $this->assertSame(500, $quota->status('legacy-site.example')['allowance']);
+        $this->assertTrue($quota->status('naitalk.com')['unlimited']);
+        $this->assertNull($quota->available('naitalk.com'));
+        $this->assertSame('free', $quota->charge('naitalk.com'));
+    }
+
+    public function test_campaign_emails_can_be_bought_by_card_and_are_added_once(): void
+    {
+        $this->app->instance(\App\Services\Payments\PaymentMethodSettings::class, new class extends \App\Services\Payments\PaymentMethodSettings
+        {
+            public function isAvailable(string $method): bool
+            {
+                return $method === 'paystack';
+            }
+
+            public function value(string $method, string $field): ?string
+            {
+                return $field === 'secret_key' ? 'sk_test_x' : parent::value($method, $field);
+            }
+        });
+        \Illuminate\Support\Facades\Http::fake([
+            'api.paystack.co/transaction/initialize' => \Illuminate\Support\Facades\Http::response(['status' => true, 'data' => ['authorization_url' => 'https://paystack.test/pay/abc', 'access_code' => 'c', 'reference' => 'r']]),
+            'api.paystack.co/transaction/verify/*' => \Illuminate\Support\Facades\Http::response(['status' => true, 'data' => ['status' => 'success', 'amount' => 250000, 'currency' => 'NGN', 'reference' => 'r']]),
+        ]);
+        $token = $this->token();
+
+        $this->withHeader('X-Greenmail-Token', $token)->postJson('/api/v1/greenmail/campaigns/credits/checkout', ['emails' => 999])->assertStatus(422);
+        $checkout = $this->withHeader('X-Greenmail-Token', $token)->postJson('/api/v1/greenmail/campaigns/credits/checkout', ['emails' => 1000])
+            ->assertOk()->assertJsonPath('url', 'https://paystack.test/pay/abc');
+        $payment = \App\Models\Payment::query()->where('reference', $checkout->json('reference'))->firstOrFail();
+        $this->assertSame(['greenmail_credits', 250000, 'pending'], [$payment->purpose, (int) $payment->amount_kobo, $payment->status]);
+
+        $this->get('/api/v1/payments/paystack/callback?reference='.$payment->reference)
+            ->assertRedirectContains('/greenmail?domain=calebadeleye.com&credits=success');
+        $this->postJson('/api/v1/payments/paystack/callback?reference='.$payment->reference); // a repeat changes nothing
+        $this->get('/api/v1/payments/paystack/callback?reference='.$payment->reference);
+
+        $this->assertSame(1000, $this->withHeader('X-Greenmail-Token', $token)->getJson('/api/v1/greenmail/campaigns/quota')->json('quota.credits'));
+        $this->assertSame('paid', $payment->fresh()->status);
+    }
+
     public function test_template_placeholders_in_an_ordinary_email_use_the_recipients_name(): void
     {
         $token = $this->token();

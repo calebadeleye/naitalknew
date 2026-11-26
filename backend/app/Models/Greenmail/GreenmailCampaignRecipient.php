@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class GreenmailCampaignRecipient extends Model
 {
-    protected $fillable = ['campaign_id', 'email', 'name', 'status', 'error', 'sent_at', 'opened_at', 'open_count', 'clicked_at', 'click_count', 'unsubscribed_at'];
+    protected $fillable = ['campaign_id', 'email', 'name', 'status', 'error', 'sent_at', 'charged_to', 'opened_at', 'open_count', 'clicked_at', 'click_count', 'unsubscribed_at'];
 
     protected function casts(): array
     {

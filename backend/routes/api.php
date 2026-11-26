@@ -194,6 +194,8 @@ Route::prefix('v1')->group(function (): void {
             Route::delete('/rules/{rule}', [GreenmailRuleController::class, 'destroy'])->middleware('throttle:greenmail-settings');
             Route::get('/vacation', [GreenmailVacationController::class, 'show']);
             Route::put('/vacation', [GreenmailVacationController::class, 'update'])->middleware('throttle:greenmail-settings');
+            Route::get('/campaigns/quota', [\App\Http\Controllers\Api\Greenmail\CampaignCreditController::class, 'show']);
+            Route::post('/campaigns/credits/checkout', [\App\Http\Controllers\Api\Greenmail\CampaignCreditController::class, 'checkout'])->middleware('throttle:10,1');
             Route::get('/campaigns', [GreenmailCampaignController::class, 'index']);
             Route::post('/campaigns', [GreenmailCampaignController::class, 'store']);
             Route::get('/campaigns/{campaign}', [GreenmailCampaignController::class, 'show']);

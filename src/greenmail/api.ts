@@ -297,4 +297,24 @@ export type CampaignReport = {
   timeline: { unit: "hour" | "day"; points: Array<{ at: string; opens: number; clicks: number }> };
 };
 
+/** Campaign emails: the plan's free ones this month, then bought credits. */
+export type CampaignQuota =
+  | { unlimited: true; available: null; packs: CreditPack[] }
+  | {
+      unlimited: false;
+      plan: string | null;
+      allowance: number;
+      used: number;
+      left: number;
+      credits: number;
+      credits_expire_at: string | null;
+      available: number;
+      period_started_at: string;
+      resets_at: string;
+      can_buy: boolean;
+      packs: CreditPack[];
+    };
+
+export type CreditPack = { emails: number; price_kobo: number };
+
 export type CampaignLimits = { per_minute: number; per_day: number; max_recipients: number };
