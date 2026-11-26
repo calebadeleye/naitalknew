@@ -462,6 +462,7 @@ class GreenmailToolsTest extends TestCase
         $quota = app(\App\Services\Greenmail\CampaignQuota::class);
         $this->assertSame(500, $quota->status('legacy-site.example')['allowance']);
         $this->assertTrue($quota->status('naitalk.com')['unlimited']);
+        $this->assertSame(0, $quota->status('naitalk.com')['sent']);
         $this->assertNull($quota->available('naitalk.com'));
         $this->assertSame('free', $quota->charge('naitalk.com'));
     }

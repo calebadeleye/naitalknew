@@ -84,12 +84,17 @@ class CampaignQuota
     /** Everything the Campaigns page shows about the allowance. */
     public function status(string $domain): array
     {
-        if ($this->unlimited($domain)) {
-            return ['unlimited' => true, 'available' => null, 'packs' => $this->packs()];
-        }
-
         $service = $this->service($domain);
         [$start, $end] = $this->period($service);
+
+        if ($this->unlimited($domain)) {
+            // No cap, but still show how many went out this month.
+            $sent = GreenmailCampaignRecipient::query()
+                ->whereHas('campaign', fn ($q) => $q->where('owner_email', 'like', '%@'.$domain))
+                ->where('status', 'sent')->where('sent_at', '>=', $start)->count();
+
+            return ['unlimited' => true, 'available' => null, 'sent' => $sent, 'resets_at' => $end->toIso8601String(), 'packs' => $this->packs()];
+        }
         $allowance = $this->allowance($service);
         $used = $this->usedFree($domain, $start);
         $credits = $this->credits($domain);

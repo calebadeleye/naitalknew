@@ -8,7 +8,13 @@ const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: 
 
 /** "Emails left this month" with a bar, credits, and Buy more. */
 export function QuotaMeter({ quota, onBuy }: { quota: CampaignQuota; onBuy: () => void }) {
-  if (quota.unlimited === true) return null;
+  if (quota.unlimited === true) {
+    return (
+      <p className="mt-3 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
+        <span className="font-bold text-slate-900">{quota.sent.toLocaleString()}</span> campaign {quota.sent === 1 ? "email" : "emails"} sent this month · no limit for this domain
+      </p>
+    );
+  }
   const used = quota.allowance ? Math.min(100, Math.round((quota.used / quota.allowance) * 100)) : 100;
   const low = quota.available === 0 || (quota.credits === 0 && used >= 80);
 

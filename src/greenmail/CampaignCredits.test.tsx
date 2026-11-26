@@ -43,9 +43,11 @@ describe("campaign emails", () => {
     expect(onBuy).toHaveBeenCalled();
   });
 
-  it("shows nothing for a domain with no cap, and no buy button when it can't be bought here", () => {
-    const { container } = render(<QuotaMeter quota={{ unlimited: true, available: null, packs }} onBuy={vi.fn()} />);
-    expect(container.textContent).toBe("");
+  it("only counts for a domain with no cap, and has no buy button when it can't be bought here", () => {
+    render(<QuotaMeter quota={{ unlimited: true, available: null, sent: 5, resets_at: "2026-12-01T00:00:00Z", packs }} onBuy={vi.fn()} />);
+    expect(screen.getByText(/campaign emails sent this month · no limit/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Buy more emails/ })).toBeNull();
+    cleanup();
     render(<QuotaMeter quota={quota({ can_buy: false, left: 0, available: 0 })} onBuy={vi.fn()} />);
     expect(screen.queryByRole("button", { name: /Buy more emails/ })).toBeNull();
     expect(screen.getByText(/contact NAI TALK support/)).toBeTruthy();

@@ -299,7 +299,7 @@ export type CampaignReport = {
 
 /** Campaign emails: the plan's free ones this month, then bought credits. */
 export type CampaignQuota =
-  | { unlimited: true; available: null; packs: CreditPack[] }
+  | { unlimited: true; available: null; sent: number; resets_at: string; packs: CreditPack[] }
   | {
       unlimited: false;
       plan: string | null;
