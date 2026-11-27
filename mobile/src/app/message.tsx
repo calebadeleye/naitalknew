@@ -33,6 +33,7 @@ export default function MessageScreen() {
   const [message, setMessage] = useState<FullMessage | null>(null);
   const [loading, setLoading] = useState(true);
   const [fromCache, setFromCache] = useState(false);
+  const [showPeople, setShowPeople] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showImages, setShowImages] = useState(false);
   const [assistant, setAssistant] = useState<{ action: AssistantAction; text: string | null } | null>(null);
@@ -177,13 +178,46 @@ export default function MessageScreen() {
             <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15.5 }} numberOfLines={1}>
               {sender} <Text style={{ color: colors.muted, fontWeight: "400", fontSize: 13 }}>{message.from.name ? `<${message.from.email}>` : ""}</Text>
             </Text>
-            <Text style={{ color: colors.muted, fontSize: 13 }} numberOfLines={2}>
-              to {message.to.map((a) => a.email).join(", ") || "(no recipient)"}
-              {message.cc.length ? `, cc ${message.cc.map((a) => a.email).join(", ")}` : ""}
-            </Text>
+            <Pressable onPress={() => setShowPeople((v) => !v)} accessibilityRole="button" accessibilityLabel={showPeople ? "Hide recipients" : "Show all recipients"} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <Text style={{ color: colors.muted, fontSize: 13, flexShrink: 1 }} numberOfLines={1}>
+                {peopleSummary(message)}
+              </Text>
+              <Ionicons name={showPeople ? "chevron-up" : "chevron-down"} size={14} color={colors.muted} />
+            </Pressable>
           </View>
           <Text style={{ color: colors.muted, fontSize: 12, textAlign: "right", maxWidth: 96 }}>{fullDate(message.date)}</Text>
         </View>
+
+        {showPeople ? (
+          <View style={{ marginHorizontal: 16, marginBottom: 12, padding: 12, gap: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.input }}>
+            {(
+              [
+                ["From", [message.from]],
+                ["To", message.to],
+                ["Cc", message.cc],
+                ["Reply to", (message.reply_to ?? []).filter((a) => a.email !== message.from.email)],
+              ] as Array<[string, Array<{ name: string | null; email: string }>]>
+            )
+              .filter(([, people]) => people.length > 0)
+              .map(([label, people]) => (
+                <View key={label} style={{ gap: 6 }}>
+                  <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
+                    {label}
+                    {people.length > 1 ? ` (${people.length})` : ""}
+                  </Text>
+                  {people.map((a) => (
+                    <View key={a.email} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <Avatar name={a.name || a.email} size={26} />
+                      <View style={{ flex: 1 }}>
+                        {a.name ? <Text style={{ color: colors.text, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>{a.name}</Text> : null}
+                        <Text selectable style={{ color: colors.muted, fontSize: 13 }} numberOfLines={1}>{a.email}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ))}
+          </View>
+        ) : null}
 
         {fromCache ? (
           <Text style={{ marginHorizontal: 16, marginBottom: 8, color: colors.bannerText, fontSize: 12 }}>Showing the copy saved on this phone.</Text>
@@ -252,4 +286,14 @@ export default function MessageScreen() {
       </View>
     </SafeAreaView>
   );
+}
+
+const firstName = (a: { name: string | null; email: string }) => (a.name ? a.name.split(/\s+/)[0] : a.email);
+
+/** "to Ada, Bola · cc Chidi and 11 others" — one line; tap it for everyone. */
+function peopleSummary(message: Pick<FullMessage, "to" | "cc">): string {
+  const list = (people: Array<{ name: string | null; email: string }>, max: number) =>
+    people.length <= max ? people.map(firstName).join(", ") : `${people.slice(0, max).map(firstName).join(", ")} and ${people.length - max} other${people.length - max === 1 ? "" : "s"}`;
+  const to = message.to.length ? `to ${list(message.to, 2)}` : "to (no recipient)";
+  return message.cc.length ? `${to} · cc ${list(message.cc, 2)}` : to;
 }

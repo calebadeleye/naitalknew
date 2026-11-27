@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { AlarmClock, AlertTriangle, Archive, BellRing, CornerUpLeft, Download, Eye, Forward, ImageOff, Link2, ListTodo, Loader2, MailOpen, OctagonAlert, Paperclip, ReplyAll, Star, Tag, Trash2, X } from "lucide-react";
-import { LABELS, type Attachment, type FullMessage, type LabelKey } from "./api";
+import { AlarmClock, AlertTriangle, Archive, BellRing, ChevronDown, Copy, CornerUpLeft, Download, Eye, Forward, ImageOff, Link2, ListTodo, Loader2, MailOpen, OctagonAlert, Paperclip, ReplyAll, Star, Tag, Trash2, X } from "lucide-react";
+import { LABELS, type Address, type Attachment, type FullMessage, type LabelKey } from "./api";
 import { downloadFile, FilePreview, ShareDialog, type FileRef } from "./FilePreview";
 import { quickTimes } from "./FollowUpsView";
 import { Avatar, displayName, formatAddress, formatBytes, fullDate } from "./ui";
@@ -44,12 +44,14 @@ export function MessageReader({
 }) {
   // Pictures show straight away, except in Spam, where they could report the open.
   const [showImages, setShowImages] = useState(!isJunk);
+  const [showPeople, setShowPeople] = useState(false);
   const [menu, setMenu] = useState<"snooze" | "remind" | "label" | null>(null);
   const [preview, setPreview] = useState<FileRef | null>(null);
   const [share, setShare] = useState<FileRef | null>(null);
 
   useEffect(() => {
     setShowImages(!isJunk);
+    setShowPeople(false);
     setMenu(null);
   }, [message?.uid, isJunk]);
 
@@ -147,13 +149,19 @@ export function MessageReader({
                 <strong className="text-slate-900">{displayName(message.from)}</strong>{" "}
                 {message.from.name && <span className="text-slate-500">&lt;{message.from.email}&gt;</span>}
               </p>
-              <p className="truncate text-xs text-slate-500" title={[...message.to, ...message.cc].map(formatAddress).join(", ")}>
-                to {message.to.map((a) => a.name || a.email).join(", ") || "(undisclosed recipients)"}
-                {message.cc.length > 0 && `, cc ${message.cc.map((a) => a.name || a.email).join(", ")}`}
-              </p>
+              <button
+                type="button"
+                aria-expanded={showPeople}
+                onClick={() => setShowPeople((open) => !open)}
+                className="flex max-w-full items-center gap-1 rounded text-left text-xs text-slate-500 hover:text-slate-800"
+              >
+                <span className="truncate">{peopleSummary(message)}</span>
+                <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${showPeople ? "rotate-180" : ""}`} />
+              </button>
             </div>
             <span className="shrink-0 text-xs text-slate-500">{fullDate(message.date)}</span>
           </div>
+          {showPeople && <PeopleDetails message={message} />}
           {(message.labels.length > 0 || message.suggested_label) && (
             <div className="mt-3 flex flex-wrap items-center gap-1.5">
               {message.labels.map((key) => (
@@ -315,5 +323,69 @@ function EmailBody({ html, allowRemoteImages }: { html: string; allowRemoteImage
       className="block w-full border-0"
       style={{ height }}
     />
+  );
+}
+
+const firstName = (a: Address) => (a.name ? a.name.split(/\s+/)[0] : a.email);
+
+/** "to Ada, Bola · cc Chidi and 11 others" — short enough for one line. */
+export function peopleSummary(message: Pick<FullMessage, "to" | "cc">): string {
+  const list = (people: Address[], max: number) =>
+    people.length <= max ? people.map(firstName).join(", ") : `${people.slice(0, max).map(firstName).join(", ")} and ${people.length - max} other${people.length - max === 1 ? "" : "s"}`;
+  const to = message.to.length ? `to ${list(message.to, 2)}` : "to (undisclosed recipients)";
+  return message.cc.length ? `${to} · cc ${list(message.cc, 2)}` : to;
+}
+
+/** Everyone on the email: From, To, Cc and Reply-to, each person on their own chip. */
+function PeopleDetails({ message }: { message: FullMessage }) {
+  const rows: Array<[string, Address[]]> = [
+    ["From", [message.from]],
+    ["To", message.to],
+    ["Cc", message.cc],
+    ["Reply to", (message.reply_to ?? []).filter((a) => a.email !== message.from.email)],
+  ];
+  return (
+    <dl className="mt-3 grid gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3 text-xs sm:grid-cols-[72px_1fr]">
+      {rows
+        .filter(([, people]) => people.length > 0)
+        .map(([label, people]) => (
+          <React.Fragment key={label}>
+            <PeopleRow label={label} people={people} />
+          </React.Fragment>
+        ))}
+    </dl>
+  );
+}
+
+function PeopleRow({ label, people }: { label: string; people: Address[] }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? people : people.slice(0, 8);
+  const copy = () => void navigator.clipboard?.writeText(people.map(formatAddress).join(", ")).catch(() => undefined);
+  return (
+    <>
+      <dt className="pt-1 font-semibold text-slate-500">
+        {label}
+        {people.length > 1 && <span className="ml-1 font-normal text-slate-400">({people.length})</span>}
+      </dt>
+      <dd className="flex flex-wrap items-center gap-1.5">
+        {shown.map((a) => (
+          <span key={a.email} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 bg-white py-0.5 pl-0.5 pr-2.5" title={formatAddress(a)}>
+            <Avatar address={a} size={20} />
+            {a.name && <span className="truncate font-semibold text-slate-800">{a.name}</span>}
+            <span className="truncate text-slate-500">{a.email}</span>
+          </span>
+        ))}
+        {people.length > 8 && (
+          <button type="button" onClick={() => setAll((v) => !v)} className="rounded-full px-2 py-0.5 font-semibold text-[#15803d] hover:bg-white">
+            {all ? "Show fewer" : `Show all ${people.length}`}
+          </button>
+        )}
+        {people.length > 1 && (
+          <button type="button" onClick={copy} title={`Copy the ${label} addresses`} aria-label={`Copy the ${label} addresses`} className="rounded p-1 text-slate-400 hover:bg-white hover:text-slate-700">
+            <Copy className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </dd>
+    </>
   );
 }
