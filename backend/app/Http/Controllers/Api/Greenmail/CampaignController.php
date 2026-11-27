@@ -194,12 +194,16 @@ class CampaignController extends Controller
             'contact_ids' => ['nullable', 'array'],
             'contact_ids.*' => ['integer'],
             'all_contacts' => ['nullable', 'boolean'],
+            'group_ids' => ['nullable', 'array'],
+            'group_ids.*' => ['integer'],
             'track' => ['nullable', 'boolean'],
         ], ['recipients.max' => "A campaign can go to at most {$max} people."]);
 
         $people = collect($data['recipients'] ?? []);
         $contacts = GreenmailContact::query()->where('owner_email', $owner)
-            ->when(! ($data['all_contacts'] ?? false), fn ($query) => $query->whereIn('id', $data['contact_ids'] ?? [0]))
+            ->when(! ($data['all_contacts'] ?? false), fn ($query) => $query->where(fn ($q) => $q
+                ->whereIn('id', $data['contact_ids'] ?? [0])
+                ->orWhereHas('groups', fn ($g) => $g->where('owner_email', $owner)->whereIn('greenmail_contact_groups.id', $data['group_ids'] ?? [0]))))
             ->get(['email', 'name']);
         $people = $people->concat($contacts->map(fn ($c) => ['email' => $c->email, 'name' => $c->name]))
             ->map(fn ($p) => ['email' => strtolower(trim($p['email'])), 'name' => filled($p['name'] ?? null) ? trim($p['name']) : null])

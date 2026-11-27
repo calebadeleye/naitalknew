@@ -211,6 +211,59 @@ class GreenmailToolsTest extends TestCase
         $this->assertCount(0, $this->sent);
     }
 
+    public function test_an_uploaded_contact_list_goes_into_a_group_and_a_campaign_can_go_to_that_group(): void
+    {
+        $token = $this->token();
+        $api = fn () => $this->withHeader('X-Greenmail-Token', $token);
+        GreenmailContact::query()->create(['owner_email' => 'caleb@calebadeleye.com', 'email' => 'tolu@example.com', 'name' => 'Tolu Ade']);
+        GreenmailContact::query()->create(['owner_email' => 'caleb@calebadeleye.com', 'email' => 'bisi@example.com']);
+        GreenmailContact::query()->create(['owner_email' => 'someone@else.com', 'email' => 'ada@example.com', 'name' => 'Not yours']);
+
+        $import = $api()->postJson('/api/v1/greenmail/contacts/import', [
+            'contacts' => [
+                ['email' => 'Ada@Example.com', 'name' => 'Ada Obi', 'phone' => '0803'],
+                ['email' => 'tolu@example.com', 'name' => 'Different Name'],
+                ['email' => 'bisi@example.com', 'name' => 'Bisi Lawal'],
+                ['email' => 'ada@example.com'],
+                ['email' => 'not-an-email'],
+                ['email' => 'caleb@calebadeleye.com'],
+            ],
+            'group_name' => 'Customers',
+        ])->assertOk()->assertJsonPath('created', 1)->assertJsonPath('updated', 1)->assertJsonPath('invalid', 1)
+            ->assertJsonPath('group.name', 'Customers')->assertJsonPath('group.contacts_count', 3)->json();
+        $this->assertSame('1 added, 2 already in your contacts, 1 skipped (not an email address) · in the group “Customers”.', $import['message']);
+        $this->assertCount(3, $import['contact_ids']);
+
+        // Existing details are kept; blanks are filled in.
+        $this->assertSame('Tolu Ade', GreenmailContact::query()->where('owner_email', 'caleb@calebadeleye.com')->where('email', 'tolu@example.com')->value('name'));
+        $this->assertSame('Bisi Lawal', GreenmailContact::query()->where('owner_email', 'caleb@calebadeleye.com')->where('email', 'bisi@example.com')->value('name'));
+        $this->assertSame('Not yours', GreenmailContact::query()->where('owner_email', 'someone@else.com')->value('name'));
+
+        $group = $import['group']['id'];
+        $list = $api()->getJson('/api/v1/greenmail/contacts?all=1')->assertOk()->assertJsonPath('total', 3)->assertJsonPath('groups.0.name', 'Customers')->json();
+        $this->assertTrue(collect($list['contacts'])->every(fn ($c) => $c['group_ids'] === [$group]));
+
+        // A second, smaller group.
+        $vip = $api()->postJson('/api/v1/greenmail/contact-groups', ['name' => 'VIP'])->assertCreated()->json('group.id');
+        $tolu = GreenmailContact::query()->where('owner_email', 'caleb@calebadeleye.com')->where('email', 'tolu@example.com')->value('id');
+        $api()->putJson("/api/v1/greenmail/contact-groups/{$vip}", ['add' => [$tolu]])->assertOk()->assertJsonPath('group.contacts_count', 1);
+
+        $campaign = $api()->postJson('/api/v1/greenmail/campaigns', [
+            'name' => 'VIP news', 'subject' => 'Hi', 'body_html' => '<p>Hi</p>',
+            'recipients' => [['email' => 'extra@example.com']], 'group_ids' => [$vip],
+        ])->assertCreated()->assertJsonPath('campaign.total', 2)->json('campaign');
+        $this->assertEqualsCanonicalizing(['extra@example.com', 'tolu@example.com'], collect($api()->getJson("/api/v1/greenmail/campaigns/{$campaign['id']}")->json('campaign.recipients'))->pluck('email')->all());
+
+        // Another mailbox's group can't be used or changed.
+        $other = \App\Models\Greenmail\GreenmailContactGroup::query()->create(['owner_email' => 'someone@else.com', 'name' => 'Theirs']);
+        $api()->putJson("/api/v1/greenmail/contact-groups/{$other->id}", ['name' => 'Mine'])->assertNotFound();
+        $api()->postJson('/api/v1/greenmail/contacts/import', ['contacts' => [['email' => 'x@example.com']], 'group_id' => $other->id])->assertNotFound();
+
+        // Deleting a group keeps its people.
+        $api()->deleteJson("/api/v1/greenmail/contact-groups/{$group}")->assertOk();
+        $this->assertSame(3, GreenmailContact::query()->where('owner_email', 'caleb@calebadeleye.com')->count());
+    }
+
     public function test_campaigns_send_personalised_emails_a_few_a_minute_and_honour_unsubscribes(): void
     {
         config(['greenmail.campaign_per_minute' => 2]);

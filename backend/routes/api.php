@@ -143,6 +143,10 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/contacts', [GreenmailContactController::class, 'store']);
             Route::put('/contacts/{contact}', [GreenmailContactController::class, 'update']);
             Route::delete('/contacts/{contact}', [GreenmailContactController::class, 'destroy']);
+            Route::post('/contacts/import', [GreenmailContactController::class, 'import'])->middleware('throttle:20,1');
+            Route::post('/contact-groups', [GreenmailContactController::class, 'storeGroup']);
+            Route::put('/contact-groups/{group}', [GreenmailContactController::class, 'updateGroup']);
+            Route::delete('/contact-groups/{group}', [GreenmailContactController::class, 'destroyGroup']);
             Route::post('/assistant', GreenmailAssistantController::class)->middleware('throttle:greenmail-assistant');
             Route::get('/events', [GreenmailCalendarController::class, 'index']);
             Route::post('/events', [GreenmailCalendarController::class, 'store']);

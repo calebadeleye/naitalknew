@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, CalendarClock, Loader2, Megaphone, Plus, Send, Trash2, Users } from "lucide-react";
-import { gm, type Campaign, type CampaignLimits, type CampaignQuota, type Contact } from "./api";
+import { gm, type Campaign, type CampaignLimits, type CampaignQuota, type Contact, type ContactGroup } from "./api";
+import { ContactUploadDialog, UploadContactsButton } from "./ContactUpload";
+import type { ContactFile } from "./contactFile";
 import { BuyEmailsDialog, QuotaMeter } from "./CampaignCredits";
 import { useFeedback } from "./feedback";
 import { RichText } from "./RichText";
@@ -18,7 +20,7 @@ const STATUS: Record<Campaign["status"], { label: string; tone: string }> = {
 };
 
 type Person = { email: string; name: string | null };
-type Draft = { id?: number; name: string; subject: string; body_html: string; track: boolean; key: number; allContacts: boolean; contactIds: number[]; pasted: string };
+type Draft = { id?: number; name: string; subject: string; body_html: string; track: boolean; key: number; allContacts: boolean; contactIds: number[]; groupIds: number[]; pasted: string };
 
 /** "Ada Obi <ada@x.com>, bola@y.com" → people. */
 export function parsePeople(text: string): Person[] {
@@ -78,7 +80,7 @@ export function CampaignsView({ token, onSessionError }: { token: string; onSess
   }
 
   if (openId) {
-    return <CampaignDetail token={token} id={openId} onSessionError={onSessionError} onBack={() => setOpenId(null)} onEdit={(campaign) => setDraft({ id: campaign.id, name: campaign.name, subject: campaign.subject, body_html: campaign.body_html ?? "", track: campaign.track, key: Date.now(), allContacts: false, contactIds: [], pasted: (campaign.recipients ?? []).map((r) => (r.name ? `${r.name} <${r.email}>` : r.email)).join("\n") })} />;
+    return <CampaignDetail token={token} id={openId} onSessionError={onSessionError} onBack={() => setOpenId(null)} onEdit={(campaign) => setDraft({ id: campaign.id, name: campaign.name, subject: campaign.subject, body_html: campaign.body_html ?? "", track: campaign.track, key: Date.now(), allContacts: false, contactIds: [], groupIds: [], pasted: (campaign.recipients ?? []).map((r) => (r.name ? `${r.name} <${r.email}>` : r.email)).join("\n") })} />;
   }
 
   return (
@@ -89,7 +91,7 @@ export function CampaignsView({ token, onSessionError }: { token: string; onSess
             <h1 className="flex items-center gap-2 text-xl font-black text-slate-900 sm:text-2xl"><Megaphone className="h-6 w-6 text-[#1f9d4c]" /> Campaigns</h1>
             <p className="text-sm text-slate-500">Send one email to many people — each gets their own copy, with an unsubscribe link.</p>
           </div>
-          <button type="button" className="inline-flex items-center gap-1.5 rounded-lg bg-[#1f9d4c] px-3 py-2 text-sm font-bold text-white" onClick={() => setDraft({ name: "", subject: "", body_html: "<p>Hi {{first_name}},</p><p><br></p>", track: true, key: Date.now(), allContacts: false, contactIds: [], pasted: "" })}>
+          <button type="button" className="inline-flex items-center gap-1.5 rounded-lg bg-[#1f9d4c] px-3 py-2 text-sm font-bold text-white" onClick={() => setDraft({ name: "", subject: "", body_html: "<p>Hi {{first_name}},</p><p><br></p>", track: true, key: Date.now(), allContacts: false, contactIds: [], groupIds: [], pasted: "" })}>
             <Plus className="h-4 w-4" /> New campaign
           </button>
         </div>
@@ -144,31 +146,78 @@ function CampaignEditor({ token, draft: initial, limits, quota, onBuy, onSession
   useHoldReload("campaign-editor", true);
   const [contacts, setContacts] = useState<Contact[] | null>(null);
   const [contactQuery, setContactQuery] = useState("");
+  const [groups, setGroups] = useState<ContactGroup[]>([]);
+  const [totalContacts, setTotalContacts] = useState<number | null>(null);
+  const [groupFilter, setGroupFilter] = useState<number | "">("");
+  const [upload, setUpload] = useState<{ name: string; read: ContactFile } | null>(null);
   const [busy, setBusy] = useState<"save" | "test" | "send" | null>(null);
   const [scheduleAt, setScheduleAt] = useState("");
   const [error, setError] = useState<string | null>(null);
   const templates = useTemplates(token, onSessionError);
   const { toast, confirm } = useFeedback();
 
-  useEffect(() => {
-    gm<{ contacts: Contact[] }>("/contacts", token).then((response) => setContacts(response.contacts)).catch(() => setContacts([]));
-  }, [token]);
+  const loadContacts = useCallback(
+    () =>
+      gm<{ contacts: Contact[]; groups: ContactGroup[]; total: number }>("/contacts?all=1", token)
+        .then((response) => {
+          setContacts(response.contacts);
+          setGroups(response.groups);
+          setTotalContacts(response.total);
+        })
+        .catch(() => setContacts([])),
+    [token],
+  );
+  useEffect(() => void loadContacts(), [loadContacts]);
+  useOnChange("contacts", () => void loadContacts());
+
+  // Put the people checked below into a group (a new one, or one you have).
+  const groupChecked = async (target: number | "new") => {
+    const name = target === "new" ? window.prompt("Name of the new group")?.trim() : null;
+    if (target === "new" && !name) return;
+    try {
+      const id = target === "new" ? (await gm<{ group: ContactGroup }>("/contact-groups", token, { method: "POST", body: JSON.stringify({ name }) })).group.id : target;
+      const result = await gm<{ group: ContactGroup }>(`/contact-groups/${id}`, token, { method: "PUT", body: JSON.stringify({ add: draft.contactIds }) });
+      toast(`${draft.contactIds.length} added to “${result.group.name}”.`);
+      announceChange("contacts");
+    } catch (err) {
+      onSessionError(err);
+      toast(err instanceof Error ? err.message : "Could not update the group.", "error");
+    }
+  };
+
+  const deleteGroup = async (group: ContactGroup) => {
+    if (!(await confirm({ title: `Delete the group “${group.name}”?`, message: "The people in it stay in your contacts.", confirmLabel: "Delete group", danger: true }))) return;
+    try {
+      await gm(`/contact-groups/${group.id}`, token, { method: "DELETE" });
+      setDraft((current) => ({ ...current, groupIds: current.groupIds.filter((id) => id !== group.id) }));
+      if (groupFilter === group.id) setGroupFilter("");
+      announceChange("contacts");
+    } catch (err) {
+      onSessionError(err);
+      toast(err instanceof Error ? err.message : "Could not delete the group.", "error");
+    }
+  };
 
   const pasted = useMemo(() => parsePeople(draft.pasted), [draft.pasted]);
   const recipientCount = useMemo(() => {
     const emails = new Set(pasted.map((p) => p.email));
-    (contacts ?? []).filter((c) => draft.allContacts || draft.contactIds.includes(c.id)).forEach((c) => emails.add(c.email.toLowerCase()));
+    (contacts ?? [])
+      .filter((c) => draft.allContacts || draft.contactIds.includes(c.id) || (c.group_ids ?? []).some((id) => draft.groupIds.includes(id)))
+      .forEach((c) => emails.add(c.email.toLowerCase()));
     return emails.size;
-  }, [pasted, contacts, draft.allContacts, draft.contactIds]);
+  }, [pasted, contacts, draft.allContacts, draft.contactIds, draft.groupIds]);
 
-  const visibleContacts = (contacts ?? []).filter((c) => !contactQuery || `${c.name ?? ""} ${c.email}`.toLowerCase().includes(contactQuery.toLowerCase()));
+  const matching = (contacts ?? []).filter(
+    (c) => (groupFilter === "" || (c.group_ids ?? []).includes(groupFilter)) && (!contactQuery || `${c.name ?? ""} ${c.email}`.toLowerCase().includes(contactQuery.toLowerCase())),
+  );
+  const visibleContacts = matching.slice(0, 200);
 
   const save = async (): Promise<number | null> => {
     setError(null);
     try {
       const result = await gm<{ campaign: Campaign; message: string }>(draft.id ? `/campaigns/${draft.id}` : "/campaigns", token, {
         method: draft.id ? "PUT" : "POST",
-        body: JSON.stringify({ name: draft.name, subject: draft.subject, body_html: draft.body_html, track: draft.track, recipients: pasted, contact_ids: draft.contactIds, all_contacts: draft.allContacts }),
+        body: JSON.stringify({ name: draft.name, subject: draft.subject, body_html: draft.body_html, track: draft.track, recipients: pasted, contact_ids: draft.contactIds, group_ids: draft.groupIds, all_contacts: draft.allContacts }),
       });
       setDraft((current) => ({ ...current, id: result.campaign.id }));
       announceChange("campaigns");
@@ -262,13 +311,53 @@ function CampaignEditor({ token, draft: initial, limits, quota, onBuy, onSession
 
         <fieldset className="rounded-xl border border-slate-200 p-4">
           <legend className="px-1 text-sm font-bold text-slate-900"><Users className="mr-1 inline h-4 w-4" /> Recipients · {recipientCount}{limits ? ` of up to ${limits.max_recipients}` : ""}</legend>
-          <label className="flex items-center gap-2 text-sm text-slate-800">
-            <input type="checkbox" className="h-4 w-4 accent-[#1f9d4c]" checked={draft.allContacts} onChange={(event) => setDraft({ ...draft, allContacts: event.target.checked })} />
-            All my contacts ({contacts?.length ?? "…"})
-          </label>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <label className="mr-auto flex items-center gap-2 text-sm text-slate-800">
+              <input type="checkbox" className="h-4 w-4 accent-[#1f9d4c]" checked={draft.allContacts} onChange={(event) => setDraft({ ...draft, allContacts: event.target.checked })} />
+              All my contacts ({totalContacts?.toLocaleString() ?? "…"})
+            </label>
+            <UploadContactsButton onPicked={setUpload} />
+          </div>
+
+          {!draft.allContacts && groups.length > 0 && (
+            <div className="mt-3">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Groups</p>
+              <ul className="mt-1.5 flex flex-wrap gap-2">
+                {groups.map((group) => {
+                  const on = draft.groupIds.includes(group.id);
+                  return (
+                    <li key={group.id} className={`group inline-flex items-center rounded-full border text-sm ${on ? "border-[#1f9d4c] bg-[#e3f4e9] text-[#14632f]" : "border-slate-300 text-slate-700"}`}>
+                      <label className="flex cursor-pointer items-center gap-1.5 py-1 pl-3 pr-1">
+                        <input
+                          type="checkbox"
+                          className="h-3.5 w-3.5 accent-[#1f9d4c]"
+                          checked={on}
+                          onChange={(event) => setDraft({ ...draft, groupIds: event.target.checked ? [...draft.groupIds, group.id] : draft.groupIds.filter((id) => id !== group.id) })}
+                        />
+                        <span className="font-semibold">{group.name}</span>
+                        <span className="text-xs opacity-70">{group.contacts_count.toLocaleString()}</span>
+                      </label>
+                      <button type="button" aria-label={`Delete the group ${group.name}`} title="Delete group" onClick={() => void deleteGroup(group)} className="mr-1 rounded-full p-1 opacity-50 hover:bg-white hover:opacity-100">
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
           {!draft.allContacts && contacts && contacts.length > 0 && (
             <div className="mt-3">
-              <input value={contactQuery} onChange={(event) => setContactQuery(event.target.value)} placeholder="Find contacts" aria-label="Find contacts" className={input} />
+              <div className="flex gap-2">
+                <input value={contactQuery} onChange={(event) => setContactQuery(event.target.value)} placeholder="Find contacts" aria-label="Find contacts" className={input} />
+                {groups.length > 0 && (
+                  <select value={groupFilter} onChange={(event) => setGroupFilter(event.target.value === "" ? "" : Number(event.target.value))} aria-label="Show a group" className={`${input} w-auto`}>
+                    <option value="">Everyone</option>
+                    {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  </select>
+                )}
+              </div>
               <ul className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-slate-100">
                 {visibleContacts.map((contact) => (
                   <li key={contact.id}>
@@ -280,18 +369,60 @@ function CampaignEditor({ token, draft: initial, limits, quota, onBuy, onSession
                         onChange={(event) => setDraft({ ...draft, contactIds: event.target.checked ? [...draft.contactIds, contact.id] : draft.contactIds.filter((id) => id !== contact.id) })}
                       />
                       <span className="min-w-0 flex-1 truncate">{contact.name ? `${contact.name} — ${contact.email}` : contact.email}</span>
+                      {(contact.group_ids ?? []).length > 0 && (
+                        <span className="hidden shrink-0 text-xs text-slate-400 sm:inline">{groups.filter((g) => contact.group_ids?.includes(g.id)).map((g) => g.name).join(", ")}</span>
+                      )}
                     </label>
                   </li>
                 ))}
+                {matching.length > visibleContacts.length && <li className="px-3 py-1.5 text-xs text-slate-500">Showing {visibleContacts.length} of {matching.length.toLocaleString()}. Search to find others.</li>}
+                {matching.length === 0 && <li className="px-3 py-1.5 text-xs text-slate-500">No contacts match.</li>}
               </ul>
+              {draft.contactIds.length > 0 && (
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                  <span>{draft.contactIds.length} checked</span>
+                  <select
+                    value=""
+                    aria-label="Add the checked people to a group"
+                    onChange={(event) => void groupChecked(event.target.value === "new" ? "new" : Number(event.target.value))}
+                    className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
+                  >
+                    <option value="">Add them to a group…</option>
+                    {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                    <option value="new">New group…</option>
+                  </select>
+                </div>
+              )}
             </div>
           )}
           <label className="mt-3 block text-sm font-semibold text-slate-700">
             Add addresses <span className="font-normal text-slate-400">(one per line, or “Name &lt;email&gt;”)</span>
             <textarea value={draft.pasted} onChange={(event) => setDraft({ ...draft, pasted: event.target.value })} rows={4} placeholder={"Ada Obi <ada@example.com>\nbola@example.com"} className={`${input} mt-1 resize-y font-mono text-xs`} />
           </label>
-          <p className="mt-2 text-xs text-slate-500">Only email people who expect to hear from you. People who unsubscribed are skipped automatically.</p>
+          <p className="mt-2 text-xs text-slate-500">Only email people who expect to hear from you. People who unsubscribed are skipped automatically. To upload, use a CSV (in Excel: Save As → CSV) or a .vcf exported from your phone.</p>
         </fieldset>
+        {upload && (
+          <ContactUploadDialog
+            token={token}
+            file={upload}
+            groups={groups}
+            onSessionError={onSessionError}
+            onClose={() => setUpload(null)}
+            onImported={(result, useInCampaign) => {
+              setUpload(null);
+              toast(result.message);
+              if (useInCampaign) {
+                setDraft((current) =>
+                  result.group
+                    ? { ...current, groupIds: current.groupIds.includes(result.group.id) ? current.groupIds : [...current.groupIds, result.group.id] }
+                    : { ...current, contactIds: Array.from(new Set([...current.contactIds, ...result.contact_ids])) },
+                );
+              }
+              announceChange("contacts");
+              void loadContacts();
+            }}
+          />
+        )}
 
         <label className="flex items-start gap-2 rounded-xl border border-slate-200 p-3 text-sm text-slate-700">
           <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[#1f9d4c]" checked={draft.track} onChange={(event) => setDraft({ ...draft, track: event.target.checked })} />
