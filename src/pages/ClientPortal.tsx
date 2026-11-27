@@ -120,6 +120,7 @@ import { fallbackClientLogos, fallbackProjects, fallbackReviews, fallbackSiteCon
 import { Logo, Navbar, Footer, FloatingWhatsApp, SectionHeader, socialLinks, paymentBadges, footerColumns } from "../shared/PublicLayout";
 import { ClientHelpAssistant, OPEN_HELP_ASSISTANT_EVENT } from "../components/ClientHelpAssistant";
 import { TermsAgreement } from "../components/TermsAgreement";
+import { TurnstileWidget, useTurnstileSiteKey } from "../components/TurnstileWidget";
 import { ClientSupportPage } from "../support/ClientSupportPage";
 import { ServiceOrderPage } from "../client/ServiceOrderPage";
 import { CartPage, type CartCheckout } from "../client/CartPage";
@@ -4507,6 +4508,10 @@ export function ClientPortal() {
   const [clientToken, setClientToken] = useState(() => sessionStorage.getItem("naitalk_laravel_client_token") || "");
   const [login, setLogin] = useState(INITIAL_LOGIN);
   const [registerForm, setRegisterForm] = useState(INITIAL_REGISTER);
+  // Cloudflare Turnstile on sign-up: off (null) until a site key is configured on the server.
+  const turnstileSiteKey = useTurnstileSiteKey(route === "register");
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileReset, setTurnstileReset] = useState(0);
   const [orderTermsAccepted, setOrderTermsAccepted] = useState(false);
   const [forgotForm, setForgotForm] = useState({ email: "" });
   const [resetForm, setResetForm] = useState(() => {
@@ -4778,6 +4783,11 @@ export function ClientPortal() {
       return;
     }
 
+    if (turnstileSiteKey && !turnstileToken) {
+      toast.push({ type: "error", message: "Please complete the security check before creating your account." });
+      return;
+    }
+
     trackEvent("signup_start", { method: "email" });
     setIsLoading(true);
 
@@ -4787,7 +4797,7 @@ export function ClientPortal() {
         undefined,
         {
           method: "POST",
-          body: JSON.stringify(registerForm),
+          body: JSON.stringify({ ...registerForm, turnstile_token: turnstileToken || undefined }),
         },
       );
 
@@ -4806,6 +4816,8 @@ export function ClientPortal() {
       navigate("/client/verify-email");
     } catch (error) {
       setRegisterForm((current) => ({ ...current, password: "", password_confirmation: "" }));
+      // A Turnstile token works once: get a fresh check for the next try.
+      if (turnstileSiteKey) setTurnstileReset((n) => n + 1);
       toast.push({ type: "error", message: error instanceof Error ? error.message : "Registration failed." });
     } finally {
       setIsLoading(false);
@@ -5196,7 +5208,8 @@ export function ClientPortal() {
                 checked={registerForm.terms_accepted}
                 onChange={(checked) => setRegisterForm((current) => ({ ...current, terms_accepted: checked }))}
               />
-              <button type="submit" className="btn-primary w-full justify-center" disabled={isLoading || !registerForm.terms_accepted}>
+              {turnstileSiteKey && <TurnstileWidget siteKey={turnstileSiteKey} onToken={setTurnstileToken} resetKey={turnstileReset} />}
+              <button type="submit" className="btn-primary w-full justify-center" disabled={isLoading || !registerForm.terms_accepted || (!!turnstileSiteKey && !turnstileToken)}>
                 {isLoading ? "Creating account..." : "Create account"}
                 <ArrowRight className="h-4 w-4" />
               </button>

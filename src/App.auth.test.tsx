@@ -59,7 +59,8 @@ describe("Client login/register form-state security", () => {
   });
 
   it("clears both password fields but keeps name/email when register passwords do not match", async () => {
-    const fetchMock = vi.fn();
+    // The form looks up the Turnstile site key (none here); nothing else may be sent.
+    const fetchMock = vi.fn().mockImplementation(async () => ({ ok: true, json: async () => ({ site_key: null }) }));
     vi.stubGlobal("fetch", fetchMock);
 
     const user = userEvent.setup();
@@ -78,7 +79,8 @@ describe("Client login/register form-state security", () => {
 
     await waitFor(() => expect(screen.getByText("Passwords do not match.")).toBeInTheDocument());
 
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).includes("/auth/register"))).toHaveLength(0);
+    expect(fetchMock.mock.calls.every(([url]) => String(url).includes("/auth/turnstile"))).toBe(true);
     expect((document.querySelector('input[autocomplete="name"]') as HTMLInputElement).value).toBe("Jane Doe");
     expect((document.querySelector('input[autocomplete="email"]') as HTMLInputElement).value).toBe("jane@example.com");
     expect((document.querySelectorAll('input[autocomplete="new-password"]')[0] as HTMLInputElement).value).toBe("");

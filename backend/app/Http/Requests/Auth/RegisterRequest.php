@@ -21,11 +21,15 @@ class RegisterRequest extends FormRequest
             'company_name' => ['nullable', 'string', 'max:160'],
             'billing_address' => ['nullable', 'string', 'max:1000'],
             'terms_accepted' => ['accepted'],
+            'turnstile_token' => \App\Services\Turnstile::enabled() ? ['required', 'string', 'max:2048', new \App\Rules\PassesTurnstile] : ['nullable'],
         ];
     }
 
     public function messages(): array
     {
-        return ['terms_accepted.accepted' => 'Please agree to the Terms of Service to create your account.'];
+        return [
+            'terms_accepted.accepted' => 'Please agree to the Terms of Service to create your account.',
+            'turnstile_token.required' => 'Please complete the security check before creating your account.',
+        ];
     }
 }

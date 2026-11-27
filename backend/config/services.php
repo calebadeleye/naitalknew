@@ -72,6 +72,13 @@ return [
         'webhook_secret' => env('SPACESHIP_WEBHOOK_SECRET'),
     ],
 
+    // Cloudflare Turnstile on sign-up. With no secret key set the check is off,
+    // so it can be deployed before the widget exists in the Cloudflare dashboard.
+    'turnstile' => [
+        'site_key' => env('TURNSTILE_SITE_KEY'),
+        'secret_key' => env('TURNSTILE_SECRET_KEY'),
+    ],
+
     'cloudflare' => [
         'account_id' => env('CLOUDFLARE_ACCOUNT_ID'),
         // A scoped Registrar-only API token — never the Global API Key.

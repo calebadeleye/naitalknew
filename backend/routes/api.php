@@ -103,6 +103,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
     Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:register');
+    Route::get('/auth/turnstile', fn () => response()->json(['site_key' => \App\Services\Turnstile::enabled() ? config('services.turnstile.site_key') : null]));
     Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
     Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword']);
 
