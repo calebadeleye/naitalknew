@@ -57,7 +57,7 @@ export function useTurnstileSiteKey(active: boolean): string | null | undefined 
 }
 
 /** Renders the check. `onToken` gets the token, or "" when it expires or fails. Change `resetKey` to get a fresh check. */
-export function TurnstileWidget({ siteKey, onToken, resetKey = 0 }: { siteKey: string; onToken: (token: string) => void; resetKey?: number }) {
+export function TurnstileWidget({ siteKey, onToken, resetKey = 0, action = "register" }: { siteKey: string; onToken: (token: string) => void; resetKey?: number; action?: string }) {
   const holder = useRef<HTMLDivElement>(null);
   const onTokenRef = useRef(onToken);
   onTokenRef.current = onToken;
@@ -72,7 +72,7 @@ export function TurnstileWidget({ siteKey, onToken, resetKey = 0 }: { siteKey: s
         widgetId = turnstile.render(holder.current, {
           sitekey: siteKey,
           theme: "dark",
-          action: "register",
+          action,
           callback: (token: string) => onTokenRef.current(token),
           "expired-callback": () => onTokenRef.current(""),
           "error-callback": () => onTokenRef.current(""),
@@ -83,7 +83,7 @@ export function TurnstileWidget({ siteKey, onToken, resetKey = 0 }: { siteKey: s
       cancelled = true;
       if (widgetId && window.turnstile) window.turnstile.remove(widgetId);
     };
-  }, [siteKey, resetKey]);
+  }, [siteKey, resetKey, action]);
 
   return <div ref={holder} className="flex min-h-[65px] justify-center" />;
 }

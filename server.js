@@ -3,7 +3,6 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
-import nodemailer from "nodemailer";
 import axios from "axios";
 import dotenv from "dotenv";
 import sharp from "sharp";
@@ -647,54 +646,12 @@ async function startServer() {
     }
   });
 
-  // API Route for Contact Form
-  app.post("/api/contact", async (req, res) => {
-    const { name, email, service, details } = req.body;
-
-    if (!name || !email || !service || !details) {
-      return res.status(400).json({ error: "All fields are required" });
-    }
-
-    console.log(`Processing contact form for ${email}. SMTP Host: ${process.env.SMTP_HOST}`);
-
-    try {
-      const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: Number(process.env.SMTP_PORT),
-        secure: process.env.SMTP_SECURE === "true",
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS,
-        },
-        tls: {
-          rejectUnauthorized: false
-        }
-      });
-
-      await transporter.verify();
-
-      const mailOptions = {
-        from: `"NAITALK Contact" <${process.env.SMTP_USER}>`,
-        to: "info@naitalk.com",
-        replyTo: email,
-        subject: `New Contact Form Submission: ${service}`,
-        text: `Name: ${name}\nEmail: ${email}\nService: ${service}\nDetails: ${details}`,
-        html: `
-          <h3>New Contact Form Submission</h3>
-          <p><strong>Name:</strong> ${name}</p>
-          <p><strong>Email:</strong> ${email}</p>
-          <p><strong>Service:</strong> ${service}</p>
-          <p><strong>Details:</strong></p>
-          <p>${details.replace(/\n/g, "<br>")}</p>
-        `,
-      };
-
-      await transporter.sendMail(mailOptions);
-      res.status(200).json({ message: "Message sent successfully" });
-    } catch (error) {
-      console.error("Email error:", error);
-      res.status(500).json({ error: "Failed to send message. Please try again later." });
-    }
+  // The contact form now posts to the platform API (/api/v1/public/contact),
+  // which saves each message and emails it through the platform's mailer.
+  // This old route sent through an SMTP login that broke when the mailbox
+  // password changed; it stays only to answer stale pages and bots.
+  app.post("/api/contact", (req, res) => {
+    res.status(410).json({ error: "Please refresh the page and send your message again." });
   });
 
   // API Route for Reviews (Local JSON datasource)

@@ -106,6 +106,8 @@ import {
 import { captureAdAttribution } from "../lib/adAttribution";
 import type { LogoImage, ClientLogo, Project, Review, SiteContent, HostingPlanCard, ServiceCatalogItem, ClientOrderSummary, BankTransferDetails, PricingPackage, AdminDashboardMetric, AdminDashboardSnapshot, ClientDashboardSnapshot, ClientAuthMode, LaravelPage, AdminRecordsSectionId } from "../shared/types";
 import { LARAVEL_API_BASE_URL, laravelApi } from "../shared/api";
+import { TurnstileWidget, useTurnstileSiteKey } from "../components/TurnstileWidget";
+import { sendContactMessage } from "../shared/contactForm";
 import { parseNairaAmount, formatNaira, formatKobo, toDateInputValue, formatDate, formatDateTime, accountTypeLabel, clientStatusPillClass, hostingStatusPillClass, formatMb, catalogCategoryIcon, ISO_DATE_PATTERN } from "../shared/format";
 import { fallbackClientLogos, fallbackProjects, fallbackReviews, fallbackSiteContent, whatsappUrl } from "../shared/siteDefaults";
 import { Logo, Navbar, Footer, FloatingWhatsApp, SectionHeader, socialLinks, paymentBadges, footerColumns } from "../shared/PublicLayout";
@@ -955,6 +957,10 @@ export function ContactPage() {
   });
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
+  // Cloudflare Turnstile keeps bots out of the inbox (off when no site key is configured).
+  const turnstileSiteKey = useTurnstileSiteKey(true);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileReset, setTurnstileReset] = useState(0);
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = event.target;
@@ -967,19 +973,13 @@ export function ContactPage() {
     setMessage("");
 
     try {
-      const response = await fetch("/api/contact", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-      const payload = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(payload.error || "Message could not be sent. Please try WhatsApp instead.");
+      if (turnstileSiteKey && !turnstileToken) {
+        throw new Error("Please complete the security check before sending.");
       }
+      const sent = await sendContactMessage(formData, turnstileToken, "contact_page");
 
       setStatus("success");
-      setMessage("Message sent successfully. We will get back to you shortly.");
+      setMessage(sent || "Message sent successfully. We will get back to you shortly.");
       // service is a dropdown category (e.g. "Business Website"), never PII.
       trackFormSubmission("contact_form", "success", { page_section: "contact_page", service: formData.service });
       setFormData({ name: "", email: "", phone: "", service: "Business Website", details: "" });
@@ -987,6 +987,8 @@ export function ContactPage() {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "Message could not be sent.");
       trackFormSubmission("contact_form", "error", { page_section: "contact_page" });
+    } finally {
+      if (turnstileSiteKey) setTurnstileReset((n) => n + 1);
     }
   };
 
@@ -1166,6 +1168,7 @@ export function ContactPage() {
                     <ShieldCheck className="h-4 w-4 text-primary" />
                     Your information is safe with us.
                   </span>
+                  {turnstileSiteKey && <TurnstileWidget siteKey={turnstileSiteKey} onToken={setTurnstileToken} resetKey={turnstileReset} action="contact" />}
                   <button type="submit" className="btn-primary justify-center" disabled={status === "loading"}>
                     {status === "loading" ? "Sending..." : "Send Message"}
                     <ChevronRight className="h-4 w-4" />

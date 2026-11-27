@@ -113,6 +113,8 @@ import type {
   HostingPlanCard,
 } from "./shared/types";
 import { laravelApi } from "./shared/api";
+import { TurnstileWidget, useTurnstileSiteKey } from "./components/TurnstileWidget";
+import { sendContactMessage } from "./shared/contactForm";
 import { WEBSITE_CARE_HEADLINE, WEBSITE_CARE_SUBTEXT, PlanBadge, PlanHighlights, PlanFeatureList, WebsiteCareComparisonTable, toHostingPlanCard } from "./shared/websiteCare";
 import { catalogCategoryIcon, formatNaira } from "./shared/format";
 import {
@@ -927,6 +929,10 @@ export function Contact({ logo }: { logo: LogoImage }) {
   });
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
+  // Cloudflare Turnstile keeps bots out of the inbox (off when no site key is configured).
+  const turnstileSiteKey = useTurnstileSiteKey(true);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileReset, setTurnstileReset] = useState(0);
 
   const handleChange = (
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
@@ -941,19 +947,13 @@ export function Contact({ logo }: { logo: LogoImage }) {
     setMessage("");
 
     try {
-      const response = await fetch("/api/contact", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-      const payload = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(payload.error || "Message could not be sent. Please try WhatsApp instead.");
+      if (turnstileSiteKey && !turnstileToken) {
+        throw new Error("Please complete the security check before sending.");
       }
+      const sent = await sendContactMessage(formData, turnstileToken, "homepage_contact");
 
       setStatus("success");
-      setMessage("Message sent successfully. We will get back to you shortly.");
+      setMessage(sent || "Message sent successfully. We will get back to you shortly.");
       // service is a dropdown category (e.g. "Business Website"), never PII.
       trackFormSubmission("contact_form", "success", { page_section: "homepage_contact", service: formData.service });
       setFormData({ name: "", email: "", service: "Business Website", details: "" });
@@ -961,6 +961,8 @@ export function Contact({ logo }: { logo: LogoImage }) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "Message could not be sent.");
       trackFormSubmission("contact_form", "error", { page_section: "homepage_contact" });
+    } finally {
+      if (turnstileSiteKey) setTurnstileReset((n) => n + 1);
     }
   };
 
@@ -1069,6 +1071,7 @@ export function Contact({ logo }: { logo: LogoImage }) {
                 placeholder="Tell us what you want to build..."
               />
             </label>
+            {turnstileSiteKey && <TurnstileWidget siteKey={turnstileSiteKey} onToken={setTurnstileToken} resetKey={turnstileReset} action="contact" />}
             <button type="submit" className="btn-primary justify-center" disabled={status === "loading"}>
               {status === "loading" ? "Sending..." : "Send message"}
               <ArrowRight className="h-4 w-4" />

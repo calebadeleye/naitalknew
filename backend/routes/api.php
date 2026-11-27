@@ -235,6 +235,7 @@ Route::prefix('v1')->group(function (): void {
     Route::get('/public/seo-metadata', [ContentController::class, 'seoMetadata']);
     Route::get('/public/images/search', [ContentController::class, 'image'])->middleware('throttle:60,1');
     Route::post('/public/website-quote', [PublicWebsiteQuoteController::class, 'store'])->middleware('throttle:website-quote');
+    Route::post('/public/contact', [\App\Http\Controllers\Api\Public\ContactMessageController::class, 'store'])->middleware('throttle:contact');
 
     Route::post('/public/track/pageview', [TrackingController::class, 'pageview'])->middleware('throttle:tracking');
     Route::post('/public/track/heartbeat', [TrackingController::class, 'heartbeat'])->middleware('throttle:tracking');
